@@ -58,3 +58,19 @@ Add new questions here instead of guessing.
     does) or only warned?
 20. **1099 and card payments:** we exclude anything paid by credit card (reported on 1099-K). Is
     that right for your clients, including debit cards and payment apps?
+
+## Banking (Phase 4)
+
+21. **Plaid account:** live bank feeds need a Plaid client id and secret, production access
+    (Plaid reviews the use case) and a public HTTPS URL for webhooks. Who should own the Plaid
+    account, and which plan? Until then `BANK_FEED_PROVIDER=none` (file imports) or the mock.
+22. **Editing reconciled transactions:** we block changing the amount, voiding or deleting a
+    reconciled transaction until the reconciliation is undone. QuickBooks only warns and lets the
+    reconciliation go out of balance. Should an accountant role be allowed to override with a
+    warning?
+23. **Download history:** new connections download 90 days by default (editable per account). Is
+    that right for your clients, or should it default to the start of the fiscal year?
+24. **Who can undo a reconciliation:** today anyone with `banking.manage`. QuickBooks Online
+    limits it to accountant users. Should it need the accountant or admin role?
+25. **Bank feed transactions from closed periods:** they can be downloaded and reviewed, but
+    adding them needs the closing-date password. Should they be excluded automatically instead?

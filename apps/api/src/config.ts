@@ -31,6 +31,13 @@ const envSchema = z.object({
   APP_NAME: z.string().default('Accounting Platform'),
   /** Express "trust proxy" setting; the web app proxies /api to us from localhost. */
   TRUST_PROXY: z.string().default('loopback'),
+  /** Bank feeds: 'plaid' (live), 'mock' (development and tests) or 'none' (file import only). */
+  BANK_FEED_PROVIDER: z.enum(['plaid', 'mock', 'none']).default('mock'),
+  PLAID_CLIENT_ID: z.string().optional(),
+  PLAID_SECRET: z.string().optional(),
+  PLAID_ENV: z.enum(['sandbox', 'production']).default('sandbox'),
+  /** Public URL Plaid posts webhooks to (…/api/webhooks/plaid). Without it, sync is manual. */
+  PLAID_WEBHOOK_URL: z.url().optional(),
 });
 
 export type AppConfig = z.infer<typeof envSchema>;
@@ -49,6 +56,12 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     if (['console', 'capture', 'file'].includes(config.MAIL_TRANSPORT)) {
       throw new Error('A real mail transport must be configured in production');
     }
+    if (config.BANK_FEED_PROVIDER === 'mock') {
+      throw new Error("BANK_FEED_PROVIDER must be 'plaid' or 'none' in production");
+    }
+  }
+  if (config.BANK_FEED_PROVIDER === 'plaid' && (!config.PLAID_CLIENT_ID || !config.PLAID_SECRET)) {
+    throw new Error('PLAID_CLIENT_ID and PLAID_SECRET are required when BANK_FEED_PROVIDER=plaid');
   }
   return config;
 }

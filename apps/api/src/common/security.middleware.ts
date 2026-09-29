@@ -22,6 +22,8 @@ export function requestIdMiddleware(req: AppRequest, res: Response, next: NextFu
 export function csrfMiddleware(allowedOrigins: string[]) {
   return (req: AppRequest, _res: Response, next: NextFunction): void => {
     if (SAFE_METHODS.has(req.method)) return next();
+    // Aggregator webhooks carry no cookies; they are authenticated by signature instead.
+    if (req.path.startsWith('/webhooks/')) return next();
     if (req.get(CSRF_HEADER) !== '1') {
       return next(new ForbiddenException('Missing CSRF protection header'));
     }

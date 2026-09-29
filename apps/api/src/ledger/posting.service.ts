@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import { verifyPassword } from '@acct/crypto';
 import { sql, type Tx } from '@acct/db';
-import { moneyToString, type Money } from '@acct/shared';
+import { moneyToString, parseMoney, type Money } from '@acct/shared';
 
 export interface PostingLine {
   accountId: string;
@@ -32,7 +32,8 @@ export type PostingTxnType =
   | 'bill_payment'
   | 'check'
   | 'expense'
-  | 'cc_credit';
+  | 'cc_credit'
+  | 'transfer';
 
 /** Document fields stored on the transaction header (sales and purchase documents). */
 export interface DocumentDetails {
@@ -155,6 +156,7 @@ export class PostingService {
     }
     await this.validateLines(tx, ctx.companyId, lines);
     await this.guardClosingDate(tx, ctx, [current.txn_date, header.txnDate]);
+    await this.guardReconciled(tx, txnId, current.version, lines);
     const version = current.version + 1;
     await tx
       .updateTable('transactions')
@@ -170,6 +172,14 @@ export class PostingService {
       .where('id', '=', txnId)
       .execute();
     await this.insertLines(tx, ctx.companyId, txnId, version, header.txnDate, lines);
+    // Cleared marks on accounts the transaction no longer touches no longer mean anything.
+    const accounts = [...new Set(lines.map((l) => l.accountId))];
+    let stale = tx
+      .deleteFrom('bank_clearings')
+      .where('transaction_id', '=', txnId)
+      .where('status', '=', 'cleared');
+    if (accounts.length) stale = stale.where('account_id', 'not in', accounts);
+    await stale.execute();
     return version;
   }
 
@@ -186,6 +196,7 @@ export class PostingService {
     if (status === 'void' && current.status !== 'posted')
       throw new ConflictException('Only posted transactions can be voided');
     await this.guardClosingDate(tx, ctx, [current.txn_date]);
+    if (current.status === 'posted') await this.guardReconciled(tx, txnId, current.version, []);
     await tx
       .updateTable('transactions')
       .set(
@@ -195,6 +206,55 @@ export class PostingService {
       )
       .where('id', '=', txnId)
       .execute();
+    // A voided or deleted transaction no longer clears the bank, and bank transactions that were
+    // added as or matched to it go back to For Review (as in QuickBooks).
+    await tx.deleteFrom('bank_clearings').where('transaction_id', '=', txnId).execute();
+    await tx
+      .updateTable('bank_feed_transactions')
+      .set({ status: 'for_review', transaction_id: null, rule_id: null, updated_by: ctx.userId })
+      .where('transaction_id', '=', txnId)
+      .execute();
+  }
+
+  /**
+   * A reconciled transaction's amount in each reconciled account is fixed: changing it would
+   * silently change a completed reconciliation. Other edits (memo, category, payee) are allowed.
+   * Undo the reconciliation to change the amount, void or delete.
+   */
+  private async guardReconciled(
+    tx: Tx,
+    txnId: string,
+    currentVersion: number,
+    newLines: PostingLine[],
+  ): Promise<void> {
+    const reconciled = await tx
+      .selectFrom('bank_clearings as bc')
+      .innerJoin('accounts as a', 'a.id', 'bc.account_id')
+      .select(['bc.account_id', 'a.name'])
+      .where('bc.transaction_id', '=', txnId)
+      .where('bc.status', '=', 'reconciled')
+      .execute();
+    if (reconciled.length === 0) return;
+    const current = await tx
+      .selectFrom('journal_lines')
+      .select(['account_id', sql<string>`sum(debit - credit)`.as('net')])
+      .where('transaction_id', '=', txnId)
+      .where('version', '=', currentVersion)
+      .groupBy('account_id')
+      .execute();
+    for (const r of reconciled) {
+      const before = parseMoney(current.find((c) => c.account_id === r.account_id)?.net ?? '0');
+      const after = newLines
+        .filter((l) => l.accountId === r.account_id)
+        .reduce((s, l) => s + l.debit - l.credit, 0n);
+      if (before !== after) {
+        throw new ConflictException({
+          statusCode: 409,
+          message: `This transaction is reconciled in ${r.name}. Its amount there can't change, and it can't be voided or deleted, unless the reconciliation is undone first.`,
+          code: 'RECONCILED',
+        });
+      }
+    }
   }
 
   /**
