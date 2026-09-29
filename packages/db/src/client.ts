@@ -6,6 +6,8 @@ import type { Database } from './types';
 types.setTypeParser(20, (v) => v);
 // numeric -> string; money math uses decimal helpers, never floats.
 types.setTypeParser(1700, (v) => v);
+// date -> 'YYYY-MM-DD' string. Accounting dates have no time zone; a JS Date would shift them.
+types.setTypeParser(1082, (v) => v);
 
 export type Db = Kysely<Database>;
 export type Tx = Transaction<Database>;
@@ -25,8 +27,16 @@ export interface TenantContext {
  * Runs `fn` in a transaction with the RLS context set (transaction-local, so it can never leak
  * to another request through the connection pool). All tenant data access goes through here.
  */
-export function withTenant<T>(db: Db, ctx: TenantContext, fn: (tx: Tx) => Promise<T>): Promise<T> {
-  return db.transaction().execute(async (tx) => {
+export function withTenant<T>(
+  db: Db,
+  ctx: TenantContext,
+  fn: (tx: Tx) => Promise<T>,
+  opts: { isolation?: 'read committed' | 'repeatable read' | 'serializable' } = {},
+): Promise<T> {
+  const builder = opts.isolation
+    ? db.transaction().setIsolationLevel(opts.isolation)
+    : db.transaction();
+  return builder.execute(async (tx) => {
     await sql`select set_config('app.user_id', ${ctx.userId ?? ''}, true),
                      set_config('app.company_id', ${ctx.companyId ?? ''}, true)`.execute(tx);
     return fn(tx);

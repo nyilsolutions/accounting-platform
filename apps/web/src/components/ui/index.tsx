@@ -242,14 +242,14 @@ export function Dialog({
   if (!open) return null;
   return (
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center bg-black/40 p-4 pt-[12vh]"
+      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/40 p-4 pt-[8vh]"
       onMouseDown={onClose}
     >
       <div
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        className={cx('w-full rounded-lg bg-white shadow-xl', wide ? 'max-w-2xl' : 'max-w-lg')}
+        className={cx('mb-8 w-full rounded-lg bg-white shadow-xl', wide ? 'max-w-3xl' : 'max-w-lg')}
         onMouseDown={(e) => e.stopPropagation()}
       >
         <div className="border-b border-gray-200 px-5 py-3 text-base font-semibold">{title}</div>

@@ -4,6 +4,7 @@ import type { NestExpressApplication } from '@nestjs/platform-express';
 import cookieParser from 'cookie-parser';
 import helmet from 'helmet';
 import { AppModule } from './app.module';
+import { PgErrorFilter } from './common/pg-error.filter';
 import { csrfMiddleware, requestIdMiddleware } from './common/security.middleware';
 import type { AppConfig } from './config';
 
@@ -21,6 +22,7 @@ export async function createApp(config: AppConfig): Promise<INestApplication> {
   app.use(requestIdMiddleware);
   app.use(cookieParser());
   app.use(csrfMiddleware([config.WEB_ORIGIN]));
+  app.useGlobalFilters(new PgErrorFilter());
   app.enableShutdownHooks();
   return app;
 }

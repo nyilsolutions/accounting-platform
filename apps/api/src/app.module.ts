@@ -7,8 +7,11 @@ import { CompaniesModule } from './companies/companies.module';
 import { APP_CONFIG, type AppConfig } from './config';
 import { DbModule } from './db/db.module';
 import { HealthController } from './health/health.controller';
+import { LedgerModule } from './ledger/ledger.module';
+import { ListsModule } from './lists/lists.module';
 import { MailModule } from './mail/mail.module';
 import { MembersModule } from './members/members.module';
+import { ReportsModule } from './reports/reports.module';
 
 @Module({})
 export class AppModule {
@@ -29,6 +32,9 @@ export class AppModule {
         AuthModule,
         CompaniesModule,
         MembersModule,
+        LedgerModule,
+        ListsModule,
+        ReportsModule,
       ],
       controllers: [HealthController],
       providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],

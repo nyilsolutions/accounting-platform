@@ -11,8 +11,9 @@ export const ALLOW_PENDING_MFA = 'allowPendingMfa';
 export const AllowPendingMfa = () => SetMetadata(ALLOW_PENDING_MFA, true);
 
 export const REQUIRED_PERMISSION = 'requiredPermission';
-export const RequirePermission = (permission: Permission) =>
-  SetMetadata(REQUIRED_PERMISSION, permission);
+/** The caller needs at least one of the listed permissions. */
+export const RequirePermission = (...anyOf: [Permission, ...Permission[]]) =>
+  SetMetadata(REQUIRED_PERMISSION, anyOf);
 
 export const CurrentAuth = createParamDecorator((_: unknown, ctx: ExecutionContext) => {
   const req = ctx.switchToHttp().getRequest<AppRequest>();

@@ -1,0 +1,355 @@
+import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import type { FieldEncryptor } from '@acct/crypto';
+import { withTenant, type Customer, type Db, type Tx, type Vendor } from '@acct/db';
+import { maskTin, type CustomerDto, type ListQuery, type VendorDto } from '@acct/shared';
+import type { z } from 'zod';
+import type {
+  customerInputSchema,
+  customerUpdateSchema,
+  vendorInputSchema,
+  vendorUpdateSchema,
+} from '@acct/shared';
+import { AuditService, diff } from '../audit/audit.service';
+import type { AuthContext, CompanyContext, RequestMeta } from '../common/request';
+import { buildTree, flattenTree } from '../common/tree';
+import { DB, FIELD_ENCRYPTOR } from '../db/db.module';
+
+type CustomerPatch = z.output<typeof customerUpdateSchema> | z.output<typeof customerInputSchema>;
+type VendorPatch = z.output<typeof vendorUpdateSchema> | z.output<typeof vendorInputSchema>;
+
+const CONTACT_COLUMNS: Array<[string, string]> = [
+  ['companyName', 'company_name'],
+  ['firstName', 'first_name'],
+  ['lastName', 'last_name'],
+  ['email', 'email'],
+  ['phone', 'phone'],
+  ['addressLine1', 'address_line1'],
+  ['addressLine2', 'address_line2'],
+  ['city', 'city'],
+  ['state', 'state'],
+  ['postalCode', 'postal_code'],
+  ['termsId', 'terms_id'],
+  ['notes', 'notes'],
+  ['isActive', 'is_active'],
+];
+
+function pickColumns(
+  input: Record<string, unknown>,
+  mapping: Array<[string, string]>,
+): Record<string, unknown> {
+  const row: Record<string, unknown> = {};
+  for (const [key, column] of mapping)
+    if (input[key] !== undefined) row[column] = input[key] ?? null;
+  return row;
+}
+
+function contactDto(r: Customer | Vendor) {
+  return {
+    companyName: r.company_name,
+    firstName: r.first_name,
+    lastName: r.last_name,
+    email: r.email,
+    phone: r.phone,
+    addressLine1: r.address_line1,
+    addressLine2: r.address_line2,
+    city: r.city,
+    state: r.state,
+    postalCode: r.postal_code,
+    termsId: r.terms_id,
+    notes: r.notes,
+    isActive: r.is_active,
+  };
+}
+
+function matches(search: string | undefined, ...values: Array<string | null>): boolean {
+  if (!search) return true;
+  const s = search.toLowerCase();
+  return values.some((v) => v?.toLowerCase().includes(s));
+}
+
+@Injectable()
+export class CustomersService {
+  constructor(
+    @Inject(DB) private readonly db: Db,
+    private readonly audit: AuditService,
+  ) {}
+
+  list(auth: AuthContext, ctx: CompanyContext, q: ListQuery): Promise<CustomerDto[]> {
+    return withTenant(this.db, { userId: auth.userId, companyId: ctx.companyId }, async (tx) => {
+      const rows = await tx
+        .selectFrom('customers')
+        .selectAll()
+        .where('company_id', '=', ctx.companyId)
+        .execute();
+      return flattenTree(buildTree(rows, (r) => r.display_name))
+        .filter(
+          (n) =>
+            (q.includeInactive || n.item.is_active) &&
+            matches(q.search, n.fullName, n.item.company_name, n.item.email),
+        )
+        .map((n) => toCustomerDto(n.item, n.fullName, n.depth));
+    });
+  }
+
+  get(auth: AuthContext, ctx: CompanyContext, id: string): Promise<CustomerDto> {
+    return withTenant(this.db, { userId: auth.userId, companyId: ctx.companyId }, (tx) =>
+      this.load(tx, ctx.companyId, id),
+    );
+  }
+
+  save(
+    auth: AuthContext,
+    ctx: CompanyContext,
+    id: string | null,
+    input: CustomerPatch,
+    meta: RequestMeta,
+  ): Promise<CustomerDto> {
+    return withTenant(this.db, { userId: auth.userId, companyId: ctx.companyId }, async (tx) => {
+      const row: Record<string, unknown> = {
+        ...pickColumns(input, [
+          ...CONTACT_COLUMNS,
+          ['displayName', 'display_name'],
+          ['parentId', 'parent_id'],
+          ['taxExempt', 'tax_exempt'],
+        ]),
+        updated_by: auth.userId,
+      };
+      if (input.parentId) {
+        if (input.parentId === id)
+          throw new BadRequestException('A customer cannot be its own parent');
+        await this.assertNoCycle(tx, ctx.companyId, id, input.parentId);
+      }
+      let before: CustomerDto | null = null;
+      let savedId = id;
+      if (id) {
+        before = await this.load(tx, ctx.companyId, id);
+        await tx
+          .updateTable('customers')
+          .set(row)
+          .where('id', '=', id)
+          .where('company_id', '=', ctx.companyId)
+          .execute();
+      } else {
+        savedId = (
+          await tx
+            .insertInto('customers')
+            .values({
+              ...(row as { display_name: string }),
+              company_id: ctx.companyId,
+              created_by: auth.userId,
+            })
+            .returning('id')
+            .executeTakeFirstOrThrow()
+        ).id;
+      }
+      const after = await this.load(tx, ctx.companyId, savedId!);
+      const changes = before
+        ? diff(auditView(before), auditView(after))
+        : { before: null, after: auditView(after) };
+      if (changes) {
+        await this.audit.record(
+          tx,
+          {
+            companyId: ctx.companyId,
+            actorUserId: auth.userId,
+            action: before ? 'customer.updated' : 'customer.created',
+            entityType: 'customer',
+            entityId: savedId!,
+            ...changes,
+          },
+          meta,
+        );
+      }
+      return after;
+    });
+  }
+
+  private async assertNoCycle(
+    tx: Tx,
+    companyId: string,
+    id: string | null,
+    parentId: string,
+  ): Promise<void> {
+    let cursor: string | null = parentId;
+    for (let depth = 0; cursor; depth++) {
+      if (cursor === id || depth > 5)
+        throw new BadRequestException(
+          'Sub-customers can be nested at most 5 levels, without cycles',
+        );
+      const parent: { parent_id: string | null } | undefined = await tx
+        .selectFrom('customers')
+        .select('parent_id')
+        .where('id', '=', cursor)
+        .where('company_id', '=', companyId)
+        .executeTakeFirst();
+      if (!parent) throw new BadRequestException('Parent customer not found');
+      cursor = parent.parent_id;
+    }
+  }
+
+  private async load(tx: Tx, companyId: string, id: string): Promise<CustomerDto> {
+    const rows = await tx
+      .selectFrom('customers')
+      .selectAll()
+      .where('company_id', '=', companyId)
+      .execute();
+    const node = flattenTree(buildTree(rows, (r) => r.display_name)).find((n) => n.item.id === id);
+    if (!node) throw new NotFoundException('Customer not found');
+    return toCustomerDto(node.item, node.fullName, node.depth);
+  }
+}
+
+function toCustomerDto(r: Customer, fullName: string, depth: number): CustomerDto {
+  return {
+    id: r.id,
+    displayName: r.display_name,
+    fullName,
+    parentId: r.parent_id,
+    depth,
+    taxExempt: r.tax_exempt,
+    ...contactDto(r),
+  };
+}
+
+@Injectable()
+export class VendorsService {
+  constructor(
+    @Inject(DB) private readonly db: Db,
+    @Inject(FIELD_ENCRYPTOR) private readonly encryptor: FieldEncryptor,
+    private readonly audit: AuditService,
+  ) {}
+
+  list(auth: AuthContext, ctx: CompanyContext, q: ListQuery): Promise<VendorDto[]> {
+    return withTenant(this.db, { userId: auth.userId, companyId: ctx.companyId }, async (tx) => {
+      let query = tx
+        .selectFrom('vendors')
+        .selectAll()
+        .where('company_id', '=', ctx.companyId)
+        .orderBy('display_name');
+      if (!q.includeInactive) query = query.where('is_active', '=', true);
+      const rows = await query.execute();
+      return rows
+        .filter((r) => matches(q.search, r.display_name, r.company_name, r.email))
+        .map(toVendorDto);
+    });
+  }
+
+  get(auth: AuthContext, ctx: CompanyContext, id: string): Promise<VendorDto> {
+    return withTenant(this.db, { userId: auth.userId, companyId: ctx.companyId }, (tx) =>
+      this.load(tx, ctx.companyId, id),
+    );
+  }
+
+  save(
+    auth: AuthContext,
+    ctx: CompanyContext,
+    id: string | null,
+    input: VendorPatch,
+    meta: RequestMeta,
+  ): Promise<VendorDto> {
+    return withTenant(this.db, { userId: auth.userId, companyId: ctx.companyId }, async (tx) => {
+      const row: Record<string, unknown> = {
+        ...pickColumns(input, [
+          ...CONTACT_COLUMNS,
+          ['displayName', 'display_name'],
+          ['accountNumber', 'account_number'],
+          ['is1099', 'is_1099'],
+          ['tinType', 'tin_type'],
+          ['defaultExpenseAccountId', 'default_expense_account_id'],
+        ]),
+        updated_by: auth.userId,
+      };
+      let before: VendorDto | null = null;
+      let savedId = id;
+      if (id) {
+        before = await this.load(tx, ctx.companyId, id);
+        await tx
+          .updateTable('vendors')
+          .set(row)
+          .where('id', '=', id)
+          .where('company_id', '=', ctx.companyId)
+          .execute();
+      } else {
+        savedId = (
+          await tx
+            .insertInto('vendors')
+            .values({
+              ...(row as { display_name: string }),
+              company_id: ctx.companyId,
+              created_by: auth.userId,
+            })
+            .returning('id')
+            .executeTakeFirstOrThrow()
+        ).id;
+      }
+      // The TIN is encrypted with AAD bound to this vendor, so it is written after the id exists.
+      if (input.tin !== undefined) {
+        await tx
+          .updateTable('vendors')
+          .set(
+            input.tin === ''
+              ? { tin_enc: null, tin_last4: null }
+              : {
+                  tin_enc: this.encryptor.encrypt(input.tin, `vendor:${savedId}:tin`),
+                  tin_last4: input.tin.slice(-4),
+                },
+          )
+          .where('id', '=', savedId!)
+          .execute();
+      }
+      const after = await this.load(tx, ctx.companyId, savedId!);
+      const changes = before
+        ? diff(vendorAuditView(before), vendorAuditView(after))
+        : { before: null, after: vendorAuditView(after) };
+      if (changes) {
+        await this.audit.record(
+          tx,
+          {
+            companyId: ctx.companyId,
+            actorUserId: auth.userId,
+            action: before ? 'vendor.updated' : 'vendor.created',
+            entityType: 'vendor',
+            entityId: savedId!,
+            ...changes,
+          },
+          meta,
+        );
+      }
+      return after;
+    });
+  }
+
+  private async load(tx: Tx, companyId: string, id: string): Promise<VendorDto> {
+    const r = await tx
+      .selectFrom('vendors')
+      .selectAll()
+      .where('id', '=', id)
+      .where('company_id', '=', companyId)
+      .executeTakeFirst();
+    if (!r) throw new NotFoundException('Vendor not found');
+    return toVendorDto(r);
+  }
+}
+
+function toVendorDto(r: Vendor): VendorDto {
+  return {
+    id: r.id,
+    displayName: r.display_name,
+    accountNumber: r.account_number,
+    is1099: r.is_1099,
+    tinType: r.tin_type as 'ein' | 'ssn' | null,
+    tinMasked: maskTin(r.tin_type, r.tin_last4),
+    defaultExpenseAccountId: r.default_expense_account_id,
+    ...contactDto(r),
+  };
+}
+
+function auditView(c: CustomerDto): Record<string, unknown> {
+  const { id: _id, fullName: _f, depth: _d, ...rest } = c;
+  return rest;
+}
+
+function vendorAuditView(v: VendorDto): Record<string, unknown> {
+  const { id: _id, ...rest } = v;
+  return rest;
+}
