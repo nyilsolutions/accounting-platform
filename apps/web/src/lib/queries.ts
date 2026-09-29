@@ -46,6 +46,8 @@ export const keys = {
   banking: (id: string) => ['company', id, 'banking'] as const,
   /** Documents: library, attachments, folders, inbox, settings. */
   documents: (id: string) => ['company', id, 'documents'] as const,
+  /** QuickBooks migrations: status, staged records, the Migration Report, attachments. */
+  migrations: (id: string) => ['company', id, 'migrations'] as const,
 };
 
 /** Invalidates everything derived from the ledger (balances, lists of entries, reports). */
@@ -57,6 +59,7 @@ export function ledgerKeys(id: string) {
     ['company', id, 'sales'],
     ['company', id, 'banking'],
     ['company', id, 'documents'],
+    ['company', id, 'migrations'],
   ] as const;
 }
 

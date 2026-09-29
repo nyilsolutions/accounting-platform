@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { openingEntry } from '../agent.service';
 import { csvToCanonical } from './csv';
 import {
   parseDesktopAging,
@@ -417,8 +418,7 @@ describe('QuickBooks Desktop reports', () => {
 });
 
 describe('balances brought forward (Desktop, from a later year)', () => {
-  it('opens with the trial balance, splitting A/R and A/P by customer and vendor', async () => {
-    const { openingEntry } = await import('../agent.service');
+  it('opens with the trial balance, splitting A/R and A/P by customer and vendor', () => {
     const acct = (sourceId: string, fullName: string, accountType: string) => ({
       entityType: 'account' as const,
       sourceId,

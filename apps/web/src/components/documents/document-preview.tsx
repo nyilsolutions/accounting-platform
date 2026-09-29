@@ -142,6 +142,14 @@ export function DocumentDialog({
               {DOCUMENT_KIND_LABELS[d.current.kind]} · {formatBytes(d.current.sizeBytes)} · added{' '}
               {new Date(d.createdAt).toLocaleDateString()}
               {d.createdByName ? ` by ${d.createdByName}` : ''}
+              {d.source === 'import' && (
+                <div className="mt-1">
+                  From QuickBooks
+                  {d.originalCreatedAt
+                    ? `, attached there ${new Date(d.originalCreatedAt).toLocaleDateString()}`
+                    : ''}
+                </div>
+              )}
               {d.source === 'email' && (
                 <div className="mt-1">
                   Emailed by {d.emailFrom}

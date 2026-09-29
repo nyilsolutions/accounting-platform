@@ -133,7 +133,7 @@ export class QboService implements BeforeApplicationShutdown {
       throw new BadRequestException(
         'This QuickBooks sign-in link is invalid or has expired. Start again.',
       );
-    const page = `/c/${state.c}/migration/${state.m}`;
+    const page = `/c/${state.c}/import/${state.m}`;
     if (q.error)
       return `${page}?qbo=${encodeURIComponent(q.error === 'access_denied' ? 'denied' : 'error')}`;
     if (!q.code || !q.realmId || !/^[0-9A-Za-z]{1,40}$/.test(q.realmId))

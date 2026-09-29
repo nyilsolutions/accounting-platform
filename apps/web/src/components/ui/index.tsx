@@ -5,6 +5,7 @@ import {
   useEffect,
   useId,
   type ButtonHTMLAttributes,
+  type HTMLAttributes,
   type InputHTMLAttributes,
   type ReactNode,
   type SelectHTMLAttributes,
@@ -142,9 +143,16 @@ export function SelectInput({
   );
 }
 
-export function Card({ children, className }: { children: ReactNode; className?: string }) {
+export function Card({
+  children,
+  className,
+  ...rest
+}: HTMLAttributes<HTMLDivElement> & { children: ReactNode; className?: string }) {
   return (
-    <div className={cx('rounded-lg border border-gray-200 bg-white shadow-sm', className)}>
+    <div
+      className={cx('rounded-lg border border-gray-200 bg-white shadow-sm', className)}
+      {...rest}
+    >
       {children}
     </div>
   );

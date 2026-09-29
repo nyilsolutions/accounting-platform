@@ -1031,7 +1031,10 @@ export interface DrillRowDto {
   txnId: string | null;
   recordId: string | null;
   txnDate: string | null;
-  txnType: string;
+  /** Our transaction type (for links), when it is here. */
+  txnType: string | null;
+  /** QuickBooks' name for it ("Paycheck", "CHECK"…). */
+  sourceType: string | null;
   number: string | null;
   name: string | null;
   ours: string | null;

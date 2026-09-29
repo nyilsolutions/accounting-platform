@@ -235,7 +235,7 @@ describe('QuickBooks Online', () => {
     expect(callback.pathname).toBe('/api/migration/qbo/callback');
     const res = await owner.agent.get(`/migration/qbo/callback${callback.search}`).expect(302);
     expect(res.headers.location).toBe(
-      `http://localhost:3000/c/${companyId}/migration/${migrationId}?qbo=connected`,
+      `http://localhost:3000/c/${companyId}/import/${migrationId}?qbo=connected`,
     );
     const m = (await owner.agent.get(base()).expect(200)).body as MigrationDto;
     expect(m.name).toBe('Sunrise Landscaping');
