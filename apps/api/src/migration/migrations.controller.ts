@@ -10,7 +10,10 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import {
+  attachmentSearchQuerySchema,
   completeMigrationSchema,
+  matchAttachmentSchema,
+  qboSyncSchema,
   createMigrationSchema,
   csvStageSchema,
   drillQuerySchema,
@@ -19,6 +22,8 @@ import {
   runMigrationSchema,
   type CsvPreviewDto,
   type DrillRowDto,
+  type AttachmentSuggestionDto,
+  type MigrationAttachmentDto,
   type MigrationDto,
   type MigrationRecordDto,
   type StageResultDto,
@@ -29,7 +34,14 @@ import type { AuthContext, CompanyContext, RequestMeta } from '../common/request
 import { UuidPipe } from '../common/uuid.pipe';
 import { ZodPipe } from '../common/zod.pipe';
 import { CompanyAccessGuard } from '../companies/company-access.guard';
+import { z } from 'zod';
+import { MigrationAttachmentsService } from './attachments.service';
 import { MigrationsService } from './migrations.service';
+import { QboService } from './qbo.service';
+
+const attachmentListQuerySchema = z.object({
+  status: z.enum(['matched', 'unmatched', 'ignored']).optional(),
+});
 
 type Parsed<T extends { parse: (v: unknown) => unknown }> = ReturnType<T['parse']>;
 
@@ -38,7 +50,11 @@ type Parsed<T extends { parse: (v: unknown) => unknown }> = ReturnType<T['parse'
 @UseGuards(CompanyAccessGuard)
 @RequirePermission('migration.manage')
 export class MigrationsController {
-  constructor(private readonly migrations: MigrationsService) {}
+  constructor(
+    private readonly migrations: MigrationsService,
+    private readonly qbo: QboService,
+    private readonly attachments: MigrationAttachmentsService,
+  ) {}
 
   @Get()
   list(
@@ -173,5 +189,70 @@ export class MigrationsController {
     @Meta() meta: RequestMeta,
   ): Promise<void> {
     return this.migrations.revokeAgentKey(a, c, id, meta);
+  }
+
+  // ---- QuickBooks Online ----------------------------------------------------------------------
+  @Get(':id/qbo/connect')
+  qboConnect(
+    @CurrentAuth() a: AuthContext,
+    @CurrentCompany() c: CompanyContext,
+    @Param('id', UuidPipe) id: string,
+  ): Promise<{ url: string }> {
+    return this.qbo.connectUrl(a, c, id);
+  }
+
+  @Post(':id/qbo/pull')
+  async qboPull(
+    @CurrentAuth() a: AuthContext,
+    @CurrentCompany() c: CompanyContext,
+    @Param('id', UuidPipe) id: string,
+    @Body(new ZodPipe(qboSyncSchema)) body: Parsed<typeof qboSyncSchema>,
+    @Meta() meta: RequestMeta,
+  ): Promise<MigrationDto> {
+    await this.qbo.pull(a, c, id, body.mode, meta);
+    return this.migrations.get(a, c, id);
+  }
+
+  @Delete(':id/qbo')
+  @HttpCode(204)
+  qboDisconnect(
+    @CurrentAuth() a: AuthContext,
+    @CurrentCompany() c: CompanyContext,
+    @Param('id', UuidPipe) id: string,
+    @Meta() meta: RequestMeta,
+  ): Promise<void> {
+    return this.qbo.disconnect(a, c, id, meta);
+  }
+
+  // ---- Attachments ----------------------------------------------------------------------------
+  @Get(':id/attachments')
+  listAttachments(
+    @CurrentAuth() a: AuthContext,
+    @CurrentCompany() c: CompanyContext,
+    @Param('id', UuidPipe) id: string,
+    @Query(new ZodPipe(attachmentListQuerySchema)) q: Parsed<typeof attachmentListQuerySchema>,
+  ): Promise<MigrationAttachmentDto[]> {
+    return this.attachments.list(a, c, id, q.status);
+  }
+
+  @Get(':id/attachment-targets')
+  attachmentTargets(
+    @CurrentAuth() a: AuthContext,
+    @CurrentCompany() c: CompanyContext,
+    @Query(new ZodPipe(attachmentSearchQuerySchema)) q: Parsed<typeof attachmentSearchQuerySchema>,
+  ): Promise<AttachmentSuggestionDto[]> {
+    return this.attachments.search(a, c, q.q);
+  }
+
+  @Post(':id/attachments/:attachmentId')
+  resolveAttachment(
+    @CurrentAuth() a: AuthContext,
+    @CurrentCompany() c: CompanyContext,
+    @Param('id', UuidPipe) id: string,
+    @Param('attachmentId', UuidPipe) attachmentId: string,
+    @Body(new ZodPipe(matchAttachmentSchema)) body: Parsed<typeof matchAttachmentSchema>,
+    @Meta() meta: RequestMeta,
+  ): Promise<MigrationAttachmentDto> {
+    return this.attachments.resolve(a, c, id, attachmentId, body, meta);
   }
 }

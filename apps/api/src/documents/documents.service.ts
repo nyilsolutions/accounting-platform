@@ -58,9 +58,12 @@ export interface IngestOptions {
   folderId?: string | null;
   link?: { entityType: DocumentEntityType; entityId: string } | null;
   inbox?: boolean;
-  source: 'upload' | 'camera' | 'email' | 'system';
+  source: 'upload' | 'camera' | 'email' | 'system' | 'import';
   emailFrom?: string | null;
   emailSubject?: string | null;
+  /** Documents brought over from QuickBooks keep their note and the date they were attached there. */
+  note?: string | null;
+  originalCreatedAt?: Date | null;
 }
 
 const ADMIN_ROLES = new Set(['owner', 'admin']);
@@ -264,6 +267,8 @@ export class DocumentsService {
               source: opts.source,
               email_from: opts.emailFrom?.slice(0, 320) ?? null,
               email_subject: opts.emailSubject?.slice(0, 500) ?? null,
+              note: opts.note?.slice(0, 4000) ?? null,
+              original_created_at: opts.originalCreatedAt ?? null,
               inbox_status: opts.inbox ? 'new' : null,
               created_by: actor.userId,
               updated_by: actor.userId,

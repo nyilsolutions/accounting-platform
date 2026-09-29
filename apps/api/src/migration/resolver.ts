@@ -166,10 +166,6 @@ export class Resolver {
     if (fullName) this.targetByName.set(`${type}|${fullName.toLowerCase()}`, targetId);
   }
 
-  forget(type: EntityType, sourceId: string) {
-    this.mapped.delete(`${type}|${sourceId}`);
-  }
-
   markStatus(type: EntityType, sourceId: string, status: string) {
     const s = this.staged.get(`${type}|${sourceId}`);
     if (s) s.status = status;

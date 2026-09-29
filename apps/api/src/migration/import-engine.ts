@@ -10,6 +10,7 @@ import { AuditService } from '../audit/audit.service';
 import type { RequestMeta } from '../common/request';
 import { DB } from '../db/db.module';
 import { AccountsService } from '../ledger/accounts.service';
+import { MigrationAttachmentsService } from './attachments.service';
 import { Importers, type ImportResult } from './importers';
 import {
   describeError,
@@ -61,6 +62,7 @@ export class ImportEngine {
     @Inject(DB) private readonly db: Db,
     private readonly importers: Importers,
     private readonly accounts: AccountsService,
+    private readonly attachments: MigrationAttachmentsService,
     private readonly audit: AuditService,
   ) {}
 
@@ -221,6 +223,11 @@ export class ImportEngine {
         await this.renewLease(actor, migrationId);
       }
 
+      // Files from QuickBooks Online, now that what they are attached to exists.
+      const files = await this.attachments.importRecords(actor, migrationId, migration.source_key);
+      summary.imported += files.imported;
+      summary.errors += files.errors;
+
       await this.finalize(actor, migrationId);
       await withTenant(this.db, { userId, companyId }, async (tx) => {
         await tx
@@ -300,14 +307,8 @@ export class ImportEngine {
             warnings,
           };
           if (rec.deleted) {
+            // The map row stays: it records what the source record became.
             await this.importers.remove(ctx, mapped!.targetId);
-            await tx
-              .deleteFrom('migration_map')
-              .where('company_id', '=', companyId)
-              .where('source_key', '=', sourceKey)
-              .where('entity_type', '=', type)
-              .where('source_id', '=', rec.source_id)
-              .execute();
             await this.update(tx, rec.id, {
               status: 'imported',
               message: 'Deleted in QuickBooks, so deleted here',
@@ -349,10 +350,7 @@ export class ImportEngine {
           return res;
         },
       );
-      if (result === 'deleted') {
-        resolver.forget(type, rec.source_id);
-        return 'deleted';
-      }
+      if (result === 'deleted') return 'deleted';
       if (result.skipped) {
         resolver.markStatus(type, rec.source_id, 'skipped');
         return 'skipped';
