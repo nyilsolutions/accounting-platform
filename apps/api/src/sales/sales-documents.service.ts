@@ -1,0 +1,665 @@
+import {
+  BadRequestException,
+  ConflictException,
+  Inject,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
+import { withTenant, type Db, type Tx } from '@acct/db';
+import {
+  dueDateFromTerms,
+  moneyToString,
+  parseMoney,
+  resolveLineAmount,
+  todayIso,
+  TXN_TYPE_LABELS,
+  type Money,
+  type PaymentStatus,
+  type SalesDocType,
+  type SalesDocumentDto,
+  type SendDocumentInput,
+} from '@acct/shared';
+import type { z } from 'zod';
+import type { salesDocumentInputSchema } from '@acct/shared';
+import { AuditService } from '../audit/audit.service';
+import { APP_CONFIG, type AppConfig } from '../config';
+import type { AuthContext, CompanyContext, RequestMeta } from '../common/request';
+import { DB } from '../db/db.module';
+import { PostingService, type PostingLine } from '../ledger/posting.service';
+import { MAILER, type Mailer } from '../mail/mailer';
+import { depositsOf, nextDocumentNumber, systemAccount, validationError } from './sales-common';
+
+type SalesDocumentInput = z.output<typeof salesDocumentInputSchema>;
+
+interface ResolvedLine {
+  itemId: string | null;
+  accountId: string;
+  description: string | null;
+  quantity: string | null;
+  rate: string | null;
+  amount: Money;
+  classId: string | null;
+  serviceDate: string | null;
+  taxable: boolean;
+}
+
+/** Which side of the ledger the document total goes to. */
+const TOTAL_SIDE: Record<SalesDocType, { account: 'ar' | 'deposit'; side: 'debit' | 'credit' }> = {
+  invoice: { account: 'ar', side: 'debit' },
+  sales_receipt: { account: 'deposit', side: 'debit' },
+  credit_memo: { account: 'ar', side: 'credit' },
+  refund_receipt: { account: 'deposit', side: 'credit' },
+};
+
+export const FORBIDDEN_LINE_ACCOUNTS = [
+  'accounts_receivable',
+  'accounts_payable',
+  'bank',
+  'credit_card',
+];
+
+/**
+ * Invoices, sales receipts, credit memos and refund receipts. Each saves its document detail
+ * (sales_lines) and posts a balanced entry through PostingService:
+ *
+ *   invoice         Dr A/R            Cr income lines
+ *   sales receipt   Dr deposit acct   Cr income lines     (Undeposited Funds by default)
+ *   credit memo     Dr income lines   Cr A/R
+ *   refund receipt  Dr income lines   Cr bank/credit card
+ *
+ * Negative (discount) lines flip sides. A/R lines always carry the customer.
+ */
+@Injectable()
+export class SalesDocumentsService {
+  constructor(
+    @Inject(DB) private readonly db: Db,
+    @Inject(APP_CONFIG) private readonly config: AppConfig,
+    @Inject(MAILER) private readonly mailer: Mailer,
+    private readonly posting: PostingService,
+    private readonly audit: AuditService,
+  ) {}
+
+  get(
+    auth: AuthContext,
+    ctx: CompanyContext,
+    type: SalesDocType,
+    id: string,
+  ): Promise<SalesDocumentDto> {
+    return withTenant(this.db, { userId: auth.userId, companyId: ctx.companyId }, (tx) =>
+      this.load(tx, ctx.companyId, type, id),
+    );
+  }
+
+  nextNumber(
+    auth: AuthContext,
+    ctx: CompanyContext,
+    type: SalesDocType,
+  ): Promise<{ number: string }> {
+    return withTenant(this.db, { userId: auth.userId, companyId: ctx.companyId }, async (tx) => ({
+      number: await nextDocumentNumber(tx, ctx.companyId, type),
+    }));
+  }
+
+  save(
+    auth: AuthContext,
+    ctx: CompanyContext,
+    type: SalesDocType,
+    id: string | null,
+    input: SalesDocumentInput,
+    meta: RequestMeta,
+  ): Promise<SalesDocumentDto> {
+    return withTenant(this.db, { userId: auth.userId, companyId: ctx.companyId }, (tx) =>
+      this.saveInTx(tx, auth, ctx, type, id, input, meta),
+    );
+  }
+
+  /** Also used by estimate conversion, inside its own transaction. */
+  async saveInTx(
+    tx: Tx,
+    auth: AuthContext,
+    ctx: CompanyContext,
+    type: SalesDocType,
+    id: string | null,
+    input: SalesDocumentInput,
+    meta: RequestMeta,
+  ): Promise<SalesDocumentDto> {
+    const companyId = ctx.companyId;
+    const before = id ? await this.load(tx, companyId, type, id) : null;
+    if (before && before.status !== 'posted')
+      throw new ConflictException('A void document cannot be edited');
+
+    // --- Customer --------------------------------------------------------------------------
+    const needsCustomer = type === 'invoice' || type === 'credit_memo';
+    if (needsCustomer && !input.customerId) {
+      throw new BadRequestException(
+        validationError([{ path: 'customerId', message: 'Choose a customer' }]),
+      );
+    }
+    let customer: { id: string; is_active: boolean; terms_id: string | null } | undefined;
+    if (input.customerId) {
+      customer = await tx
+        .selectFrom('customers')
+        .select(['id', 'is_active', 'terms_id'])
+        .where('id', '=', input.customerId)
+        .where('company_id', '=', companyId)
+        .executeTakeFirst();
+      if (!customer || (!customer.is_active && customer.id !== before?.customerId)) {
+        throw new BadRequestException(
+          validationError([{ path: 'customerId', message: 'Customer not found or inactive' }]),
+        );
+      }
+    }
+
+    // --- Lines -----------------------------------------------------------------------------
+    const lines = await this.resolveLines(tx, companyId, input);
+    const total = lines.reduce((s, l) => s + l.amount, 0n);
+    if (total <= 0n) {
+      throw new BadRequestException(
+        validationError([{ path: 'lines', message: 'The total must be greater than zero' }]),
+      );
+    }
+
+    // --- Rules that protect payments, credits and deposits ---------------------------------
+    if (before) {
+      const applied = parseMoney(before.total) - parseMoney(before.balance);
+      if ((type === 'invoice' || type === 'credit_memo') && applied > 0n) {
+        if (total < applied) {
+          throw new ConflictException(
+            `${moneyToString(applied)} has already been ${type === 'invoice' ? 'paid on this invoice' : 'used from this credit'}. The total cannot be less than that.`,
+          );
+        }
+        if (input.customerId !== before.customerId) {
+          throw new ConflictException(
+            'The customer cannot change once payments or credits are applied.',
+          );
+        }
+      }
+      if (before.depositId) {
+        if (
+          total !== parseMoney(before.total) ||
+          (input.depositAccountId ?? before.depositAccountId) !== before.depositAccountId
+        ) {
+          throw new ConflictException(
+            'This receipt is in a bank deposit. Remove it from the deposit before changing the amount or account.',
+          );
+        }
+      }
+    }
+
+    // --- Header fields ---------------------------------------------------------------------
+    const number =
+      input.number ?? before?.number ?? (await nextDocumentNumber(tx, companyId, type));
+    const termsId =
+      type === 'invoice' ? (input.termsId ?? (before ? null : customer?.terms_id) ?? null) : null;
+    let dueDate: string | null = null;
+    if (type === 'invoice') {
+      if (input.dueDate) dueDate = input.dueDate;
+      else if (termsId) {
+        const terms = await tx
+          .selectFrom('terms')
+          .select('due_days')
+          .where('id', '=', termsId)
+          .where('company_id', '=', companyId)
+          .executeTakeFirst();
+        if (!terms)
+          throw new BadRequestException(
+            validationError([{ path: 'termsId', message: 'Terms not found' }]),
+          );
+        dueDate = dueDateFromTerms(input.txnDate, terms.due_days);
+      } else dueDate = input.txnDate;
+    }
+
+    const totalSide = TOTAL_SIDE[type];
+    let totalAccount: string;
+    let depositAccountId: string | null = null;
+    if (totalSide.account === 'ar') {
+      totalAccount = await systemAccount(tx, companyId, 'accounts_receivable');
+    } else {
+      depositAccountId =
+        input.depositAccountId ??
+        before?.depositAccountId ??
+        (type === 'sales_receipt' ? await systemAccount(tx, companyId, 'undeposited_funds') : null);
+      if (!depositAccountId) {
+        throw new BadRequestException(
+          validationError([
+            { path: 'depositAccountId', message: 'Choose the account the refund is paid from' },
+          ]),
+        );
+      }
+      await this.assertDepositAccount(tx, companyId, depositAccountId, type);
+      totalAccount = depositAccountId;
+    }
+
+    // --- Journal ---------------------------------------------------------------------------
+    const customerId = input.customerId ?? null;
+    const line = (
+      accountId: string,
+      amount: Money,
+      credit: boolean,
+      extra: Partial<PostingLine> = {},
+    ): PostingLine => ({
+      accountId,
+      debit: credit ? 0n : amount,
+      credit: credit ? amount : 0n,
+      description: null,
+      customerId,
+      vendorId: null,
+      classId: null,
+      locationId: null,
+      ...extra,
+    });
+    const totalIsDebit = totalSide.side === 'debit';
+    const journal: PostingLine[] = [line(totalAccount, total, !totalIsDebit)];
+    for (const l of lines) {
+      if (l.amount === 0n) continue;
+      // Income side is opposite to the total; a negative line (discount) flips it again.
+      const credit = totalIsDebit ? l.amount > 0n : l.amount < 0n;
+      journal.push(
+        line(l.accountId, l.amount < 0n ? -l.amount : l.amount, credit, {
+          description: l.description,
+          classId: l.classId,
+        }),
+      );
+    }
+
+    const header = {
+      txnType: type,
+      txnDate: input.txnDate,
+      number,
+      memo: input.memo ?? null,
+      isAdjusting: false,
+      details: {
+        customerId,
+        dueDate,
+        termsId,
+        paymentMethodId:
+          type === 'sales_receipt' || type === 'refund_receipt'
+            ? (input.paymentMethodId ?? null)
+            : null,
+        reference:
+          type === 'sales_receipt' || type === 'refund_receipt' ? (input.reference ?? null) : null,
+        depositAccountId,
+        customerMessage: input.customerMessage ?? null,
+        billTo: input.billTo ?? null,
+        emailTo: input.emailTo ?? null,
+        total: moneyToString(total, 2),
+      },
+    };
+    const postingCtx = { companyId, userId: auth.userId, closingPassword: input.closingPassword };
+    let txnId = id;
+    if (id) await this.posting.revise(tx, postingCtx, id, input.version, header, journal);
+    else txnId = await this.posting.create(tx, postingCtx, header, journal);
+
+    await tx.deleteFrom('sales_lines').where('transaction_id', '=', txnId!).execute();
+    await tx
+      .insertInto('sales_lines')
+      .values(
+        lines.map((l, i) => ({
+          company_id: companyId,
+          transaction_id: txnId!,
+          line_no: i + 1,
+          item_id: l.itemId,
+          description: l.description,
+          quantity: l.quantity,
+          rate: l.rate,
+          amount: moneyToString(l.amount, 2),
+          account_id: l.accountId,
+          class_id: l.classId,
+          service_date: l.serviceDate,
+          taxable: l.taxable,
+        })),
+      )
+      .execute();
+
+    const after = await this.load(tx, companyId, type, txnId!);
+    await this.audit.record(
+      tx,
+      {
+        companyId,
+        actorUserId: auth.userId,
+        action: `${type}.${before ? 'updated' : 'created'}`,
+        entityType: 'transaction',
+        entityId: txnId!,
+        before: before ? auditView(before) : null,
+        after: auditView(after),
+      },
+      meta,
+    );
+    return after;
+  }
+
+  setStatus(
+    auth: AuthContext,
+    ctx: CompanyContext,
+    type: SalesDocType,
+    id: string,
+    status: 'void' | 'deleted',
+    closingPassword: string | undefined,
+    meta: RequestMeta,
+  ): Promise<void> {
+    return withTenant(this.db, { userId: auth.userId, companyId: ctx.companyId }, async (tx) => {
+      const before = await this.load(tx, ctx.companyId, type, id);
+      if (before.applied.length > 0) {
+        throw new ConflictException(
+          type === 'invoice'
+            ? 'This invoice has payments or credits applied. Remove them from the payment first.'
+            : 'This credit has been applied to invoices. Remove it from the payment first.',
+        );
+      }
+      if (before.depositId) {
+        throw new ConflictException(
+          'This receipt is in a bank deposit. Remove it from the deposit first.',
+        );
+      }
+      await this.posting.setStatus(
+        tx,
+        { companyId: ctx.companyId, userId: auth.userId, closingPassword },
+        id,
+        status,
+      );
+      await this.audit.record(
+        tx,
+        {
+          companyId: ctx.companyId,
+          actorUserId: auth.userId,
+          action: `${type}.${status === 'void' ? 'voided' : 'deleted'}`,
+          entityType: 'transaction',
+          entityId: id,
+          before: auditView(before),
+        },
+        meta,
+      );
+    });
+  }
+
+  /** Emails the document (development transports print or save it; see MAIL_TRANSPORT). */
+  send(
+    auth: AuthContext,
+    ctx: CompanyContext,
+    type: SalesDocType,
+    id: string,
+    input: SendDocumentInput & { to: string },
+    meta: RequestMeta,
+  ): Promise<SalesDocumentDto> {
+    return withTenant(this.db, { userId: auth.userId, companyId: ctx.companyId }, async (tx) => {
+      const doc = await this.load(tx, ctx.companyId, type, id);
+      if (doc.status !== 'posted') throw new ConflictException('A void document cannot be sent');
+      const company = await tx
+        .selectFrom('companies')
+        .select(['legal_name', 'dba_name', 'email', 'phone'])
+        .where('id', '=', ctx.companyId)
+        .executeTakeFirstOrThrow();
+      const from = company.dba_name ?? company.legal_name;
+      const label = TXN_TYPE_LABELS[type]!;
+      const body = [
+        input.message ?? `Dear ${doc.customerName ?? 'customer'},`,
+        '',
+        `${label} ${doc.number ?? ''} from ${from}`,
+        `Date: ${doc.txnDate}${doc.dueDate ? `   Due: ${doc.dueDate}` : ''}`,
+        '',
+        ...doc.lines.map(
+          (l) => `  ${(l.itemName ?? l.description ?? '').padEnd(40)} ${l.amount.padStart(12)}`,
+        ),
+        '',
+        `Total: ${doc.total}`,
+        ...(type === 'invoice' ? [`Balance due: ${doc.balance}`] : []),
+        ...(doc.customerMessage ? ['', doc.customerMessage] : []),
+        '',
+        `${from}${company.phone ? ` · ${company.phone}` : ''}${company.email ? ` · ${company.email}` : ''}`,
+      ].join('\n');
+      for (const to of input.to
+        .split(/[,;]\s*/)
+        .map((e) => e.trim())
+        .filter(Boolean)) {
+        await this.mailer.send({
+          to,
+          subject: `${label} ${doc.number ?? ''} from ${from}`,
+          text: body,
+        });
+      }
+      await tx
+        .updateTable('transactions')
+        .set({ sent_at: new Date(), email_to: input.to })
+        .where('id', '=', id)
+        .execute();
+      await this.audit.record(
+        tx,
+        {
+          companyId: ctx.companyId,
+          actorUserId: auth.userId,
+          action: `${type}.sent`,
+          entityType: 'transaction',
+          entityId: id,
+          metadata: { to: input.to },
+        },
+        meta,
+      );
+      return this.load(tx, ctx.companyId, type, id);
+    });
+  }
+
+  async load(tx: Tx, companyId: string, type: SalesDocType, id: string): Promise<SalesDocumentDto> {
+    const t = await tx
+      .selectFrom('transactions as t')
+      .leftJoin('customers as c', 'c.id', 't.customer_id')
+      .selectAll('t')
+      .select('c.display_name as customer_name')
+      .where('t.id', '=', id)
+      .where('t.company_id', '=', companyId)
+      .where('t.txn_type', '=', type)
+      .where('t.status', '!=', 'deleted')
+      .executeTakeFirst();
+    if (!t) throw new NotFoundException(`${TXN_TYPE_LABELS[type]} not found`);
+    const lines = await tx
+      .selectFrom('sales_lines as l')
+      .leftJoin('items as i', 'i.id', 'l.item_id')
+      .selectAll('l')
+      .select('i.name as item_name')
+      .where('l.transaction_id', '=', id)
+      .orderBy('l.line_no')
+      .execute();
+    const applied = await tx
+      .selectFrom('payment_applications as pa')
+      .innerJoin('transactions as p', 'p.id', 'pa.payment_id')
+      .select(['p.id', 'p.txn_type', 'p.txn_number', 'p.txn_date', 'pa.amount'])
+      .where('pa.target_id', '=', id)
+      .where('p.status', '=', 'posted')
+      .orderBy('p.txn_date')
+      .execute();
+    const total = parseMoney(t.total ?? '0');
+    const appliedSum = applied.reduce((s, a) => s + parseMoney(a.amount), 0n);
+    const depositId = (await depositsOf(tx, [id])).get(id) ?? null;
+    const balance = type === 'invoice' || type === 'credit_memo' ? total - appliedSum : 0n;
+    return {
+      id: t.id,
+      txnType: type,
+      number: t.txn_number,
+      txnDate: t.txn_date,
+      dueDate: t.due_date,
+      customerId: t.customer_id,
+      customerName: t.customer_name,
+      termsId: t.terms_id,
+      billTo: t.bill_to,
+      emailTo: t.email_to,
+      customerMessage: t.customer_message,
+      memo: t.memo,
+      paymentMethodId: t.payment_method_id,
+      reference: t.reference,
+      depositAccountId: t.deposit_account_id,
+      lines: lines.map((l) => ({
+        lineNo: l.line_no,
+        itemId: l.item_id,
+        itemName: l.item_name,
+        accountId: l.account_id,
+        description: l.description,
+        quantity: l.quantity === null ? null : trimZeros(l.quantity),
+        rate: l.rate === null ? null : trimZeros(l.rate),
+        amount: moneyToString(parseMoney(l.amount)),
+        classId: l.class_id,
+        serviceDate: l.service_date,
+        taxable: l.taxable,
+      })),
+      total: moneyToString(total),
+      balance: moneyToString(balance),
+      status: t.status === 'void' ? 'void' : 'posted',
+      paymentStatus: paymentStatus(type, t.status, total, balance, t.due_date, depositId),
+      applied: applied.map((a) => ({
+        txnId: a.id,
+        txnType: a.txn_type,
+        number: a.txn_number,
+        txnDate: a.txn_date,
+        amount: moneyToString(parseMoney(a.amount)),
+      })),
+      depositId,
+      sentAt: t.sent_at?.toISOString() ?? null,
+      version: t.version,
+      createdAt: t.created_at.toISOString(),
+      updatedAt: t.updated_at.toISOString(),
+    };
+  }
+
+  private async resolveLines(
+    tx: Tx,
+    companyId: string,
+    input: SalesDocumentInput,
+  ): Promise<ResolvedLine[]> {
+    const errors: Array<{ path: string; message: string }> = [];
+    const itemIds = [...new Set(input.lines.map((l) => l.itemId).filter((v): v is string => !!v))];
+    const items = new Map(
+      itemIds.length
+        ? (
+            await tx
+              .selectFrom('items')
+              .select(['id', 'name', 'is_active', 'income_account_id', 'description', 'taxable'])
+              .where('company_id', '=', companyId)
+              .where('id', 'in', itemIds)
+              .execute()
+          ).map((i) => [i.id, i])
+        : [],
+    );
+    const resolved: ResolvedLine[] = input.lines.map((l, i) => {
+      const item = l.itemId ? items.get(l.itemId) : undefined;
+      if (l.itemId && (!item || !item.is_active))
+        errors.push({
+          path: `lines.${i}.itemId`,
+          message: 'Product/service not found or inactive',
+        });
+      const accountId = l.accountId ?? item?.income_account_id ?? null;
+      if (!accountId && item)
+        errors.push({
+          path: `lines.${i}.itemId`,
+          message: `"${item.name}" has no income account. Edit it, or choose an account.`,
+        });
+      return {
+        itemId: l.itemId ?? null,
+        accountId: accountId ?? '',
+        description: l.description ?? item?.description ?? null,
+        quantity: l.quantity ?? null,
+        rate: l.rate ?? null,
+        amount: resolveLineAmount(l),
+        classId: l.classId ?? null,
+        serviceDate: l.serviceDate ?? null,
+        taxable: l.taxable ?? item?.taxable ?? false,
+      };
+    });
+    const accountIds = [...new Set(resolved.map((l) => l.accountId).filter(Boolean))];
+    const accounts = new Map(
+      accountIds.length
+        ? (
+            await tx
+              .selectFrom('accounts')
+              .select(['id', 'account_type', 'is_active', 'name'])
+              .where('company_id', '=', companyId)
+              .where('id', 'in', accountIds)
+              .execute()
+          ).map((a) => [a.id, a])
+        : [],
+    );
+    resolved.forEach((l, i) => {
+      if (!l.accountId) return;
+      const a = accounts.get(l.accountId);
+      if (!a || !a.is_active)
+        errors.push({ path: `lines.${i}.accountId`, message: 'Account not found or inactive' });
+      else if (FORBIDDEN_LINE_ACCOUNTS.includes(a.account_type)) {
+        errors.push({
+          path: `lines.${i}.accountId`,
+          message: `"${a.name}" cannot be used on a sales line`,
+        });
+      }
+    });
+    if (errors.length) throw new BadRequestException(validationError(errors));
+    return resolved;
+  }
+
+  private async assertDepositAccount(
+    tx: Tx,
+    companyId: string,
+    accountId: string,
+    type: SalesDocType,
+  ): Promise<void> {
+    const a = await tx
+      .selectFrom('accounts')
+      .select(['account_type', 'is_active', 'system_role'])
+      .where('id', '=', accountId)
+      .where('company_id', '=', companyId)
+      .executeTakeFirst();
+    const ok =
+      a?.is_active &&
+      (type === 'sales_receipt'
+        ? a.account_type === 'bank' || a.account_type === 'other_current_asset'
+        : a.account_type === 'bank' ||
+          a.account_type === 'credit_card' ||
+          a.system_role === 'undeposited_funds');
+    if (!ok) {
+      throw new BadRequestException(
+        validationError([
+          {
+            path: 'depositAccountId',
+            message:
+              type === 'sales_receipt'
+                ? 'Choose Undeposited Funds or a bank account'
+                : 'Choose a bank or credit card account',
+          },
+        ]),
+      );
+    }
+  }
+}
+
+export function paymentStatus(
+  type: string,
+  status: string,
+  total: Money,
+  balance: Money,
+  dueDate: string | null,
+  depositId: string | null,
+): PaymentStatus {
+  if (status === 'void') return 'void';
+  if (type === 'invoice') {
+    if (balance === 0n) return 'paid';
+    if (dueDate && dueDate < todayIso()) return 'overdue';
+    return balance < total ? 'partial' : 'open';
+  }
+  if (type === 'credit_memo') return balance === 0n ? 'closed' : 'open';
+  if (type === 'sales_receipt' || type === 'payment') return depositId ? 'deposited' : 'paid';
+  return 'paid';
+}
+
+function trimZeros(v: string): string {
+  return v.includes('.') ? v.replace(/\.?0+$/, '') : v;
+}
+
+function auditView(d: SalesDocumentDto): Record<string, unknown> {
+  return {
+    number: d.number,
+    date: d.txnDate,
+    dueDate: d.dueDate,
+    customer: d.customerName,
+    total: d.total,
+    memo: d.memo,
+    lines: d.lines.map(
+      (l) =>
+        `${l.itemName ?? l.description ?? ''}: ${l.quantity ? `${l.quantity} × ${l.rate} = ` : ''}${l.amount}`,
+    ),
+  };
+}

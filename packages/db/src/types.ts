@@ -222,6 +222,18 @@ export interface TransactionsTable extends Audited {
   voided_by: string | null;
   deleted_at: Timestamp | null;
   deleted_by: string | null;
+  // Sales/A/R document fields (migration 0003)
+  customer_id: ColumnType<string | null, string | null | undefined, string | null>;
+  due_date: ColumnType<DateCol | null, DateCol | null | undefined, DateCol | null>;
+  terms_id: ColumnType<string | null, string | null | undefined, string | null>;
+  payment_method_id: ColumnType<string | null, string | null | undefined, string | null>;
+  reference: ColumnType<string | null, string | null | undefined, string | null>;
+  deposit_account_id: ColumnType<string | null, string | null | undefined, string | null>;
+  customer_message: ColumnType<string | null, string | null | undefined, string | null>;
+  bill_to: ColumnType<string | null, string | null | undefined, string | null>;
+  email_to: ColumnType<string | null, string | null | undefined, string | null>;
+  sent_at: ColumnType<Date | null, Date | string | null | undefined, Date | string | null>;
+  total: ColumnType<string | null, string | null | undefined, string | null>;
 }
 
 export interface JournalLinesTable {
@@ -242,6 +254,78 @@ export interface JournalLinesTable {
   created_at: Generated<Date>;
 }
 
+export interface SalesLinesTable {
+  id: Generated<string>;
+  company_id: string;
+  transaction_id: string;
+  line_no: number;
+  item_id: string | null;
+  description: string | null;
+  quantity: string | null;
+  rate: string | null;
+  amount: string;
+  account_id: string;
+  class_id: string | null;
+  service_date: DateCol | null;
+  taxable: Generated<boolean>;
+}
+
+export interface PaymentApplicationsTable {
+  id: Generated<string>;
+  company_id: string;
+  payment_id: string;
+  target_id: string;
+  amount: string;
+}
+
+export interface DepositLinesTable {
+  id: Generated<string>;
+  company_id: string;
+  deposit_id: string;
+  line_no: number;
+  source_txn_id: string | null;
+  account_id: string;
+  amount: string;
+  customer_id: string | null;
+  description: string | null;
+  payment_method_id: string | null;
+  reference: string | null;
+  class_id: string | null;
+}
+
+export interface EstimatesTable extends Audited {
+  id: Generated<string>;
+  company_id: string;
+  number: string | null;
+  customer_id: string;
+  txn_date: DateCol;
+  expiration_date: DateCol | null;
+  status: Generated<string>;
+  bill_to: string | null;
+  email_to: string | null;
+  customer_message: string | null;
+  memo: string | null;
+  total: Generated<string>;
+  invoice_id: string | null;
+  sent_at: Timestamp | null;
+}
+
+export interface EstimateLinesTable {
+  id: Generated<string>;
+  company_id: string;
+  estimate_id: string;
+  line_no: number;
+  item_id: string | null;
+  account_id: string | null;
+  description: string | null;
+  quantity: string | null;
+  rate: string | null;
+  amount: string;
+  class_id: string | null;
+  service_date: DateCol | null;
+  taxable: Generated<boolean>;
+}
+
 export interface Database {
   users: UsersTable;
   mfa_recovery_codes: MfaRecoveryCodesTable;
@@ -260,6 +344,11 @@ export interface Database {
   items: ItemsTable;
   transactions: TransactionsTable;
   journal_lines: JournalLinesTable;
+  sales_lines: SalesLinesTable;
+  payment_applications: PaymentApplicationsTable;
+  deposit_lines: DepositLinesTable;
+  estimates: EstimatesTable;
+  estimate_lines: EstimateLinesTable;
 }
 
 export type User = Selectable<UsersTable>;
@@ -277,3 +366,7 @@ export type Item = Selectable<ItemsTable>;
 export type Term = Selectable<TermsTable>;
 export type Transaction = Selectable<TransactionsTable>;
 export type JournalLine = Selectable<JournalLinesTable>;
+export type SalesLine = Selectable<SalesLinesTable>;
+export type Estimate = Selectable<EstimatesTable>;
+export type EstimateLine = Selectable<EstimateLinesTable>;
+export type DepositLine = Selectable<DepositLinesTable>;

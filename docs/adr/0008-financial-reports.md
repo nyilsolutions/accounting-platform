@@ -29,7 +29,8 @@
   - Output is capped at 20,000 rows with a `truncated` flag. Paging arrives with the Phase 7
     reports suite.
 - **Accrual basis only for now.** Cash-basis conversion needs invoices and bills (Phases 2–3) to
-  decide which income and expenses are "paid". The API labels every report `accrual`.
+  decide which income and expenses are "paid". The API labels every report `accrual`. _Updated in
+  Phase 2: ADR 0009 adds cash basis for sales._
 - **Invariants are tested with random data.** A fast-check property test creates random balanced
   entries in a July fiscal year and checks every time that:
   - the Trial Balance debits equal its credits;

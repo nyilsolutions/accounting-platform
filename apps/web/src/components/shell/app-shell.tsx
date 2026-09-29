@@ -107,7 +107,7 @@ export function AppShell({ companyId, children }: { companyId: string; children:
   return (
     <div className="flex min-h-full">
       <aside
-        className="flex w-60 shrink-0 flex-col bg-sidebar px-3 py-4"
+        className="flex w-60 shrink-0 flex-col bg-sidebar px-3 py-4 print:hidden"
         aria-label="Main navigation"
       >
         <Link href={base} className="mb-6 px-3 text-lg font-semibold text-white">
@@ -129,7 +129,7 @@ export function AppShell({ companyId, children }: { companyId: string; children:
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex items-center justify-between gap-4 border-b border-gray-200 bg-white px-6 py-3">
+        <header className="flex items-center justify-between gap-4 border-b border-gray-200 bg-white px-6 py-3 print:hidden">
           <div className="flex items-center gap-3">
             <label htmlFor="company-switcher" className="sr-only">
               Company
@@ -162,7 +162,7 @@ export function AppShell({ companyId, children }: { companyId: string; children:
             <UserMenu />
           </div>
         </header>
-        <main className="flex-1 px-6 py-6 lg:px-10">{children}</main>
+        <main className="flex-1 px-6 py-6 lg:px-10 print:p-0">{children}</main>
       </div>
 
       <CommandPalette

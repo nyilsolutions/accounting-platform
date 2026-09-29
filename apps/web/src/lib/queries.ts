@@ -38,6 +38,10 @@ export const keys = {
     ['company', id, 'list', list, inactive] as const,
   report: (id: string, key: string, params: object) =>
     ['company', id, 'report', key, params] as const,
+  /** Everything in Sales & A/R (documents, payments, deposits, estimates, balances). */
+  sales: (id: string) => ['company', id, 'sales'] as const,
+  salesDoc: (id: string, kind: string, docId: string) =>
+    ['company', id, 'sales', kind, docId] as const,
 };
 
 /** Invalidates everything derived from the ledger (balances, lists of entries, reports). */
@@ -46,6 +50,7 @@ export function ledgerKeys(id: string) {
     ['company', id, 'accounts'],
     ['company', id, 'journal'],
     ['company', id, 'report'],
+    ['company', id, 'sales'],
   ] as const;
 }
 
