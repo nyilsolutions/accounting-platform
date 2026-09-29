@@ -6,7 +6,12 @@ import {
   Injectable,
 } from '@nestjs/common';
 import { sql, withTenant, type Db } from '@acct/db';
-import type { AgentSessionDto } from '@acct/shared';
+import {
+  addDays,
+  type AgentSessionDto,
+  type CanonicalRecord,
+  type SourceReport,
+} from '@acct/shared';
 import type { z } from 'zod';
 import type { agentBatchSchema, agentFinishSchema, agentReportSchema } from '@acct/shared';
 import { AuditService } from '../audit/audit.service';
@@ -21,6 +26,7 @@ import {
   stageReports,
 } from './migration-common';
 import { mapDesktop, type DesktopRaw } from './sources/desktop/desktop-mapper';
+import { addDecimals, isZero, negate } from './sources/names';
 import {
   parseDesktopAging,
   parseDesktopJournal,
@@ -224,6 +230,20 @@ export class AgentService {
           data: r.data as Record<string, unknown>,
         })) as DesktopRaw[];
       const mapped = mapDesktop(records, journal);
+      if (body.openingDate) {
+        const reports = await tx
+          .selectFrom('migration_reports')
+          .select(['kind', 'rows'])
+          .where('migration_id', '=', a.migrationId)
+          .where('as_of', '=', addDays(body.openingDate, -1))
+          .execute();
+        const opening = openingEntry(
+          mapped.records,
+          reports as never,
+          addDays(body.openingDate, -1),
+        );
+        if (opening) mapped.records.push(opening);
+      }
       const staged = await stageRecords(
         tx,
         a.companyId,
@@ -270,4 +290,113 @@ export class AgentService {
       return { staged, errors: 0 };
     });
   }
+}
+
+/**
+ * Balances brought forward when the agent imports from a later year: one journal entry on the
+ * day before, from QuickBooks' trial balance that day, with A/R and A/P split by customer and
+ * vendor from the agings (so open balances by customer and vendor carry over too).
+ */
+export function openingEntry(
+  records: CanonicalRecord[],
+  reports: Array<{ kind: SourceReport['kind']; rows: SourceReport['rows'] }>,
+  date: string,
+): CanonicalRecord | null {
+  const tb = reports.find((r) => r.kind === 'trial_balance');
+  if (!tb) return null;
+  const byName = (type: string) =>
+    new Map(
+      records
+        .filter((r) => r.entityType === type)
+        .map((r) => {
+          const p = r.payload as { fullName?: string; displayName?: string };
+          return [(p.fullName ?? p.displayName ?? '').toLowerCase(), r] as const;
+        }),
+    );
+  const accounts = byName('account');
+  const customers = byName('customer');
+  const vendors = byName('vendor');
+  const warnings: string[] = [];
+  const lines: Array<Record<string, unknown>> = [];
+  const add = (
+    account: string,
+    amount: string,
+    party: { customer?: string | null; vendor?: string | null } = {},
+  ) => {
+    if (isZero(amount)) return;
+    lines.push({
+      account,
+      debit: amount.startsWith('-') ? null : amount,
+      credit: amount.startsWith('-') ? negate(amount) : null,
+      description: 'Balance brought forward',
+      customer: party.customer ?? null,
+      vendor: party.vendor ?? null,
+    });
+  };
+  const split = (kind: 'ar_aging' | 'ap_aging', account: string, total: string) => {
+    const aging = reports.find((r) => r.kind === kind);
+    const lookup = kind === 'ar_aging' ? customers : vendors;
+    let covered = '0';
+    for (const row of aging?.rows ?? []) {
+      const party = lookup.get(row.name.toLowerCase());
+      if (!party) {
+        warnings.push(
+          `${row.name} (${row.amount}) isn't in the ${kind === 'ar_aging' ? 'customer' : 'vendor'} list`,
+        );
+        continue;
+      }
+      const amount = kind === 'ar_aging' ? row.amount : negate(row.amount);
+      add(
+        account,
+        amount,
+        kind === 'ar_aging' ? { customer: party.sourceId } : { vendor: party.sourceId },
+      );
+      covered = addDecimals(covered, amount);
+    }
+    return addDecimals(total, negate(covered));
+  };
+  let remainder = '0';
+  for (const row of tb.rows) {
+    const account = accounts.get(row.name.toLowerCase());
+    if (!account) {
+      warnings.push(`Account ${row.name} (${row.amount}) isn't in the chart of accounts`);
+      continue;
+    }
+    const type = (account.payload as { accountType: string }).accountType;
+    if (type === 'accounts_receivable')
+      remainder = addDecimals(remainder, split('ar_aging', account.sourceId, row.amount));
+    else if (type === 'accounts_payable')
+      remainder = addDecimals(remainder, split('ap_aging', account.sourceId, row.amount));
+    else add(account.sourceId, row.amount);
+  }
+  if (!isZero(remainder)) {
+    // The agings and the trial balance disagree: the difference stays in Opening Balance Equity.
+    warnings.push(
+      `A/R or A/P by customer and vendor differs from the trial balance by ${remainder}; the difference is in Opening Balance Equity`,
+    );
+    add('role:opening_balance_equity', remainder);
+  }
+  const sum = lines.reduce<string>(
+    (s, l) =>
+      addDecimals(
+        s,
+        (l.debit as string | null) ?? null,
+        l.credit ? negate(l.credit as string) : null,
+      ),
+    '0',
+  );
+  if (!isZero(sum)) add('role:opening_balance_equity', negate(sum));
+  return {
+    entityType: 'journal_entry',
+    sourceId: `opening:${date}`,
+    sourceType: 'Opening balances',
+    payload: {
+      txnDate: date,
+      number: null,
+      memo: `Balances brought forward from QuickBooks as of ${date}`,
+      originalType: 'Opening balances',
+      lines,
+    } as never,
+    warnings: warnings.length ? warnings : undefined,
+  };
 }

@@ -415,3 +415,58 @@ describe('QuickBooks Desktop reports', () => {
     expect(aging.rows).toEqual([{ ref: null, name: 'Acme:Job 1', amount: '5.00' }]);
   });
 });
+
+describe('balances brought forward (Desktop, from a later year)', () => {
+  it('opens with the trial balance, splitting A/R and A/P by customer and vendor', async () => {
+    const { openingEntry } = await import('../agent.service');
+    const acct = (sourceId: string, fullName: string, accountType: string) => ({
+      entityType: 'account' as const,
+      sourceId,
+      sourceType: 'AccountRet',
+      payload: { name: fullName, fullName, accountType } as never,
+    });
+    const records = [
+      acct('A1', 'Checking', 'bank'),
+      acct('A2', 'Accounts Receivable', 'accounts_receivable'),
+      acct('A5', 'Accounts Payable', 'accounts_payable'),
+      acct('A8', 'Opening Balance Equity', 'equity'),
+      {
+        entityType: 'customer' as const,
+        sourceId: 'C1',
+        sourceType: 'CustomerRet',
+        payload: { displayName: 'Acme', fullName: 'Acme' } as never,
+      },
+      {
+        entityType: 'vendor' as const,
+        sourceId: 'V1',
+        sourceType: 'VendorRet',
+        payload: { displayName: 'Mill' } as never,
+      },
+    ];
+    const entry = openingEntry(
+      records,
+      [
+        {
+          kind: 'trial_balance',
+          rows: [
+            { ref: null, name: 'Checking', amount: '1000' },
+            { ref: null, name: 'Accounts Receivable', amount: '300' },
+            { ref: null, name: 'Accounts Payable', amount: '-200' },
+            { ref: null, name: 'Opening Balance Equity', amount: '-1100' },
+          ],
+        },
+        { kind: 'ar_aging', rows: [{ ref: null, name: 'Acme', amount: '300' }] },
+        { kind: 'ap_aging', rows: [{ ref: null, name: 'Mill', amount: '200' }] },
+      ],
+      '2023-12-31',
+    )!;
+    expect(entry).toMatchObject({ sourceId: 'opening:2023-12-31', entityType: 'journal_entry' });
+    expect((entry.payload as { lines: unknown[] }).lines).toEqual([
+      expect.objectContaining({ account: 'A1', debit: '1000' }),
+      expect.objectContaining({ account: 'A2', debit: '300', customer: 'C1' }),
+      expect.objectContaining({ account: 'A5', credit: '200', vendor: 'V1' }),
+      expect.objectContaining({ account: 'A8', credit: '1100' }),
+    ]);
+    expect(entry.warnings).toBeUndefined();
+  });
+});

@@ -902,6 +902,11 @@ export const agentReportSchema = z.object({
 export const agentFinishSchema = z.object({
   companyName: z.string().max(200).optional(),
   asOf: date.optional(),
+  /**
+   * The first day imported when earlier years were left out: balances before it come in as one
+   * opening entry, from QuickBooks' trial balance and agings on the day before.
+   */
+  openingDate: date.optional(),
   counts: z.record(z.string().max(60), z.number().int().min(0)).optional(),
 });
 

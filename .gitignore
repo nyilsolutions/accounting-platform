@@ -14,3 +14,8 @@ next-env.d.ts
 
 # Local document storage (DOCUMENT_STORAGE=local)
 .documents/
+
+# .NET (QuickBooks Desktop migration agent)
+apps/desktop-agent/**/bin/
+apps/desktop-agent/**/obj/
+agent-publish/
