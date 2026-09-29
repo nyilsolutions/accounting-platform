@@ -26,6 +26,7 @@ export const PERMISSIONS = [
   'time.manage',
   'documents.view',
   'documents.manage',
+  'migration.manage',
 ] as const;
 
 export type Permission = (typeof PERMISSIONS)[number];

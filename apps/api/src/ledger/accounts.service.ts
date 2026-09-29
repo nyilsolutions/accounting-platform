@@ -106,139 +106,160 @@ export class AccountsService {
     });
   }
 
-  async create(
+  create(
     auth: AuthContext,
     ctx: CompanyContext,
     input: AccountInput,
     meta: RequestMeta,
   ): Promise<AccountDto> {
-    return withTenant(this.db, { userId: auth.userId, companyId: ctx.companyId }, async (tx) => {
-      if (input.parentId)
-        await this.assertParent(tx, ctx.companyId, input.parentId, input.accountType, null);
-      const row = await tx
-        .insertInto('accounts')
-        .values({
-          company_id: ctx.companyId,
-          name: input.name,
-          number: input.number ?? null,
-          account_type: input.accountType,
-          detail_type: input.detailType ?? null,
-          parent_id: input.parentId ?? null,
-          description: input.description ?? null,
-          created_by: auth.userId,
-          updated_by: auth.userId,
-        })
-        .returningAll()
-        .executeTakeFirstOrThrow();
-      await this.audit.record(
-        tx,
-        {
-          companyId: ctx.companyId,
-          actorUserId: auth.userId,
-          action: 'account.created',
-          entityType: 'account',
-          entityId: row.id,
-          after: auditView(row),
-        },
-        meta,
-      );
-      return this.getOne(tx, ctx.companyId, row.id);
-    });
+    return withTenant(this.db, { userId: auth.userId, companyId: ctx.companyId }, (tx) =>
+      this.createInTx(tx, auth, ctx, input, meta),
+    );
   }
 
-  async update(
+  /** Also used by the QuickBooks import, inside its own database transaction. */
+  async createInTx(
+    tx: Tx,
+    auth: AuthContext,
+    ctx: CompanyContext,
+    input: AccountInput,
+    meta: RequestMeta,
+  ): Promise<AccountDto> {
+    if (input.parentId)
+      await this.assertParent(tx, ctx.companyId, input.parentId, input.accountType, null);
+    const row = await tx
+      .insertInto('accounts')
+      .values({
+        company_id: ctx.companyId,
+        name: input.name,
+        number: input.number ?? null,
+        account_type: input.accountType,
+        detail_type: input.detailType ?? null,
+        parent_id: input.parentId ?? null,
+        description: input.description ?? null,
+        created_by: auth.userId,
+        updated_by: auth.userId,
+      })
+      .returningAll()
+      .executeTakeFirstOrThrow();
+    await this.audit.record(
+      tx,
+      {
+        companyId: ctx.companyId,
+        actorUserId: auth.userId,
+        action: 'account.created',
+        entityType: 'account',
+        entityId: row.id,
+        after: auditView(row),
+      },
+      meta,
+    );
+    return this.getOne(tx, ctx.companyId, row.id);
+  }
+
+  update(
     auth: AuthContext,
     ctx: CompanyContext,
     id: string,
     patch: AccountPatch,
     meta: RequestMeta,
   ): Promise<AccountDto> {
-    return withTenant(this.db, { userId: auth.userId, companyId: ctx.companyId }, async (tx) => {
-      const before = await tx
+    return withTenant(this.db, { userId: auth.userId, companyId: ctx.companyId }, (tx) =>
+      this.updateInTx(tx, auth, ctx, id, patch, meta),
+    );
+  }
+
+  /** Also used by the QuickBooks import, inside its own database transaction. */
+  async updateInTx(
+    tx: Tx,
+    auth: AuthContext,
+    ctx: CompanyContext,
+    id: string,
+    patch: AccountPatch,
+    meta: RequestMeta,
+  ): Promise<AccountDto> {
+    const before = await tx
+      .selectFrom('accounts')
+      .selectAll()
+      .where('id', '=', id)
+      .where('company_id', '=', ctx.companyId)
+      .forUpdate()
+      .executeTakeFirst();
+    if (!before) throw new NotFoundException('Account not found');
+
+    const typeChanging =
+      patch.accountType !== undefined && patch.accountType !== before.account_type;
+    if (typeChanging) {
+      if (before.system_role)
+        throw new BadRequestException('The type of a system account cannot be changed');
+      if (await this.hasPostings(tx, id)) {
+        throw new BadRequestException('The type of an account with transactions cannot be changed');
+      }
+      const hasChildren = await tx
         .selectFrom('accounts')
-        .selectAll()
-        .where('id', '=', id)
-        .where('company_id', '=', ctx.companyId)
-        .forUpdate()
+        .select('id')
+        .where('parent_id', '=', id)
         .executeTakeFirst();
-      if (!before) throw new NotFoundException('Account not found');
+      if (hasChildren)
+        throw new BadRequestException('Change the type of the sub-accounts first, or move them');
+    }
+    const newType = (patch.accountType ?? before.account_type) as AccountType;
+    if (patch.parentId) await this.assertParent(tx, ctx.companyId, patch.parentId, newType, id);
 
-      const typeChanging =
-        patch.accountType !== undefined && patch.accountType !== before.account_type;
-      if (typeChanging) {
-        if (before.system_role)
-          throw new BadRequestException('The type of a system account cannot be changed');
-        if (await this.hasPostings(tx, id)) {
-          throw new BadRequestException(
-            'The type of an account with transactions cannot be changed',
-          );
-        }
-        const hasChildren = await tx
-          .selectFrom('accounts')
-          .select('id')
-          .where('parent_id', '=', id)
-          .executeTakeFirst();
-        if (hasChildren)
-          throw new BadRequestException('Change the type of the sub-accounts first, or move them');
-      }
-      const newType = (patch.accountType ?? before.account_type) as AccountType;
-      if (patch.parentId) await this.assertParent(tx, ctx.companyId, patch.parentId, newType, id);
-
-      if (patch.isActive === false && before.is_active) {
-        if (before.system_role)
-          throw new BadRequestException('System accounts cannot be made inactive');
-        const activeChild = await tx
-          .selectFrom('accounts')
-          .select('id')
-          .where('parent_id', '=', id)
-          .where('is_active', '=', true)
-          .executeTakeFirst();
-        if (activeChild) throw new BadRequestException('Make the sub-accounts inactive first');
-        const balance =
-          (await this.balancesAsOf(tx, ctx.companyId, '2199-12-31', [id])).get(id) ?? 0n;
-        const info = ACCOUNT_TYPE_INFO[before.account_type as AccountType];
-        if (info.statement === 'balance_sheet' && balance !== 0n) {
-          throw new ConflictException(
-            'This account has a balance. Move the balance to another account before making it inactive.',
-          );
-        }
-      }
-
-      const set: Record<string, unknown> = { updated_by: auth.userId };
-      if (patch.name !== undefined) set.name = patch.name;
-      if (patch.number !== undefined) set.number = patch.number ?? null;
-      if (patch.accountType !== undefined) set.account_type = patch.accountType;
-      if (patch.detailType !== undefined) set.detail_type = patch.detailType ?? null;
-      if (patch.parentId !== undefined) set.parent_id = patch.parentId ?? null;
-      if (patch.description !== undefined) set.description = patch.description ?? null;
-      if (patch.isActive !== undefined) set.is_active = patch.isActive;
-
-      const after = await tx
-        .updateTable('accounts')
-        .set(set)
-        .where('id', '=', id)
-        .returningAll()
-        .executeTakeFirstOrThrow();
-      const changes = diff(auditView(before), auditView(after));
-      if (changes) {
-        await this.audit.record(
-          tx,
-          {
-            companyId: ctx.companyId,
-            actorUserId: auth.userId,
-            action:
-              patch.isActive === false && before.is_active
-                ? 'account.deactivated'
-                : 'account.updated',
-            entityType: 'account',
-            entityId: id,
-            ...changes,
-          },
-          meta,
+    if (patch.isActive === false && before.is_active) {
+      if (before.system_role)
+        throw new BadRequestException('System accounts cannot be made inactive');
+      const activeChild = await tx
+        .selectFrom('accounts')
+        .select('id')
+        .where('parent_id', '=', id)
+        .where('is_active', '=', true)
+        .executeTakeFirst();
+      if (activeChild) throw new BadRequestException('Make the sub-accounts inactive first');
+      const balance =
+        (await this.balancesAsOf(tx, ctx.companyId, '2199-12-31', [id])).get(id) ?? 0n;
+      const info = ACCOUNT_TYPE_INFO[before.account_type as AccountType];
+      if (info.statement === 'balance_sheet' && balance !== 0n) {
+        throw new ConflictException(
+          'This account has a balance. Move the balance to another account before making it inactive.',
         );
       }
-      return this.getOne(tx, ctx.companyId, id);
-    });
+    }
+
+    const set: Record<string, unknown> = { updated_by: auth.userId };
+    if (patch.name !== undefined) set.name = patch.name;
+    if (patch.number !== undefined) set.number = patch.number ?? null;
+    if (patch.accountType !== undefined) set.account_type = patch.accountType;
+    if (patch.detailType !== undefined) set.detail_type = patch.detailType ?? null;
+    if (patch.parentId !== undefined) set.parent_id = patch.parentId ?? null;
+    if (patch.description !== undefined) set.description = patch.description ?? null;
+    if (patch.isActive !== undefined) set.is_active = patch.isActive;
+
+    const after = await tx
+      .updateTable('accounts')
+      .set(set)
+      .where('id', '=', id)
+      .returningAll()
+      .executeTakeFirstOrThrow();
+    const changes = diff(auditView(before), auditView(after));
+    if (changes) {
+      await this.audit.record(
+        tx,
+        {
+          companyId: ctx.companyId,
+          actorUserId: auth.userId,
+          action:
+            patch.isActive === false && before.is_active
+              ? 'account.deactivated'
+              : 'account.updated',
+          entityType: 'account',
+          entityId: id,
+          ...changes,
+        },
+        meta,
+      );
+    }
+    return this.getOne(tx, ctx.companyId, id);
   }
 
   /** Creates the default chart of accounts for a company that has none (e.g. created before Phase 1). */

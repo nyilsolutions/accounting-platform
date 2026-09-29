@@ -95,198 +95,210 @@ export class PaymentsService {
     input: PaymentInput,
     meta: RequestMeta,
   ): Promise<PaymentDto> {
-    return withTenant(this.db, { userId: auth.userId, companyId: ctx.companyId }, async (tx) => {
-      const companyId = ctx.companyId;
-      const before = id ? await this.load(tx, companyId, id) : null;
-      if (before && before.status !== 'posted')
-        throw new ConflictException('A void payment cannot be edited');
+    return withTenant(this.db, { userId: auth.userId, companyId: ctx.companyId }, (tx) =>
+      this.saveInTx(tx, auth, ctx, id, input, meta),
+    );
+  }
 
-      const customer = await tx
-        .selectFrom('customers')
-        .select(['id', 'is_active'])
-        .where('id', '=', input.customerId)
-        .where('company_id', '=', companyId)
-        .executeTakeFirst();
-      if (!customer || (!customer.is_active && customer.id !== before?.customerId)) {
-        throw new BadRequestException(
-          validationError([{ path: 'customerId', message: 'Customer not found or inactive' }]),
-        );
-      }
+  /** Also used by the QuickBooks import, inside its own database transaction. */
+  async saveInTx(
+    tx: Tx,
+    auth: AuthContext,
+    ctx: CompanyContext,
+    id: string | null,
+    input: PaymentInput,
+    meta: RequestMeta,
+  ): Promise<PaymentDto> {
+    const companyId = ctx.companyId;
+    const before = id ? await this.load(tx, companyId, id) : null;
+    if (before && before.status !== 'posted')
+      throw new ConflictException('A void payment cannot be edited');
 
-      const amount = parseMoney(input.amount);
-      const depositAccountId =
-        input.depositAccountId ??
-        before?.depositAccountId ??
-        (await systemAccount(tx, companyId, 'undeposited_funds'));
-      const depositAccount = await tx
-        .selectFrom('accounts')
-        .select(['account_type', 'is_active'])
-        .where('id', '=', depositAccountId)
-        .where('company_id', '=', companyId)
-        .executeTakeFirst();
-      if (
-        !depositAccount?.is_active ||
-        !['bank', 'other_current_asset'].includes(depositAccount.account_type)
-      ) {
-        throw new BadRequestException(
-          validationError([
-            { path: 'depositAccountId', message: 'Choose Undeposited Funds or a bank account' },
-          ]),
-        );
-      }
-      if (
-        before?.depositId &&
-        (amount !== parseMoney(before.amount) || depositAccountId !== before.depositAccountId)
-      ) {
-        throw new ConflictException(
-          'This payment is in a bank deposit. Remove it from the deposit before changing the amount or account.',
-        );
-      }
-
-      // Lock and validate every invoice / credit memo being applied.
-      const targetIds = input.applications.map((a) => a.targetId);
-      const targets = new Map(
-        targetIds.length
-          ? (
-              await tx
-                .selectFrom('transactions')
-                .select(['id', 'txn_type', 'customer_id', 'status', 'total', 'txn_number'])
-                .where('company_id', '=', companyId)
-                .where('id', 'in', targetIds)
-                .forUpdate()
-                .execute()
-            ).map((t) => [t.id, t])
-          : [],
+    const customer = await tx
+      .selectFrom('customers')
+      .select(['id', 'is_active'])
+      .where('id', '=', input.customerId)
+      .where('company_id', '=', companyId)
+      .executeTakeFirst();
+    if (!customer || (!customer.is_active && customer.id !== before?.customerId)) {
+      throw new BadRequestException(
+        validationError([{ path: 'customerId', message: 'Customer not found or inactive' }]),
       );
-      const alreadyApplied = await appliedTo(tx, targetIds, { excludePaymentId: id ?? undefined });
-      const errors: Array<{ path: string; message: string }> = [];
-      let invoicesPaid: Money = 0n;
-      let creditsUsed: Money = 0n;
-      input.applications.forEach((a, i) => {
-        const t = targets.get(a.targetId);
-        const path = `applications.${i}.amount`;
-        if (
-          !t ||
-          t.status !== 'posted' ||
-          !['invoice', 'credit_memo'].includes(t.txn_type) ||
-          t.customer_id !== input.customerId
-        ) {
-          errors.push({
-            path: `applications.${i}.targetId`,
-            message: 'Open invoice or credit not found for this customer',
-          });
-          return;
-        }
-        const open = parseMoney(t.total ?? '0') - (alreadyApplied.get(t.id) ?? 0n);
-        const value = parseMoney(a.amount);
-        if (value > open) {
-          errors.push({
-            path,
-            message:
-              `Only ${moneyToString(open)} is open on ${t.txn_type === 'invoice' ? 'invoice' : 'credit memo'} ${t.txn_number ?? ''}`.trim(),
-          });
-        }
-        if (t.txn_type === 'invoice') invoicesPaid += value;
-        else creditsUsed += value;
-      });
-      if (errors.length) throw new BadRequestException(validationError(errors));
-      if (creditsUsed > invoicesPaid) {
-        throw new BadRequestException(
-          validationError([
-            {
-              path: 'applications',
-              message: 'Credits can only be applied against invoices in the same payment',
-            },
-          ]),
-        );
-      }
-      if (invoicesPaid > amount + creditsUsed) {
-        throw new BadRequestException(
-          validationError([
-            {
-              path: 'amount',
-              message: `You applied ${moneyToString(invoicesPaid)} but received ${moneyToString(amount)}${creditsUsed ? ` plus ${moneyToString(creditsUsed)} in credits` : ''}.`,
-            },
-          ]),
-        );
-      }
+    }
 
-      const ar = await systemAccount(tx, companyId, 'accounts_receivable');
-      const journal =
-        amount > 0n
-          ? [
-              {
-                accountId: depositAccountId,
-                debit: amount,
-                credit: 0n,
-                description: null,
-                customerId: input.customerId,
-                vendorId: null,
-                classId: null,
-                locationId: null,
-              },
-              {
-                accountId: ar,
-                debit: 0n,
-                credit: amount,
-                description: null,
-                customerId: input.customerId,
-                vendorId: null,
-                classId: null,
-                locationId: null,
-              },
-            ]
-          : [];
-      const header = {
-        txnType: 'payment' as const,
-        txnDate: input.txnDate,
-        number: null,
-        memo: input.memo ?? null,
-        isAdjusting: false,
-        details: {
-          customerId: input.customerId,
-          paymentMethodId: input.paymentMethodId ?? null,
-          reference: input.reference ?? null,
-          depositAccountId,
-          total: moneyToString(amount, 2),
-        },
-      };
-      const postingCtx = { companyId, userId: auth.userId, closingPassword: input.closingPassword };
-      let paymentId = id;
-      if (id) await this.posting.revise(tx, postingCtx, id, input.version, header, journal);
-      else paymentId = await this.posting.create(tx, postingCtx, header, journal);
-
-      await tx.deleteFrom('payment_applications').where('payment_id', '=', paymentId!).execute();
-      if (input.applications.length) {
-        await tx
-          .insertInto('payment_applications')
-          .values(
-            input.applications.map((a) => ({
-              company_id: companyId,
-              payment_id: paymentId!,
-              target_id: a.targetId,
-              amount: a.amount,
-            })),
-          )
-          .execute();
-      }
-
-      const after = await this.load(tx, companyId, paymentId!);
-      await this.audit.record(
-        tx,
-        {
-          companyId,
-          actorUserId: auth.userId,
-          action: before ? 'payment.updated' : 'payment.created',
-          entityType: 'transaction',
-          entityId: paymentId!,
-          before: before ? auditView(before) : null,
-          after: auditView(after),
-        },
-        meta,
+    const amount = parseMoney(input.amount);
+    const depositAccountId =
+      input.depositAccountId ??
+      before?.depositAccountId ??
+      (await systemAccount(tx, companyId, 'undeposited_funds'));
+    const depositAccount = await tx
+      .selectFrom('accounts')
+      .select(['account_type', 'is_active'])
+      .where('id', '=', depositAccountId)
+      .where('company_id', '=', companyId)
+      .executeTakeFirst();
+    if (
+      !depositAccount?.is_active ||
+      !['bank', 'other_current_asset'].includes(depositAccount.account_type)
+    ) {
+      throw new BadRequestException(
+        validationError([
+          { path: 'depositAccountId', message: 'Choose Undeposited Funds or a bank account' },
+        ]),
       );
-      return after;
+    }
+    if (
+      before?.depositId &&
+      (amount !== parseMoney(before.amount) || depositAccountId !== before.depositAccountId)
+    ) {
+      throw new ConflictException(
+        'This payment is in a bank deposit. Remove it from the deposit before changing the amount or account.',
+      );
+    }
+
+    // Lock and validate every invoice / credit memo being applied.
+    const targetIds = input.applications.map((a) => a.targetId);
+    const targets = new Map(
+      targetIds.length
+        ? (
+            await tx
+              .selectFrom('transactions')
+              .select(['id', 'txn_type', 'customer_id', 'status', 'total', 'txn_number'])
+              .where('company_id', '=', companyId)
+              .where('id', 'in', targetIds)
+              .forUpdate()
+              .execute()
+          ).map((t) => [t.id, t])
+        : [],
+    );
+    const alreadyApplied = await appliedTo(tx, targetIds, { excludePaymentId: id ?? undefined });
+    const errors: Array<{ path: string; message: string }> = [];
+    let invoicesPaid: Money = 0n;
+    let creditsUsed: Money = 0n;
+    input.applications.forEach((a, i) => {
+      const t = targets.get(a.targetId);
+      const path = `applications.${i}.amount`;
+      if (
+        !t ||
+        t.status !== 'posted' ||
+        !['invoice', 'credit_memo'].includes(t.txn_type) ||
+        t.customer_id !== input.customerId
+      ) {
+        errors.push({
+          path: `applications.${i}.targetId`,
+          message: 'Open invoice or credit not found for this customer',
+        });
+        return;
+      }
+      const open = parseMoney(t.total ?? '0') - (alreadyApplied.get(t.id) ?? 0n);
+      const value = parseMoney(a.amount);
+      if (value > open) {
+        errors.push({
+          path,
+          message:
+            `Only ${moneyToString(open)} is open on ${t.txn_type === 'invoice' ? 'invoice' : 'credit memo'} ${t.txn_number ?? ''}`.trim(),
+        });
+      }
+      if (t.txn_type === 'invoice') invoicesPaid += value;
+      else creditsUsed += value;
     });
+    if (errors.length) throw new BadRequestException(validationError(errors));
+    if (creditsUsed > invoicesPaid) {
+      throw new BadRequestException(
+        validationError([
+          {
+            path: 'applications',
+            message: 'Credits can only be applied against invoices in the same payment',
+          },
+        ]),
+      );
+    }
+    if (invoicesPaid > amount + creditsUsed) {
+      throw new BadRequestException(
+        validationError([
+          {
+            path: 'amount',
+            message: `You applied ${moneyToString(invoicesPaid)} but received ${moneyToString(amount)}${creditsUsed ? ` plus ${moneyToString(creditsUsed)} in credits` : ''}.`,
+          },
+        ]),
+      );
+    }
+
+    const ar = await systemAccount(tx, companyId, 'accounts_receivable');
+    const journal =
+      amount > 0n
+        ? [
+            {
+              accountId: depositAccountId,
+              debit: amount,
+              credit: 0n,
+              description: null,
+              customerId: input.customerId,
+              vendorId: null,
+              classId: null,
+              locationId: null,
+            },
+            {
+              accountId: ar,
+              debit: 0n,
+              credit: amount,
+              description: null,
+              customerId: input.customerId,
+              vendorId: null,
+              classId: null,
+              locationId: null,
+            },
+          ]
+        : [];
+    const header = {
+      txnType: 'payment' as const,
+      txnDate: input.txnDate,
+      number: null,
+      memo: input.memo ?? null,
+      isAdjusting: false,
+      details: {
+        customerId: input.customerId,
+        paymentMethodId: input.paymentMethodId ?? null,
+        reference: input.reference ?? null,
+        depositAccountId,
+        total: moneyToString(amount, 2),
+      },
+    };
+    const postingCtx = { companyId, userId: auth.userId, closingPassword: input.closingPassword };
+    let paymentId = id;
+    if (id) await this.posting.revise(tx, postingCtx, id, input.version, header, journal);
+    else paymentId = await this.posting.create(tx, postingCtx, header, journal);
+
+    await tx.deleteFrom('payment_applications').where('payment_id', '=', paymentId!).execute();
+    if (input.applications.length) {
+      await tx
+        .insertInto('payment_applications')
+        .values(
+          input.applications.map((a) => ({
+            company_id: companyId,
+            payment_id: paymentId!,
+            target_id: a.targetId,
+            amount: a.amount,
+          })),
+        )
+        .execute();
+    }
+
+    const after = await this.load(tx, companyId, paymentId!);
+    await this.audit.record(
+      tx,
+      {
+        companyId,
+        actorUserId: auth.userId,
+        action: before ? 'payment.updated' : 'payment.created',
+        entityType: 'transaction',
+        entityId: paymentId!,
+        before: before ? auditView(before) : null,
+        after: auditView(after),
+      },
+      meta,
+    );
+    return after;
   }
 
   setStatus(

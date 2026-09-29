@@ -79,76 +79,88 @@ export class SimpleListsService {
     input: SimplePatch,
     meta: RequestMeta,
   ): Promise<SimpleListItemDto> {
-    const table = SIMPLE_TABLES[list];
-    return withTenant(this.db, { userId: auth.userId, companyId: ctx.companyId }, async (tx) => {
-      if (input.parentId !== undefined && table === 'payment_methods' && input.parentId !== null) {
-        throw new BadRequestException('Payment methods cannot have sub-items');
-      }
-      const all = await this.rows(tx, ctx.companyId, list);
-      if (input.parentId) {
-        let cursor: string | null = input.parentId;
-        for (let depth = 0; cursor; depth++) {
-          if (cursor === id || depth > 5)
-            throw new BadRequestException('Items can be nested at most 5 levels, without cycles');
-          const parent = all.find((r) => r.id === cursor);
-          if (!parent) throw new BadRequestException('Parent not found');
-          cursor = parent.parent_id;
-        }
-      }
-      const set: Record<string, unknown> = {};
-      if (input.name !== undefined) set.name = input.name;
-      if (input.parentId !== undefined && table !== 'payment_methods')
-        set.parent_id = input.parentId;
-      if (input.isActive !== undefined) set.is_active = input.isActive;
+    return withTenant(this.db, { userId: auth.userId, companyId: ctx.companyId }, (tx) =>
+      this.saveInTx(tx, auth, ctx, list, id, input, meta),
+    );
+  }
 
-      const before = id ? all.find((r) => r.id === id) : undefined;
-      if (id && !before) throw new NotFoundException('Not found');
-      let savedId = id;
-      if (id) {
-        if (Object.keys(set).length)
-          await tx.updateTable(table).set(set).where('id', '=', id).execute();
-      } else {
-        savedId = (
-          await tx
-            .insertInto(table)
-            .values({ ...(set as { name: string }), company_id: ctx.companyId })
-            .returning('id')
-            .executeTakeFirstOrThrow()
-        ).id;
+  /** Also used by the QuickBooks import, inside its own database transaction. */
+  async saveInTx(
+    tx: Tx,
+    auth: AuthContext,
+    ctx: CompanyContext,
+    list: SimpleList,
+    id: string | null,
+    input: SimplePatch,
+    meta: RequestMeta,
+  ): Promise<SimpleListItemDto> {
+    const table = SIMPLE_TABLES[list];
+    if (input.parentId !== undefined && table === 'payment_methods' && input.parentId !== null) {
+      throw new BadRequestException('Payment methods cannot have sub-items');
+    }
+    const all = await this.rows(tx, ctx.companyId, list);
+    if (input.parentId) {
+      let cursor: string | null = input.parentId;
+      for (let depth = 0; cursor; depth++) {
+        if (cursor === id || depth > 5)
+          throw new BadRequestException('Items can be nested at most 5 levels, without cycles');
+        const parent = all.find((r) => r.id === cursor);
+        if (!parent) throw new BadRequestException('Parent not found');
+        cursor = parent.parent_id;
       }
-      const after = await this.rows(tx, ctx.companyId, list);
-      const node = flattenTree(buildTree(after, (r) => r.name)).find((n) => n.item.id === savedId)!;
-      const view = (r: { name: string; parent_id: string | null; is_active: boolean }) => ({
-        name: r.name,
-        parentId: r.parent_id,
-        isActive: r.is_active,
-      });
-      const changes = before
-        ? diff(view(before), view(node.item))
-        : { before: null, after: view(node.item) };
-      if (changes) {
-        await this.audit.record(
-          tx,
-          {
-            companyId: ctx.companyId,
-            actorUserId: auth.userId,
-            action: `${SIMPLE_LABELS[list]}.${before ? 'updated' : 'created'}`,
-            entityType: SIMPLE_LABELS[list],
-            entityId: savedId!,
-            ...changes,
-          },
-          meta,
-        );
-      }
-      return {
-        id: node.item.id,
-        name: node.item.name,
-        fullName: node.fullName,
-        parentId: node.item.parent_id,
-        depth: node.depth,
-        isActive: node.item.is_active,
-      };
+    }
+    const set: Record<string, unknown> = {};
+    if (input.name !== undefined) set.name = input.name;
+    if (input.parentId !== undefined && table !== 'payment_methods') set.parent_id = input.parentId;
+    if (input.isActive !== undefined) set.is_active = input.isActive;
+
+    const before = id ? all.find((r) => r.id === id) : undefined;
+    if (id && !before) throw new NotFoundException('Not found');
+    let savedId = id;
+    if (id) {
+      if (Object.keys(set).length)
+        await tx.updateTable(table).set(set).where('id', '=', id).execute();
+    } else {
+      savedId = (
+        await tx
+          .insertInto(table)
+          .values({ ...(set as { name: string }), company_id: ctx.companyId })
+          .returning('id')
+          .executeTakeFirstOrThrow()
+      ).id;
+    }
+    const after = await this.rows(tx, ctx.companyId, list);
+    const node = flattenTree(buildTree(after, (r) => r.name)).find((n) => n.item.id === savedId)!;
+    const view = (r: { name: string; parent_id: string | null; is_active: boolean }) => ({
+      name: r.name,
+      parentId: r.parent_id,
+      isActive: r.is_active,
     });
+    const changes = before
+      ? diff(view(before), view(node.item))
+      : { before: null, after: view(node.item) };
+    if (changes) {
+      await this.audit.record(
+        tx,
+        {
+          companyId: ctx.companyId,
+          actorUserId: auth.userId,
+          action: `${SIMPLE_LABELS[list]}.${before ? 'updated' : 'created'}`,
+          entityType: SIMPLE_LABELS[list],
+          entityId: savedId!,
+          ...changes,
+        },
+        meta,
+      );
+    }
+    return {
+      id: node.item.id,
+      name: node.item.name,
+      fullName: node.fullName,
+      parentId: node.item.parent_id,
+      depth: node.depth,
+      isActive: node.item.is_active,
+    };
   }
 
   private async rows(tx: Tx, companyId: string, list: SimpleList) {
@@ -195,60 +207,72 @@ export class TermsService {
     input: TermPatch,
     meta: RequestMeta,
   ): Promise<TermDto> {
-    return withTenant(this.db, { userId: auth.userId, companyId: ctx.companyId }, async (tx) => {
-      const set: Record<string, unknown> = {};
-      if (input.name !== undefined) set.name = input.name;
-      if (input.dueDays !== undefined) set.due_days = input.dueDays;
-      if (input.discountPercent !== undefined) set.discount_percent = input.discountPercent;
-      if (input.discountDays !== undefined) set.discount_days = input.discountDays;
-      if ('isActive' in input && input.isActive !== undefined) set.is_active = input.isActive;
-      let before: TermDto | null = null;
-      let row: Term;
-      if (id) {
-        const existing = await tx
-          .selectFrom('terms')
-          .selectAll()
-          .where('id', '=', id)
-          .where('company_id', '=', ctx.companyId)
-          .executeTakeFirst();
-        if (!existing) throw new NotFoundException('Terms not found');
-        before = toTermDto(existing);
-        row = Object.keys(set).length
-          ? await tx
-              .updateTable('terms')
-              .set(set)
-              .where('id', '=', id)
-              .returningAll()
-              .executeTakeFirstOrThrow()
-          : existing;
-      } else {
-        row = await tx
-          .insertInto('terms')
-          .values({ ...(set as { name: string }), company_id: ctx.companyId })
-          .returningAll()
-          .executeTakeFirstOrThrow();
-      }
-      const after = toTermDto(row);
-      const strip = ({ id: _id, ...rest }: TermDto) => rest;
-      const changes = before
-        ? diff(strip(before), strip(after))
-        : { before: null, after: strip(after) };
-      if (changes) {
-        await this.audit.record(
-          tx,
-          {
-            companyId: ctx.companyId,
-            actorUserId: auth.userId,
-            action: before ? 'terms.updated' : 'terms.created',
-            entityType: 'terms',
-            entityId: row.id,
-            ...changes,
-          },
-          meta,
-        );
-      }
-      return after;
-    });
+    return withTenant(this.db, { userId: auth.userId, companyId: ctx.companyId }, (tx) =>
+      this.saveInTx(tx, auth, ctx, id, input, meta),
+    );
+  }
+
+  /** Also used by the QuickBooks import, inside its own database transaction. */
+  async saveInTx(
+    tx: Tx,
+    auth: AuthContext,
+    ctx: CompanyContext,
+    id: string | null,
+    input: TermPatch,
+    meta: RequestMeta,
+  ): Promise<TermDto> {
+    const set: Record<string, unknown> = {};
+    if (input.name !== undefined) set.name = input.name;
+    if (input.dueDays !== undefined) set.due_days = input.dueDays;
+    if (input.discountPercent !== undefined) set.discount_percent = input.discountPercent;
+    if (input.discountDays !== undefined) set.discount_days = input.discountDays;
+    if ('isActive' in input && input.isActive !== undefined) set.is_active = input.isActive;
+    let before: TermDto | null = null;
+    let row: Term;
+    if (id) {
+      const existing = await tx
+        .selectFrom('terms')
+        .selectAll()
+        .where('id', '=', id)
+        .where('company_id', '=', ctx.companyId)
+        .executeTakeFirst();
+      if (!existing) throw new NotFoundException('Terms not found');
+      before = toTermDto(existing);
+      row = Object.keys(set).length
+        ? await tx
+            .updateTable('terms')
+            .set(set)
+            .where('id', '=', id)
+            .returningAll()
+            .executeTakeFirstOrThrow()
+        : existing;
+    } else {
+      row = await tx
+        .insertInto('terms')
+        .values({ ...(set as { name: string }), company_id: ctx.companyId })
+        .returningAll()
+        .executeTakeFirstOrThrow();
+    }
+    const after = toTermDto(row);
+    const strip = ({ id: _id, ...rest }: TermDto) => rest;
+    const changes = before
+      ? diff(strip(before), strip(after))
+      : { before: null, after: strip(after) };
+    if (changes) {
+      await this.audit.record(
+        tx,
+        {
+          companyId: ctx.companyId,
+          actorUserId: auth.userId,
+          action: before ? 'terms.updated' : 'terms.created',
+          entityType: 'terms',
+          entityId: row.id,
+          ...changes,
+        },
+        meta,
+      );
+    }
+    return after;
   }
 }
 
@@ -299,74 +323,85 @@ export class ItemsService {
     input: ItemPatch,
     meta: RequestMeta,
   ): Promise<ItemDto> {
-    return withTenant(this.db, { userId: auth.userId, companyId: ctx.companyId }, async (tx) => {
-      const map: Array<[keyof ItemPatch, string]> = [
-        ['name', 'name'],
-        ['sku', 'sku'],
-        ['itemType', 'item_type'],
-        ['description', 'description'],
-        ['salesPrice', 'sales_price'],
-        ['incomeAccountId', 'income_account_id'],
-        ['purchaseDescription', 'purchase_description'],
-        ['cost', 'cost'],
-        ['expenseAccountId', 'expense_account_id'],
-        ['taxable', 'taxable'],
-      ];
-      const set: Record<string, unknown> = { updated_by: auth.userId };
-      for (const [key, column] of map)
-        if (input[key] !== undefined) set[column] = input[key] ?? null;
-      if ('isActive' in input && input.isActive !== undefined) set.is_active = input.isActive;
-      await this.assertAccounts(tx, ctx.companyId, input);
+    return withTenant(this.db, { userId: auth.userId, companyId: ctx.companyId }, (tx) =>
+      this.saveInTx(tx, auth, ctx, id, input, meta),
+    );
+  }
 
-      let before: ItemDto | null = null;
-      let row: Item;
-      if (id) {
-        const existing = await tx
-          .selectFrom('items')
-          .selectAll()
-          .where('id', '=', id)
-          .where('company_id', '=', ctx.companyId)
-          .executeTakeFirst();
-        if (!existing) throw new NotFoundException('Product or service not found');
-        before = toItemDto(existing);
-        row = await tx
-          .updateTable('items')
-          .set(set)
-          .where('id', '=', id)
-          .returningAll()
-          .executeTakeFirstOrThrow();
-      } else {
-        row = await tx
-          .insertInto('items')
-          .values({
-            ...(set as { name: string; item_type: string }),
-            company_id: ctx.companyId,
-            created_by: auth.userId,
-          })
-          .returningAll()
-          .executeTakeFirstOrThrow();
-      }
-      const after = toItemDto(row);
-      const strip = ({ id: _id, ...rest }: ItemDto) => rest;
-      const changes = before
-        ? diff(strip(before), strip(after))
-        : { before: null, after: strip(after) };
-      if (changes) {
-        await this.audit.record(
-          tx,
-          {
-            companyId: ctx.companyId,
-            actorUserId: auth.userId,
-            action: before ? 'item.updated' : 'item.created',
-            entityType: 'item',
-            entityId: row.id,
-            ...changes,
-          },
-          meta,
-        );
-      }
-      return after;
-    });
+  /** Also used by the QuickBooks import, inside its own database transaction. */
+  async saveInTx(
+    tx: Tx,
+    auth: AuthContext,
+    ctx: CompanyContext,
+    id: string | null,
+    input: ItemPatch,
+    meta: RequestMeta,
+  ): Promise<ItemDto> {
+    const map: Array<[keyof ItemPatch, string]> = [
+      ['name', 'name'],
+      ['sku', 'sku'],
+      ['itemType', 'item_type'],
+      ['description', 'description'],
+      ['salesPrice', 'sales_price'],
+      ['incomeAccountId', 'income_account_id'],
+      ['purchaseDescription', 'purchase_description'],
+      ['cost', 'cost'],
+      ['expenseAccountId', 'expense_account_id'],
+      ['taxable', 'taxable'],
+    ];
+    const set: Record<string, unknown> = { updated_by: auth.userId };
+    for (const [key, column] of map) if (input[key] !== undefined) set[column] = input[key] ?? null;
+    if ('isActive' in input && input.isActive !== undefined) set.is_active = input.isActive;
+    await this.assertAccounts(tx, ctx.companyId, input);
+
+    let before: ItemDto | null = null;
+    let row: Item;
+    if (id) {
+      const existing = await tx
+        .selectFrom('items')
+        .selectAll()
+        .where('id', '=', id)
+        .where('company_id', '=', ctx.companyId)
+        .executeTakeFirst();
+      if (!existing) throw new NotFoundException('Product or service not found');
+      before = toItemDto(existing);
+      row = await tx
+        .updateTable('items')
+        .set(set)
+        .where('id', '=', id)
+        .returningAll()
+        .executeTakeFirstOrThrow();
+    } else {
+      row = await tx
+        .insertInto('items')
+        .values({
+          ...(set as { name: string; item_type: string }),
+          company_id: ctx.companyId,
+          created_by: auth.userId,
+        })
+        .returningAll()
+        .executeTakeFirstOrThrow();
+    }
+    const after = toItemDto(row);
+    const strip = ({ id: _id, ...rest }: ItemDto) => rest;
+    const changes = before
+      ? diff(strip(before), strip(after))
+      : { before: null, after: strip(after) };
+    if (changes) {
+      await this.audit.record(
+        tx,
+        {
+          companyId: ctx.companyId,
+          actorUserId: auth.userId,
+          action: before ? 'item.updated' : 'item.created',
+          entityType: 'item',
+          entityId: row.id,
+          ...changes,
+        },
+        meta,
+      );
+    }
+    return after;
   }
 
   /** Income accounts must be income-type; expense accounts must be expense/COGS/other expense. */

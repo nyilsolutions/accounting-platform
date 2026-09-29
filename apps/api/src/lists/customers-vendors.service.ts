@@ -104,64 +104,76 @@ export class CustomersService {
     input: CustomerPatch,
     meta: RequestMeta,
   ): Promise<CustomerDto> {
-    return withTenant(this.db, { userId: auth.userId, companyId: ctx.companyId }, async (tx) => {
-      const row: Record<string, unknown> = {
-        ...pickColumns(input, [
-          ...CONTACT_COLUMNS,
-          ['displayName', 'display_name'],
-          ['parentId', 'parent_id'],
-          ['taxExempt', 'tax_exempt'],
-        ]),
-        updated_by: auth.userId,
-      };
-      if (input.parentId) {
-        if (input.parentId === id)
-          throw new BadRequestException('A customer cannot be its own parent');
-        await this.assertNoCycle(tx, ctx.companyId, id, input.parentId);
-      }
-      let before: CustomerDto | null = null;
-      let savedId = id;
-      if (id) {
-        before = await this.load(tx, ctx.companyId, id);
+    return withTenant(this.db, { userId: auth.userId, companyId: ctx.companyId }, (tx) =>
+      this.saveInTx(tx, auth, ctx, id, input, meta),
+    );
+  }
+
+  /** Also used by the QuickBooks import, inside its own database transaction. */
+  async saveInTx(
+    tx: Tx,
+    auth: AuthContext,
+    ctx: CompanyContext,
+    id: string | null,
+    input: CustomerPatch,
+    meta: RequestMeta,
+  ): Promise<CustomerDto> {
+    const row: Record<string, unknown> = {
+      ...pickColumns(input, [
+        ...CONTACT_COLUMNS,
+        ['displayName', 'display_name'],
+        ['parentId', 'parent_id'],
+        ['taxExempt', 'tax_exempt'],
+      ]),
+      updated_by: auth.userId,
+    };
+    if (input.parentId) {
+      if (input.parentId === id)
+        throw new BadRequestException('A customer cannot be its own parent');
+      await this.assertNoCycle(tx, ctx.companyId, id, input.parentId);
+    }
+    let before: CustomerDto | null = null;
+    let savedId = id;
+    if (id) {
+      before = await this.load(tx, ctx.companyId, id);
+      await tx
+        .updateTable('customers')
+        .set(row)
+        .where('id', '=', id)
+        .where('company_id', '=', ctx.companyId)
+        .execute();
+    } else {
+      savedId = (
         await tx
-          .updateTable('customers')
-          .set(row)
-          .where('id', '=', id)
-          .where('company_id', '=', ctx.companyId)
-          .execute();
-      } else {
-        savedId = (
-          await tx
-            .insertInto('customers')
-            .values({
-              ...(row as { display_name: string }),
-              company_id: ctx.companyId,
-              created_by: auth.userId,
-            })
-            .returning('id')
-            .executeTakeFirstOrThrow()
-        ).id;
-      }
-      const after = await this.load(tx, ctx.companyId, savedId!);
-      const changes = before
-        ? diff(auditView(before), auditView(after))
-        : { before: null, after: auditView(after) };
-      if (changes) {
-        await this.audit.record(
-          tx,
-          {
-            companyId: ctx.companyId,
-            actorUserId: auth.userId,
-            action: before ? 'customer.updated' : 'customer.created',
-            entityType: 'customer',
-            entityId: savedId!,
-            ...changes,
-          },
-          meta,
-        );
-      }
-      return after;
-    });
+          .insertInto('customers')
+          .values({
+            ...(row as { display_name: string }),
+            company_id: ctx.companyId,
+            created_by: auth.userId,
+          })
+          .returning('id')
+          .executeTakeFirstOrThrow()
+      ).id;
+    }
+    const after = await this.load(tx, ctx.companyId, savedId!);
+    const changes = before
+      ? diff(auditView(before), auditView(after))
+      : { before: null, after: auditView(after) };
+    if (changes) {
+      await this.audit.record(
+        tx,
+        {
+          companyId: ctx.companyId,
+          actorUserId: auth.userId,
+          action: before ? 'customer.updated' : 'customer.created',
+          entityType: 'customer',
+          entityId: savedId!,
+          ...changes,
+        },
+        meta,
+      );
+    }
+    return after;
   }
 
   private async assertNoCycle(
@@ -247,76 +259,88 @@ export class VendorsService {
     input: VendorPatch,
     meta: RequestMeta,
   ): Promise<VendorDto> {
-    return withTenant(this.db, { userId: auth.userId, companyId: ctx.companyId }, async (tx) => {
-      const row: Record<string, unknown> = {
-        ...pickColumns(input, [
-          ...CONTACT_COLUMNS,
-          ['displayName', 'display_name'],
-          ['accountNumber', 'account_number'],
-          ['is1099', 'is_1099'],
-          ['tinType', 'tin_type'],
-          ['defaultExpenseAccountId', 'default_expense_account_id'],
-        ]),
-        updated_by: auth.userId,
-      };
-      let before: VendorDto | null = null;
-      let savedId = id;
-      if (id) {
-        before = await this.load(tx, ctx.companyId, id);
+    return withTenant(this.db, { userId: auth.userId, companyId: ctx.companyId }, (tx) =>
+      this.saveInTx(tx, auth, ctx, id, input, meta),
+    );
+  }
+
+  /** Also used by the QuickBooks import, inside its own database transaction. */
+  async saveInTx(
+    tx: Tx,
+    auth: AuthContext,
+    ctx: CompanyContext,
+    id: string | null,
+    input: VendorPatch,
+    meta: RequestMeta,
+  ): Promise<VendorDto> {
+    const row: Record<string, unknown> = {
+      ...pickColumns(input, [
+        ...CONTACT_COLUMNS,
+        ['displayName', 'display_name'],
+        ['accountNumber', 'account_number'],
+        ['is1099', 'is_1099'],
+        ['tinType', 'tin_type'],
+        ['defaultExpenseAccountId', 'default_expense_account_id'],
+      ]),
+      updated_by: auth.userId,
+    };
+    let before: VendorDto | null = null;
+    let savedId = id;
+    if (id) {
+      before = await this.load(tx, ctx.companyId, id);
+      await tx
+        .updateTable('vendors')
+        .set(row)
+        .where('id', '=', id)
+        .where('company_id', '=', ctx.companyId)
+        .execute();
+    } else {
+      savedId = (
         await tx
-          .updateTable('vendors')
-          .set(row)
-          .where('id', '=', id)
-          .where('company_id', '=', ctx.companyId)
-          .execute();
-      } else {
-        savedId = (
-          await tx
-            .insertInto('vendors')
-            .values({
-              ...(row as { display_name: string }),
-              company_id: ctx.companyId,
-              created_by: auth.userId,
-            })
-            .returning('id')
-            .executeTakeFirstOrThrow()
-        ).id;
-      }
-      // The TIN is encrypted with AAD bound to this vendor, so it is written after the id exists.
-      if (input.tin !== undefined) {
-        await tx
-          .updateTable('vendors')
-          .set(
-            input.tin === ''
-              ? { tin_enc: null, tin_last4: null }
-              : {
-                  tin_enc: this.encryptor.encrypt(input.tin, `vendor:${savedId}:tin`),
-                  tin_last4: input.tin.slice(-4),
-                },
-          )
-          .where('id', '=', savedId!)
-          .execute();
-      }
-      const after = await this.load(tx, ctx.companyId, savedId!);
-      const changes = before
-        ? diff(vendorAuditView(before), vendorAuditView(after))
-        : { before: null, after: vendorAuditView(after) };
-      if (changes) {
-        await this.audit.record(
-          tx,
-          {
-            companyId: ctx.companyId,
-            actorUserId: auth.userId,
-            action: before ? 'vendor.updated' : 'vendor.created',
-            entityType: 'vendor',
-            entityId: savedId!,
-            ...changes,
-          },
-          meta,
-        );
-      }
-      return after;
-    });
+          .insertInto('vendors')
+          .values({
+            ...(row as { display_name: string }),
+            company_id: ctx.companyId,
+            created_by: auth.userId,
+          })
+          .returning('id')
+          .executeTakeFirstOrThrow()
+      ).id;
+    }
+    // The TIN is encrypted with AAD bound to this vendor, so it is written after the id exists.
+    if (input.tin !== undefined) {
+      await tx
+        .updateTable('vendors')
+        .set(
+          input.tin === ''
+            ? { tin_enc: null, tin_last4: null }
+            : {
+                tin_enc: this.encryptor.encrypt(input.tin, `vendor:${savedId}:tin`),
+                tin_last4: input.tin.slice(-4),
+              },
+        )
+        .where('id', '=', savedId!)
+        .execute();
+    }
+    const after = await this.load(tx, ctx.companyId, savedId!);
+    const changes = before
+      ? diff(vendorAuditView(before), vendorAuditView(after))
+      : { before: null, after: vendorAuditView(after) };
+    if (changes) {
+      await this.audit.record(
+        tx,
+        {
+          companyId: ctx.companyId,
+          actorUserId: auth.userId,
+          action: before ? 'vendor.updated' : 'vendor.created',
+          entityType: 'vendor',
+          entityId: savedId!,
+          ...changes,
+        },
+        meta,
+      );
+    }
+    return after;
   }
 
   private async load(tx: Tx, companyId: string, id: string): Promise<VendorDto> {

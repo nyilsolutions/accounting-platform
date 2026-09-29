@@ -70,142 +70,152 @@ export class EstimatesService {
     input: EstimateInput,
     meta: RequestMeta,
   ): Promise<EstimateDto> {
-    return withTenant(this.db, { userId: auth.userId, companyId: ctx.companyId }, async (tx) => {
-      const companyId = ctx.companyId;
-      const before = id ? await this.load(tx, companyId, id) : null;
-      if (before?.invoiceId)
-        throw new ConflictException(
-          'This estimate has been converted to an invoice and can no longer be edited.',
-        );
-      const customer = await tx
-        .selectFrom('customers')
-        .select(['is_active'])
-        .where('id', '=', input.customerId)
-        .where('company_id', '=', companyId)
-        .executeTakeFirst();
-      if (!customer?.is_active)
-        throw new BadRequestException(
-          validationError([{ path: 'customerId', message: 'Customer not found or inactive' }]),
-        );
+    return withTenant(this.db, { userId: auth.userId, companyId: ctx.companyId }, (tx) =>
+      this.saveInTx(tx, auth, ctx, id, input, meta),
+    );
+  }
 
-      const itemIds = [
-        ...new Set(input.lines.map((l) => l.itemId).filter((v): v is string => !!v)),
-      ];
-      const items = new Map(
-        itemIds.length
-          ? (
-              await tx
-                .selectFrom('items')
-                .select(['id', 'is_active', 'description'])
-                .where('company_id', '=', companyId)
-                .where('id', 'in', itemIds)
-                .execute()
-            ).map((i) => [i.id, i])
-          : [],
+  /** Also used by the QuickBooks import, inside its own database transaction. */
+  async saveInTx(
+    tx: Tx,
+    auth: AuthContext,
+    ctx: CompanyContext,
+    id: string | null,
+    input: EstimateInput,
+    meta: RequestMeta,
+  ): Promise<EstimateDto> {
+    const companyId = ctx.companyId;
+    const before = id ? await this.load(tx, companyId, id) : null;
+    if (before?.invoiceId)
+      throw new ConflictException(
+        'This estimate has been converted to an invoice and can no longer be edited.',
       );
-      const accountIds = [
-        ...new Set(input.lines.map((l) => l.accountId).filter((v): v is string => !!v)),
-      ];
-      const accounts = new Map(
-        accountIds.length
-          ? (
-              await tx
-                .selectFrom('accounts')
-                .select(['id', 'name', 'is_active', 'account_type'])
-                .where('company_id', '=', companyId)
-                .where('id', 'in', accountIds)
-                .execute()
-            ).map((a) => [a.id, a])
-          : [],
+    const customer = await tx
+      .selectFrom('customers')
+      .select(['is_active'])
+      .where('id', '=', input.customerId)
+      .where('company_id', '=', companyId)
+      .executeTakeFirst();
+    if (!customer?.is_active)
+      throw new BadRequestException(
+        validationError([{ path: 'customerId', message: 'Customer not found or inactive' }]),
       );
-      const errors: Array<{ path: string; message: string }> = [];
-      const lines = input.lines.map((l, i) => {
-        const item = l.itemId ? items.get(l.itemId) : undefined;
-        if (l.itemId && !item?.is_active)
+
+    const itemIds = [...new Set(input.lines.map((l) => l.itemId).filter((v): v is string => !!v))];
+    const items = new Map(
+      itemIds.length
+        ? (
+            await tx
+              .selectFrom('items')
+              .select(['id', 'is_active', 'description'])
+              .where('company_id', '=', companyId)
+              .where('id', 'in', itemIds)
+              .execute()
+          ).map((i) => [i.id, i])
+        : [],
+    );
+    const accountIds = [
+      ...new Set(input.lines.map((l) => l.accountId).filter((v): v is string => !!v)),
+    ];
+    const accounts = new Map(
+      accountIds.length
+        ? (
+            await tx
+              .selectFrom('accounts')
+              .select(['id', 'name', 'is_active', 'account_type'])
+              .where('company_id', '=', companyId)
+              .where('id', 'in', accountIds)
+              .execute()
+          ).map((a) => [a.id, a])
+        : [],
+    );
+    const errors: Array<{ path: string; message: string }> = [];
+    const lines = input.lines.map((l, i) => {
+      const item = l.itemId ? items.get(l.itemId) : undefined;
+      if (l.itemId && !item?.is_active)
+        errors.push({
+          path: `lines.${i}.itemId`,
+          message: 'Product/service not found or inactive',
+        });
+      const account = l.accountId ? accounts.get(l.accountId) : undefined;
+      if (l.accountId && !l.itemId) {
+        if (!account?.is_active)
+          errors.push({ path: `lines.${i}.accountId`, message: 'Account not found or inactive' });
+        else if (FORBIDDEN_LINE_ACCOUNTS.includes(account.account_type))
           errors.push({
-            path: `lines.${i}.itemId`,
-            message: 'Product/service not found or inactive',
+            path: `lines.${i}.accountId`,
+            message: `"${account.name}" cannot be used on a sales line`,
           });
-        const account = l.accountId ? accounts.get(l.accountId) : undefined;
-        if (l.accountId && !l.itemId) {
-          if (!account?.is_active)
-            errors.push({ path: `lines.${i}.accountId`, message: 'Account not found or inactive' });
-          else if (FORBIDDEN_LINE_ACCOUNTS.includes(account.account_type))
-            errors.push({
-              path: `lines.${i}.accountId`,
-              message: `"${account.name}" cannot be used on a sales line`,
-            });
-        }
-        return {
-          ...l,
-          description: l.description ?? item?.description ?? null,
-          amount: resolveLineAmount(l),
-        };
-      });
-      if (errors.length) throw new BadRequestException(validationError(errors));
-      const total = lines.reduce((s, l) => s + l.amount, 0n);
-
-      const values = {
-        customer_id: input.customerId,
-        txn_date: input.txnDate,
-        expiration_date: input.expirationDate ?? null,
-        number: input.number ?? before?.number ?? (await nextEstimateNumber(tx, companyId)),
-        bill_to: input.billTo ?? null,
-        email_to: input.emailTo ?? null,
-        customer_message: input.customerMessage ?? null,
-        memo: input.memo ?? null,
-        status: input.status ?? before?.status ?? 'pending',
-        total: moneyToString(total, 2),
-        updated_by: auth.userId,
-      };
-      let estimateId = id;
-      if (id) await tx.updateTable('estimates').set(values).where('id', '=', id).execute();
-      else {
-        estimateId = (
-          await tx
-            .insertInto('estimates')
-            .values({ ...values, company_id: companyId, created_by: auth.userId })
-            .returning('id')
-            .executeTakeFirstOrThrow()
-        ).id;
       }
-      await tx.deleteFrom('estimate_lines').where('estimate_id', '=', estimateId!).execute();
-      await tx
-        .insertInto('estimate_lines')
-        .values(
-          lines.map((l, i) => ({
-            company_id: companyId,
-            estimate_id: estimateId!,
-            line_no: i + 1,
-            item_id: l.itemId ?? null,
-            // The item decides the account when there is one (as on invoices).
-            account_id: l.itemId ? null : (l.accountId ?? null),
-            description: l.description,
-            quantity: l.quantity ?? null,
-            rate: l.rate ?? null,
-            amount: moneyToString(l.amount, 2),
-            class_id: l.classId ?? null,
-            service_date: l.serviceDate ?? null,
-            taxable: l.taxable ?? false,
-          })),
-        )
-        .execute();
-      const after = await this.load(tx, companyId, estimateId!);
-      await this.audit.record(
-        tx,
-        {
-          companyId,
-          actorUserId: auth.userId,
-          action: before ? 'estimate.updated' : 'estimate.created',
-          entityType: 'estimate',
-          entityId: estimateId!,
-          before: before ? auditView(before) : null,
-          after: auditView(after),
-        },
-        meta,
-      );
-      return after;
+      return {
+        ...l,
+        description: l.description ?? item?.description ?? null,
+        amount: resolveLineAmount(l),
+      };
     });
+    if (errors.length) throw new BadRequestException(validationError(errors));
+    const total = lines.reduce((s, l) => s + l.amount, 0n);
+
+    const values = {
+      customer_id: input.customerId,
+      txn_date: input.txnDate,
+      expiration_date: input.expirationDate ?? null,
+      number: input.number ?? before?.number ?? (await nextEstimateNumber(tx, companyId)),
+      bill_to: input.billTo ?? null,
+      email_to: input.emailTo ?? null,
+      customer_message: input.customerMessage ?? null,
+      memo: input.memo ?? null,
+      status: input.status ?? before?.status ?? 'pending',
+      total: moneyToString(total, 2),
+      updated_by: auth.userId,
+    };
+    let estimateId = id;
+    if (id) await tx.updateTable('estimates').set(values).where('id', '=', id).execute();
+    else {
+      estimateId = (
+        await tx
+          .insertInto('estimates')
+          .values({ ...values, company_id: companyId, created_by: auth.userId })
+          .returning('id')
+          .executeTakeFirstOrThrow()
+      ).id;
+    }
+    await tx.deleteFrom('estimate_lines').where('estimate_id', '=', estimateId!).execute();
+    await tx
+      .insertInto('estimate_lines')
+      .values(
+        lines.map((l, i) => ({
+          company_id: companyId,
+          estimate_id: estimateId!,
+          line_no: i + 1,
+          item_id: l.itemId ?? null,
+          // The item decides the account when there is one (as on invoices).
+          account_id: l.itemId ? null : (l.accountId ?? null),
+          description: l.description,
+          quantity: l.quantity ?? null,
+          rate: l.rate ?? null,
+          amount: moneyToString(l.amount, 2),
+          class_id: l.classId ?? null,
+          service_date: l.serviceDate ?? null,
+          taxable: l.taxable ?? false,
+        })),
+      )
+      .execute();
+    const after = await this.load(tx, companyId, estimateId!);
+    await this.audit.record(
+      tx,
+      {
+        companyId,
+        actorUserId: auth.userId,
+        action: before ? 'estimate.updated' : 'estimate.created',
+        entityType: 'estimate',
+        entityId: estimateId!,
+        before: before ? auditView(before) : null,
+        after: auditView(after),
+      },
+      meta,
+    );
+    return after;
   }
 
   setStatus(

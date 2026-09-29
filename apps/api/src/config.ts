@@ -65,6 +65,17 @@ const envSchema = z.object({
   /** Email-in: addresses are <token>@INBOUND_EMAIL_DOMAIN; the provider signs each message. */
   INBOUND_EMAIL_DOMAIN: z.string().optional(),
   INBOUND_EMAIL_SECRET: z.string().min(32).optional(),
+
+  // QuickBooks migration (Phase 6)
+  /** QuickBooks Online: 'sandbox' or 'production' (Intuit), 'mock' (a demo company; development and tests) or 'none'. */
+  QBO_ENVIRONMENT: z.enum(['sandbox', 'production', 'mock', 'none']).default('mock'),
+  QBO_CLIENT_ID: z.string().optional(),
+  QBO_CLIENT_SECRET: z.string().optional(),
+  /** Must be registered on the Intuit app; defaults to WEB_ORIGIN/api/migration/qbo/callback. */
+  QBO_REDIRECT_URI: z.url().optional(),
+  QBO_MINOR_VERSION: z.coerce.number().int().min(1).default(75),
+  /** Days a Desktop agent pairing key stays valid. */
+  MIGRATION_AGENT_KEY_DAYS: z.coerce.number().int().min(1).max(30).default(7),
 });
 
 export type AppConfig = z.infer<typeof envSchema>;
@@ -92,6 +103,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     if (config.BANK_FEED_PROVIDER === 'mock') {
       throw new Error("BANK_FEED_PROVIDER must be 'plaid' or 'none' in production");
     }
+    if (config.QBO_ENVIRONMENT === 'mock') {
+      throw new Error("QBO_ENVIRONMENT must be 'production', 'sandbox' or 'none' in production");
+    }
   }
   if (config.BANK_FEED_PROVIDER === 'plaid' && (!config.PLAID_CLIENT_ID || !config.PLAID_SECRET)) {
     throw new Error('PLAID_CLIENT_ID and PLAID_SECRET are required when BANK_FEED_PROVIDER=plaid');
@@ -106,6 +120,12 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
   }
   if (config.DOCUMENT_AI === 'anthropic' && !config.ANTHROPIC_API_KEY) {
     throw new Error('ANTHROPIC_API_KEY is required when DOCUMENT_AI=anthropic');
+  }
+  if (
+    (config.QBO_ENVIRONMENT === 'sandbox' || config.QBO_ENVIRONMENT === 'production') &&
+    (!config.QBO_CLIENT_ID || !config.QBO_CLIENT_SECRET)
+  ) {
+    throw new Error('QBO_CLIENT_ID and QBO_CLIENT_SECRET are required for QuickBooks Online');
   }
   if (config.INBOUND_EMAIL_DOMAIN && !config.INBOUND_EMAIL_SECRET) {
     throw new Error('INBOUND_EMAIL_SECRET is required when INBOUND_EMAIL_DOMAIN is set');

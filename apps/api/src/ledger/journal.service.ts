@@ -153,29 +153,40 @@ export class JournalService {
     input: JournalEntryInput,
     meta: RequestMeta,
   ): Promise<JournalEntryDto> {
-    return withTenant(this.db, { userId: auth.userId, companyId: ctx.companyId }, async (tx) => {
-      const { header, lines } = toPosting(input);
-      const id = await this.posting.create(
-        tx,
-        { companyId: ctx.companyId, userId: auth.userId, closingPassword: input.closingPassword },
-        header,
-        lines,
-      );
-      const dto = await this.load(tx, ctx.companyId, id);
-      await this.audit.record(
-        tx,
-        {
-          companyId: ctx.companyId,
-          actorUserId: auth.userId,
-          action: 'journal_entry.created',
-          entityType: 'transaction',
-          entityId: id,
-          after: auditView(dto),
-        },
-        meta,
-      );
-      return dto;
-    });
+    return withTenant(this.db, { userId: auth.userId, companyId: ctx.companyId }, (tx) =>
+      this.createInTx(tx, auth, ctx, input, meta),
+    );
+  }
+
+  /** Also used by the QuickBooks import, inside its own database transaction. */
+  async createInTx(
+    tx: Tx,
+    auth: AuthContext,
+    ctx: CompanyContext,
+    input: JournalEntryInput,
+    meta: RequestMeta,
+  ): Promise<JournalEntryDto> {
+    const { header, lines } = toPosting(input);
+    const id = await this.posting.create(
+      tx,
+      { companyId: ctx.companyId, userId: auth.userId, closingPassword: input.closingPassword },
+      header,
+      lines,
+    );
+    const dto = await this.load(tx, ctx.companyId, id);
+    await this.audit.record(
+      tx,
+      {
+        companyId: ctx.companyId,
+        actorUserId: auth.userId,
+        action: 'journal_entry.created',
+        entityType: 'transaction',
+        entityId: id,
+        after: auditView(dto),
+      },
+      meta,
+    );
+    return dto;
   }
 
   update(
@@ -185,33 +196,45 @@ export class JournalService {
     input: JournalEntryInput,
     meta: RequestMeta,
   ): Promise<JournalEntryDto> {
-    return withTenant(this.db, { userId: auth.userId, companyId: ctx.companyId }, async (tx) => {
-      const before = await this.load(tx, ctx.companyId, id);
-      const { header, lines } = toPosting(input);
-      await this.posting.revise(
-        tx,
-        { companyId: ctx.companyId, userId: auth.userId, closingPassword: input.closingPassword },
-        id,
-        input.version,
-        header,
-        lines,
-      );
-      const after = await this.load(tx, ctx.companyId, id);
-      await this.audit.record(
-        tx,
-        {
-          companyId: ctx.companyId,
-          actorUserId: auth.userId,
-          action: 'journal_entry.updated',
-          entityType: 'transaction',
-          entityId: id,
-          before: auditView(before),
-          after: auditView(after),
-        },
-        meta,
-      );
-      return after;
-    });
+    return withTenant(this.db, { userId: auth.userId, companyId: ctx.companyId }, (tx) =>
+      this.updateInTx(tx, auth, ctx, id, input, meta),
+    );
+  }
+
+  /** Also used by the QuickBooks import, inside its own database transaction. */
+  async updateInTx(
+    tx: Tx,
+    auth: AuthContext,
+    ctx: CompanyContext,
+    id: string,
+    input: JournalEntryInput,
+    meta: RequestMeta,
+  ): Promise<JournalEntryDto> {
+    const before = await this.load(tx, ctx.companyId, id);
+    const { header, lines } = toPosting(input);
+    await this.posting.revise(
+      tx,
+      { companyId: ctx.companyId, userId: auth.userId, closingPassword: input.closingPassword },
+      id,
+      input.version,
+      header,
+      lines,
+    );
+    const after = await this.load(tx, ctx.companyId, id);
+    await this.audit.record(
+      tx,
+      {
+        companyId: ctx.companyId,
+        actorUserId: auth.userId,
+        action: 'journal_entry.updated',
+        entityType: 'transaction',
+        entityId: id,
+        before: auditView(before),
+        after: auditView(after),
+      },
+      meta,
+    );
+    return after;
   }
 
   setStatus(

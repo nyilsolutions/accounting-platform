@@ -70,122 +70,132 @@ export class PurchaseOrdersService {
     input: PurchaseOrderInput,
     meta: RequestMeta,
   ): Promise<PurchaseOrderDto> {
-    return withTenant(this.db, { userId: auth.userId, companyId: ctx.companyId }, async (tx) => {
-      const companyId = ctx.companyId;
-      const before = id ? await this.load(tx, companyId, id) : null;
-      if (before?.billId)
-        throw new ConflictException(
-          'This purchase order has been copied to a bill and can no longer be changed.',
-        );
+    return withTenant(this.db, { userId: auth.userId, companyId: ctx.companyId }, (tx) =>
+      this.saveInTx(tx, auth, ctx, id, input, meta),
+    );
+  }
 
-      const vendor = await tx
-        .selectFrom('vendors')
-        .select(['id', 'is_active'])
-        .where('id', '=', input.vendorId)
-        .where('company_id', '=', companyId)
-        .executeTakeFirst();
-      if (!vendor || (!vendor.is_active && vendor.id !== before?.vendorId)) {
-        throw new BadRequestException(
-          validationError([{ path: 'vendorId', message: 'Vendor not found or inactive' }]),
-        );
-      }
-
-      const itemIds = [
-        ...new Set(input.lines.map((l) => l.itemId).filter((v): v is string => !!v)),
-      ];
-      const items = new Map(
-        itemIds.length
-          ? (
-              await tx
-                .selectFrom('items')
-                .select(['id', 'is_active', 'expense_account_id', 'purchase_description'])
-                .where('company_id', '=', companyId)
-                .where('id', 'in', itemIds)
-                .execute()
-            ).map((i) => [i.id, i])
-          : [],
+  /** Also used by the QuickBooks import, inside its own database transaction. */
+  async saveInTx(
+    tx: Tx,
+    auth: AuthContext,
+    ctx: CompanyContext,
+    id: string | null,
+    input: PurchaseOrderInput,
+    meta: RequestMeta,
+  ): Promise<PurchaseOrderDto> {
+    const companyId = ctx.companyId;
+    const before = id ? await this.load(tx, companyId, id) : null;
+    if (before?.billId)
+      throw new ConflictException(
+        'This purchase order has been copied to a bill and can no longer be changed.',
       );
-      const errors: Array<{ path: string; message: string }> = [];
-      const lines = input.lines.map((l, i) => {
-        const item = l.itemId ? items.get(l.itemId) : undefined;
-        if (l.itemId && !item?.is_active)
-          errors.push({
-            path: `lines.${i}.itemId`,
-            message: 'Product/service not found or inactive',
-          });
-        return {
-          itemId: l.itemId ?? null,
-          accountId: l.itemId ? null : (l.accountId ?? null),
-          description: l.description ?? item?.purchase_description ?? null,
-          quantity: l.quantity ?? null,
-          rate: l.rate ?? null,
-          amount: resolveLineAmount(l),
-          customerId: l.customerId ?? null,
-          classId: l.classId ?? null,
-        };
-      });
-      if (errors.length) throw new BadRequestException(validationError(errors));
-      const total = lines.reduce((s, l) => s + l.amount, 0n);
 
-      const values = {
-        vendor_id: input.vendorId,
-        txn_date: input.txnDate,
-        expected_date: input.expectedDate ?? null,
-        number: input.number ?? before?.number ?? (await nextPurchaseOrderNumber(tx, companyId)),
-        vendor_address: input.vendorAddress ?? null,
-        ship_to: input.shipTo ?? null,
-        email_to: input.emailTo ?? null,
-        vendor_message: input.vendorMessage ?? null,
-        memo: input.memo ?? null,
-        total: moneyToString(total, 2),
-        updated_by: auth.userId,
+    const vendor = await tx
+      .selectFrom('vendors')
+      .select(['id', 'is_active'])
+      .where('id', '=', input.vendorId)
+      .where('company_id', '=', companyId)
+      .executeTakeFirst();
+    if (!vendor || (!vendor.is_active && vendor.id !== before?.vendorId)) {
+      throw new BadRequestException(
+        validationError([{ path: 'vendorId', message: 'Vendor not found or inactive' }]),
+      );
+    }
+
+    const itemIds = [...new Set(input.lines.map((l) => l.itemId).filter((v): v is string => !!v))];
+    const items = new Map(
+      itemIds.length
+        ? (
+            await tx
+              .selectFrom('items')
+              .select(['id', 'is_active', 'expense_account_id', 'purchase_description'])
+              .where('company_id', '=', companyId)
+              .where('id', 'in', itemIds)
+              .execute()
+          ).map((i) => [i.id, i])
+        : [],
+    );
+    const errors: Array<{ path: string; message: string }> = [];
+    const lines = input.lines.map((l, i) => {
+      const item = l.itemId ? items.get(l.itemId) : undefined;
+      if (l.itemId && !item?.is_active)
+        errors.push({
+          path: `lines.${i}.itemId`,
+          message: 'Product/service not found or inactive',
+        });
+      return {
+        itemId: l.itemId ?? null,
+        accountId: l.itemId ? null : (l.accountId ?? null),
+        description: l.description ?? item?.purchase_description ?? null,
+        quantity: l.quantity ?? null,
+        rate: l.rate ?? null,
+        amount: resolveLineAmount(l),
+        customerId: l.customerId ?? null,
+        classId: l.classId ?? null,
       };
-      let poId = id;
-      if (id) await tx.updateTable('purchase_orders').set(values).where('id', '=', id).execute();
-      else {
-        poId = (
-          await tx
-            .insertInto('purchase_orders')
-            .values({ ...values, company_id: companyId, created_by: auth.userId })
-            .returning('id')
-            .executeTakeFirstOrThrow()
-        ).id;
-      }
-      await tx.deleteFrom('purchase_order_lines').where('purchase_order_id', '=', poId!).execute();
-      await tx
-        .insertInto('purchase_order_lines')
-        .values(
-          lines.map((l, i) => ({
-            company_id: companyId,
-            purchase_order_id: poId!,
-            line_no: i + 1,
-            item_id: l.itemId,
-            account_id: l.accountId,
-            description: l.description,
-            quantity: l.quantity,
-            rate: l.rate,
-            amount: moneyToString(l.amount, 2),
-            customer_id: l.customerId,
-            class_id: l.classId,
-          })),
-        )
-        .execute();
-      const after = await this.load(tx, companyId, poId!);
-      await this.audit.record(
-        tx,
-        {
-          companyId,
-          actorUserId: auth.userId,
-          action: before ? 'purchase_order.updated' : 'purchase_order.created',
-          entityType: 'purchase_order',
-          entityId: poId!,
-          before: before ? auditView(before) : null,
-          after: auditView(after),
-        },
-        meta,
-      );
-      return after;
     });
+    if (errors.length) throw new BadRequestException(validationError(errors));
+    const total = lines.reduce((s, l) => s + l.amount, 0n);
+
+    const values = {
+      vendor_id: input.vendorId,
+      txn_date: input.txnDate,
+      expected_date: input.expectedDate ?? null,
+      number: input.number ?? before?.number ?? (await nextPurchaseOrderNumber(tx, companyId)),
+      vendor_address: input.vendorAddress ?? null,
+      ship_to: input.shipTo ?? null,
+      email_to: input.emailTo ?? null,
+      vendor_message: input.vendorMessage ?? null,
+      memo: input.memo ?? null,
+      total: moneyToString(total, 2),
+      updated_by: auth.userId,
+    };
+    let poId = id;
+    if (id) await tx.updateTable('purchase_orders').set(values).where('id', '=', id).execute();
+    else {
+      poId = (
+        await tx
+          .insertInto('purchase_orders')
+          .values({ ...values, company_id: companyId, created_by: auth.userId })
+          .returning('id')
+          .executeTakeFirstOrThrow()
+      ).id;
+    }
+    await tx.deleteFrom('purchase_order_lines').where('purchase_order_id', '=', poId!).execute();
+    await tx
+      .insertInto('purchase_order_lines')
+      .values(
+        lines.map((l, i) => ({
+          company_id: companyId,
+          purchase_order_id: poId!,
+          line_no: i + 1,
+          item_id: l.itemId,
+          account_id: l.accountId,
+          description: l.description,
+          quantity: l.quantity,
+          rate: l.rate,
+          amount: moneyToString(l.amount, 2),
+          customer_id: l.customerId,
+          class_id: l.classId,
+        })),
+      )
+      .execute();
+    const after = await this.load(tx, companyId, poId!);
+    await this.audit.record(
+      tx,
+      {
+        companyId,
+        actorUserId: auth.userId,
+        action: before ? 'purchase_order.updated' : 'purchase_order.created',
+        entityType: 'purchase_order',
+        entityId: poId!,
+        before: before ? auditView(before) : null,
+        after: auditView(after),
+      },
+      meta,
+    );
+    return after;
   }
 
   setStatus(

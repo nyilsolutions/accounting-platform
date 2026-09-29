@@ -47,5 +47,6 @@ export function createBankDataProvider(config: AppConfig): BankDataProvider | nu
     BankRulesService,
     ConnectionsService,
   ],
+  exports: [TransfersService],
 })
 export class BankingModule {}

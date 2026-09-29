@@ -16,6 +16,6 @@ import { PostingService } from './posting.service';
     LedgerSetupService,
     PostingService,
   ],
-  exports: [AccountsService, LedgerSetupService, PostingService],
+  exports: [AccountsService, JournalService, LedgerSetupService, PostingService],
 })
 export class LedgerModule {}

@@ -6,5 +6,6 @@ import { ItemsService, SimpleListsService, TermsService } from './other-lists.se
 @Module({
   controllers: [ListsController],
   providers: [CustomersService, VendorsService, ItemsService, TermsService, SimpleListsService],
+  exports: [CustomersService, VendorsService, ItemsService, TermsService, SimpleListsService],
 })
 export class ListsModule {}
