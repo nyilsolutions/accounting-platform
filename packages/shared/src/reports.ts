@@ -12,6 +12,12 @@ export const REPORT_KEYS = [
   'customer_balance_summary',
   'sales_by_customer',
   'sales_by_item',
+  'ap_aging_summary',
+  'ap_aging_detail',
+  'unpaid_bills',
+  'vendor_balance_summary',
+  'expenses_by_vendor',
+  'vendor_1099_summary',
 ] as const;
 export type ReportKey = (typeof REPORT_KEYS)[number];
 
@@ -26,6 +32,12 @@ export const REPORT_TITLES: Record<ReportKey, string> = {
   customer_balance_summary: 'Customer Balance Summary',
   sales_by_customer: 'Sales by Customer Summary',
   sales_by_item: 'Sales by Product/Service Summary',
+  ap_aging_summary: 'A/P Aging Summary',
+  ap_aging_detail: 'A/P Aging Detail',
+  unpaid_bills: 'Unpaid Bills',
+  vendor_balance_summary: 'Vendor Balance Summary',
+  expenses_by_vendor: 'Expenses by Vendor Summary',
+  vendor_1099_summary: '1099 Contractor Summary',
 };
 
 export const ACCOUNTING_BASES_FOR_REPORTS = ['accrual', 'cash'] as const;
@@ -40,6 +52,7 @@ export const reportQuerySchema = z
     locationId: z.uuid().optional(),
     accountId: z.uuid().optional(),
     customerId: z.uuid().optional(),
+    vendorId: z.uuid().optional(),
     basis: z.enum(['accrual', 'cash']).optional(),
   })
   .refine((q) => !q.from || q.from <= q.to, {
@@ -57,6 +70,8 @@ export interface ReportRow {
   accountId?: string;
   /** Drill-down to a customer (A/R reports). */
   customerId?: string;
+  /** Drill-down to a vendor (A/P reports). */
+  vendorId?: string;
   /** Drill-down to a transaction (detail reports). */
   txnId?: string;
   txnType?: string;

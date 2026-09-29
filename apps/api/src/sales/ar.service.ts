@@ -7,7 +7,6 @@ import {
   todayIso,
   TXN_TYPE_LABELS,
   type CustomerBalanceDto,
-  type Money,
   type SalesListQuery,
   type SalesTransactionDto,
   type SalesTransactionPageDto,
@@ -15,7 +14,7 @@ import {
 } from '@acct/shared';
 import type { AuthContext, CompanyContext } from '../common/request';
 import { DB } from '../db/db.module';
-import { agingDto, agingOf, arOpenItems } from './ar-ledger';
+import { agingDto, agingOf, arOpenItems, balancesOf } from './ar-ledger';
 import {
   appliedTo,
   decodeCursor,
@@ -154,15 +153,7 @@ export class ArService {
     return withTenant(this.db, { userId: auth.userId, companyId: ctx.companyId }, async (tx) => {
       const today = todayIso();
       const items = await arOpenItems(tx, ctx.companyId, '2199-12-31', customerId);
-      const by = new Map<string, { open: Money; overdue: Money; credit: Money }>();
-      for (const i of items) {
-        if (!i.customerId || i.open === 0n) continue;
-        const b = by.get(i.customerId) ?? { open: 0n, overdue: 0n, credit: 0n };
-        b.open += i.open;
-        if (i.open > 0n && i.dueDate && i.dueDate < today) b.overdue += i.open;
-        if (i.open < 0n) b.credit += -i.open;
-        by.set(i.customerId, b);
-      }
+      const by = balancesOf(items, today);
       if (customerId && !by.has(customerId))
         by.set(customerId, { open: 0n, overdue: 0n, credit: 0n });
       return [...by.entries()].map(([id, b]) => ({

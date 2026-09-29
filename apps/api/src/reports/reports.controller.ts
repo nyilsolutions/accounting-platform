@@ -106,4 +106,58 @@ export class ReportsController {
   ): Promise<ReportDto> {
     return this.reports.salesByItem(a, c, q);
   }
+
+  @Get('ap-aging-summary')
+  apAgingSummary(
+    @CurrentAuth() a: AuthContext,
+    @CurrentCompany() c: CompanyContext,
+    @Query(new ZodPipe(reportQuerySchema)) q: ReportQuery,
+  ): Promise<ReportDto> {
+    return this.reports.apAgingSummary(a, c, q);
+  }
+
+  @Get('ap-aging-detail')
+  apAgingDetail(
+    @CurrentAuth() a: AuthContext,
+    @CurrentCompany() c: CompanyContext,
+    @Query(new ZodPipe(reportQuerySchema)) q: ReportQuery,
+  ): Promise<ReportDto> {
+    return this.reports.apAgingDetail(a, c, q);
+  }
+
+  @Get('unpaid-bills')
+  unpaidBills(
+    @CurrentAuth() a: AuthContext,
+    @CurrentCompany() c: CompanyContext,
+    @Query(new ZodPipe(reportQuerySchema)) q: ReportQuery,
+  ): Promise<ReportDto> {
+    return this.reports.unpaidBills(a, c, q);
+  }
+
+  @Get('vendor-balance-summary')
+  vendorBalanceSummary(
+    @CurrentAuth() a: AuthContext,
+    @CurrentCompany() c: CompanyContext,
+    @Query(new ZodPipe(reportQuerySchema)) q: ReportQuery,
+  ): Promise<ReportDto> {
+    return this.reports.vendorBalanceSummary(a, c, q);
+  }
+
+  @Get('expenses-by-vendor')
+  expensesByVendor(
+    @CurrentAuth() a: AuthContext,
+    @CurrentCompany() c: CompanyContext,
+    @Query(new ZodPipe(reportQuerySchema)) q: ReportQuery,
+  ): Promise<ReportDto> {
+    return this.reports.expensesByVendor(a, c, q);
+  }
+
+  @Get('vendor-1099-summary')
+  vendor1099Summary(
+    @CurrentAuth() a: AuthContext,
+    @CurrentCompany() c: CompanyContext,
+    @Query(new ZodPipe(reportQuerySchema)) q: ReportQuery,
+  ): Promise<ReportDto> {
+    return this.reports.vendor1099Summary(a, c, q);
+  }
 }

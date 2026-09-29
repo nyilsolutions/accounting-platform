@@ -16,20 +16,22 @@ import {
 } from '@acct/shared';
 import type { AuthContext, CompanyContext } from '../common/request';
 import { DB } from '../db/db.module';
-import { arOpenItems } from '../sales/ar-ledger';
+import { openItems, type LedgerSide } from '../ledger/subledger';
+import { vendor1099Rows, vendor1099Summary } from '../purchases/vendor-1099';
 import {
   AGING_COLUMNS,
-  AR_DETAIL_TEXT_COLUMNS,
-  arAgingDetail,
-  arAgingSummary,
-  customerBalanceSummary,
-  OPEN_INVOICES_TEXT_COLUMNS,
-  openInvoices,
-  salesByCustomer,
+  agingDetail,
+  agingDetailColumns,
+  agingSummary,
+  amountByParty,
+  balanceSummary,
+  OPEN_DOCUMENTS_TEXT_COLUMNS,
+  openDocuments,
   salesByItem,
+  type Party,
   type SalesAggregate,
 } from './ar-report-builder';
-import { cashRecognition, type CashFilter } from './cash-basis';
+import { ACCRUAL_ONLY_TYPES, cashRecognition, type CashFilter } from './cash-basis';
 import {
   accountRowsFlat,
   balanceSheet,
@@ -263,78 +265,78 @@ export class ReportsService {
     });
   }
 
-  // ---- Accounts receivable ------------------------------------------------------------------
+  // ---- Receivables and payables ------------------------------------------------------------
   arAgingSummary(auth: AuthContext, ctx: CompanyContext, q: ReportQuery): Promise<ReportDto> {
-    return this.run(auth, ctx, async (tx, company) => {
-      const items = await arOpenItems(tx, ctx.companyId, q.to, q.customerId);
-      return this.dto(
-        'ar_aging_summary',
-        company,
-        'accrual',
-        null,
-        q.to,
-        AGING_COLUMNS,
-        arAgingSummary(items, q.to),
-        null,
-      );
-    });
+    return this.subledgerReport(auth, ctx, q, 'ar_aging_summary', 'ar');
   }
-
   arAgingDetail(auth: AuthContext, ctx: CompanyContext, q: ReportQuery): Promise<ReportDto> {
-    return this.run(auth, ctx, async (tx, company) => {
-      const items = await arOpenItems(tx, ctx.companyId, q.to, q.customerId);
-      return {
-        ...this.dto(
-          'ar_aging_detail',
-          company,
-          'accrual',
-          null,
-          q.to,
-          ['Amount', 'Open balance'],
-          arAgingDetail(items, q.to),
-          null,
-        ),
-        textColumns: AR_DETAIL_TEXT_COLUMNS,
-      };
-    });
+    return this.subledgerReport(auth, ctx, q, 'ar_aging_detail', 'ar');
   }
-
   openInvoices(auth: AuthContext, ctx: CompanyContext, q: ReportQuery): Promise<ReportDto> {
-    return this.run(auth, ctx, async (tx, company) => {
-      const items = await arOpenItems(tx, ctx.companyId, q.to, q.customerId);
-      return {
-        ...this.dto(
-          'open_invoices',
-          company,
-          'accrual',
-          null,
-          q.to,
-          ['Amount', 'Open balance'],
-          openInvoices(items, q.to),
-          null,
-        ),
-        textColumns: OPEN_INVOICES_TEXT_COLUMNS,
-      };
-    });
+    return this.subledgerReport(auth, ctx, q, 'open_invoices', 'ar');
   }
-
   customerBalanceSummary(
     auth: AuthContext,
     ctx: CompanyContext,
     q: ReportQuery,
   ): Promise<ReportDto> {
+    return this.subledgerReport(auth, ctx, q, 'customer_balance_summary', 'ar');
+  }
+  apAgingSummary(auth: AuthContext, ctx: CompanyContext, q: ReportQuery): Promise<ReportDto> {
+    return this.subledgerReport(auth, ctx, q, 'ap_aging_summary', 'ap');
+  }
+  apAgingDetail(auth: AuthContext, ctx: CompanyContext, q: ReportQuery): Promise<ReportDto> {
+    return this.subledgerReport(auth, ctx, q, 'ap_aging_detail', 'ap');
+  }
+  unpaidBills(auth: AuthContext, ctx: CompanyContext, q: ReportQuery): Promise<ReportDto> {
+    return this.subledgerReport(auth, ctx, q, 'unpaid_bills', 'ap');
+  }
+  vendorBalanceSummary(auth: AuthContext, ctx: CompanyContext, q: ReportQuery): Promise<ReportDto> {
+    return this.subledgerReport(auth, ctx, q, 'vendor_balance_summary', 'ap');
+  }
+
+  /** Aging, open documents and balance reports over the A/R or A/P subledger as of `to`. */
+  private subledgerReport(
+    auth: AuthContext,
+    ctx: CompanyContext,
+    q: ReportQuery,
+    key: ReportDto['key'],
+    side: LedgerSide,
+  ): Promise<ReportDto> {
+    const party: Party = side === 'ar' ? 'customer' : 'vendor';
     return this.run(auth, ctx, async (tx, company) => {
-      const items = await arOpenItems(tx, ctx.companyId, q.to, q.customerId);
-      return this.dto(
-        'customer_balance_summary',
-        company,
-        'accrual',
-        null,
+      const items = await openItems(
+        tx,
+        ctx.companyId,
         q.to,
-        ['Total'],
-        customerBalanceSummary(items),
-        null,
+        side,
+        side === 'ar' ? q.customerId : q.vendorId,
       );
+      const dto = (columns: string[], rows: ReportDto['rows'], textColumns?: string[]) => ({
+        ...this.dto(key, company, 'accrual', null, q.to, columns, rows, null),
+        ...(textColumns ? { textColumns } : {}),
+      });
+      switch (key) {
+        case 'ar_aging_summary':
+        case 'ap_aging_summary':
+          return dto(AGING_COLUMNS, agingSummary(items, q.to, party));
+        case 'ar_aging_detail':
+        case 'ap_aging_detail':
+          return dto(
+            ['Amount', 'Open balance'],
+            agingDetail(items, q.to, party),
+            agingDetailColumns(party),
+          );
+        case 'open_invoices':
+        case 'unpaid_bills':
+          return dto(
+            ['Amount', 'Open balance'],
+            openDocuments(items, q.to, party),
+            OPEN_DOCUMENTS_TEXT_COLUMNS,
+          );
+        default:
+          return dto(['Total'], balanceSummary(items, party));
+      }
     });
   }
 
@@ -349,7 +351,7 @@ export class ReportsService {
         from,
         q.to,
         ['Total'],
-        salesByCustomer(groups),
+        amountByParty(groups, 'customer'),
         from,
       );
     });
@@ -368,6 +370,65 @@ export class ReportsService {
         ['Quantity', 'Amount', '% of sales', 'Average price'],
         salesByItem(groups),
         from,
+      );
+    });
+  }
+
+  /**
+   * Expenses by vendor: purchase-document lines on expense and cost-of-goods accounts. Bills,
+   * checks and expenses add; vendor credits and credit card credits subtract. Accrual basis.
+   */
+  expensesByVendor(auth: AuthContext, ctx: CompanyContext, q: ReportQuery): Promise<ReportDto> {
+    return this.run(auth, ctx, async (tx, company) => {
+      const from = q.from ?? fiscalYearStart(q.to, company.fiscal_year_start_month);
+      const rows = await sql<{ key: string | null; label: string | null; amount: string }>`
+        select t.vendor_id as key, v.display_name as label,
+               sum(case when t.txn_type in ('bill', 'check', 'expense') then pl.amount else -pl.amount end) as amount
+        from purchase_lines pl
+        join transactions t on t.id = pl.transaction_id
+        join accounts a on a.id = pl.account_id
+          and a.account_type in ('expense', 'other_expense', 'cost_of_goods_sold')
+        left join vendors v on v.id = t.vendor_id
+        where pl.company_id = ${ctx.companyId} and t.status = 'posted'
+          and t.txn_type in ('bill', 'vendor_credit', 'check', 'expense', 'cc_credit')
+          and t.txn_date between ${from} and ${q.to}
+          ${q.vendorId ? sql`and t.vendor_id = ${q.vendorId}` : sql``}
+          ${q.classId ? sql`and pl.class_id = ${q.classId}` : sql``}
+        group by 1, 2`.execute(tx);
+      const groups = rows.rows.map((r) => ({
+        key: r.key,
+        label: r.label ?? 'Not specified',
+        quantity: 0n,
+        amount: parseMoney(r.amount),
+      }));
+      return this.dto(
+        'expenses_by_vendor',
+        company,
+        'accrual',
+        from,
+        q.to,
+        ['Total'],
+        amountByParty(groups, 'vendor'),
+        from,
+      );
+    });
+  }
+
+  /** 1099 amounts per contractor for the calendar year of `to` (see purchases/vendor-1099.ts). */
+  vendor1099Summary(auth: AuthContext, ctx: CompanyContext, q: ReportQuery): Promise<ReportDto> {
+    return this.run(auth, ctx, async (tx, company) => {
+      const year = Number(q.to.slice(0, 4));
+      const summary = await vendor1099Summary(tx, ctx.companyId, year);
+      const { columns, rows } = vendor1099Rows(summary);
+      return this.dto(
+        'vendor_1099_summary',
+        company,
+        'cash',
+        `${year}-01-01`,
+        `${year}-12-31`,
+        columns,
+        rows,
+        null,
       );
     });
   }
@@ -425,7 +486,7 @@ export class ReportsService {
         ${f.from ? sql`and l.txn_date >= ${f.from}` : sql``}
         ${f.classId ? sql`and l.class_id = ${f.classId}` : sql``}
         ${f.locationId ? sql`and l.location_id = ${f.locationId}` : sql``}
-        ${cash ? sql`and t.txn_type not in ('invoice', 'credit_memo')` : sql``}
+        ${cash ? sql`and t.txn_type not in (${sql.join([...ACCRUAL_ONLY_TYPES])})` : sql``}
       group by l.account_id`.execute(tx);
     const out = new Map(rows.rows.map((r) => [r.account_id, parseMoney(r.net)]));
     if (cash) {
