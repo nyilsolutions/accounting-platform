@@ -1,0 +1,17 @@
+{
+  "year": 2025,
+  "description": "Information-return reporting thresholds for payments made in calendar year 2025 (1099-NEC / 1099-MISC boxes tracked by the app).",
+  "thresholds": {
+    "nec_1": "600.00",
+    "misc_1": "600.00",
+    "misc_2": "10.00",
+    "misc_3": "600.00",
+    "misc_6": "600.00"
+  },
+  "sources": [
+    "IRC §6041A(a) and §6041(a): $600 for nonemployee compensation, rents, other income and medical/health care payments",
+    "IRC §6050N: $10 for royalties",
+    "IRS Instructions for Forms 1099-MISC and 1099-NEC (Rev. 2025)"
+  ],
+  "reviewedBy": null
+}

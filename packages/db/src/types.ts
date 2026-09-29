@@ -234,6 +234,11 @@ export interface TransactionsTable extends Audited {
   email_to: ColumnType<string | null, string | null | undefined, string | null>;
   sent_at: ColumnType<Date | null, Date | string | null | undefined, Date | string | null>;
   total: ColumnType<string | null, string | null | undefined, string | null>;
+  // Purchases/A/P document fields (migration 0005)
+  vendor_id: ColumnType<string | null, string | null | undefined, string | null>;
+  payment_account_id: ColumnType<string | null, string | null | undefined, string | null>;
+  print_status: ColumnType<string | null, string | null | undefined, string | null>;
+  mailing_address: ColumnType<string | null, string | null | undefined, string | null>;
 }
 
 export interface JournalLinesTable {
@@ -326,6 +331,60 @@ export interface EstimateLinesTable {
   taxable: Generated<boolean>;
 }
 
+export interface PurchaseLinesTable {
+  id: Generated<string>;
+  company_id: string;
+  transaction_id: string;
+  line_no: number;
+  item_id: string | null;
+  account_id: string;
+  description: string | null;
+  quantity: string | null;
+  rate: string | null;
+  amount: string;
+  customer_id: string | null;
+  class_id: string | null;
+}
+
+export interface PurchaseOrdersTable extends Audited {
+  id: Generated<string>;
+  company_id: string;
+  number: string | null;
+  vendor_id: string;
+  txn_date: DateCol;
+  expected_date: DateCol | null;
+  status: Generated<string>;
+  vendor_address: string | null;
+  ship_to: string | null;
+  email_to: string | null;
+  vendor_message: string | null;
+  memo: string | null;
+  total: Generated<string>;
+  bill_id: string | null;
+  sent_at: Timestamp | null;
+}
+
+export interface PurchaseOrderLinesTable {
+  id: Generated<string>;
+  company_id: string;
+  purchase_order_id: string;
+  line_no: number;
+  item_id: string | null;
+  account_id: string | null;
+  description: string | null;
+  quantity: string | null;
+  rate: string | null;
+  amount: string;
+  customer_id: string | null;
+  class_id: string | null;
+}
+
+export interface Vendor1099AccountsTable {
+  company_id: string;
+  account_id: string;
+  box: string;
+}
+
 export interface Database {
   users: UsersTable;
   mfa_recovery_codes: MfaRecoveryCodesTable;
@@ -349,6 +408,10 @@ export interface Database {
   deposit_lines: DepositLinesTable;
   estimates: EstimatesTable;
   estimate_lines: EstimateLinesTable;
+  purchase_lines: PurchaseLinesTable;
+  purchase_orders: PurchaseOrdersTable;
+  purchase_order_lines: PurchaseOrderLinesTable;
+  vendor_1099_accounts: Vendor1099AccountsTable;
 }
 
 export type User = Selectable<UsersTable>;
