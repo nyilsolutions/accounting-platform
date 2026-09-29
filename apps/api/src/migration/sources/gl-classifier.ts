@@ -166,6 +166,19 @@ export function classifyGl(ctx: GlContext, t: GlTxn): CanonicalRecord | null {
   });
   if (!hint || hint === 'journal') return journal(hint === 'journal' ? null : t.sourceType);
 
+  if (hint === 'transfer') {
+    const nonZero = lines.filter((l) => !isZero(l.amount));
+    if (nonZero.length !== 2 || !isZero(addDecimals(nonZero[0]!.amount, nonZero[1]!.amount)))
+      return journal(t.sourceType);
+    const to = nonZero.find((l) => !l.amount.startsWith('-'))!;
+    const from = nonZero.find((l) => l.amount.startsWith('-'))!;
+    return {
+      entityType: 'transfer',
+      sourceId: t.sourceId,
+      sourceType: t.sourceType,
+      payload: { ...base, fromAccount: from.account, toAccount: to.account, amount: to.amount },
+    } as CanonicalRecord;
+  }
   const header = pickHeader(ctx, t, lines, hint);
   if (!header)
     return journal(
@@ -370,19 +383,6 @@ export function classifyGl(ctx: GlContext, t: GlTxn): CanonicalRecord | null {
             };
           }),
         },
-      } as CanonicalRecord;
-    }
-    case 'transfer': {
-      const nonZero = lines.filter((l) => !isZero(l.amount));
-      if (nonZero.length !== 2 || !isZero(addDecimals(nonZero[0]!.amount, nonZero[1]!.amount)))
-        return journal(t.sourceType);
-      const to = nonZero.find((l) => !l.amount.startsWith('-'))!;
-      const from = nonZero.find((l) => l.amount.startsWith('-'))!;
-      return {
-        entityType: 'transfer',
-        sourceId: t.sourceId,
-        sourceType: t.sourceType,
-        payload: { ...base, fromAccount: from.account, toAccount: to.account, amount: to.amount },
       } as CanonicalRecord;
     }
     default:

@@ -1,8 +1,12 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import type {
-  AccountDto,
-  CustomerDto,
+import {
+  guessColumnMapping,
+  parseCsv,
+  type AccountDto,
+  type CsvImportKind,
+  type CustomerDto,
+  type DrillRowDto,
   MigrationDto,
   MigrationRecordDto,
   SalesDocumentDto,
@@ -16,7 +20,7 @@ import { MigrationsService } from '../src/migration/migrations.service';
 import { QboService } from '../src/migration/qbo.service';
 import { mockQboChanges } from '../src/migration/sources/qbo/mock-company';
 import type { DocumentDto, MigrationAttachmentDto } from '@acct/shared';
-import { signUp, startApp, type SignedInUser, type TestContext } from './helpers';
+import { inviteTokenFrom, signUp, startApp, type SignedInUser, type TestContext } from './helpers';
 
 const FIXTURES = join(__dirname, 'fixtures', 'quickbooks');
 let ctx: TestContext;
@@ -385,10 +389,11 @@ describe('QuickBooks Desktop agent', () => {
     reports: Array<{ kind: string; asOf: string; from?: string; report: unknown }>;
     files: Array<{ path: string; lines: string[] }>;
   };
-  const agentCall = (method: 'get' | 'post', path: string) =>
-    request(ctx.app.getHttpServer())
-      [method](`/agent/v1${path}`)
-      .set('authorization', `Bearer ${key}`);
+  const agentCall = (method: 'get' | 'post', path: string) => {
+    const server = request(ctx.app.getHttpServer());
+    const req = method === 'get' ? server.get(`/agent/v1${path}`) : server.post(`/agent/v1${path}`);
+    return req.set('authorization', `Bearer ${key}`);
+  };
 
   beforeAll(async () => {
     companyId = await newCompany(owner, 'Riverside Garden Supply LLC');
@@ -526,5 +531,265 @@ describe('QuickBooks Desktop agent', () => {
       matchedBy: 'user',
       links: [{ label: 'Main St Properties' }],
     });
+  });
+});
+
+describe('CSV import', () => {
+  let companyId: string;
+  let migrationId: string;
+  const base = () => `/companies/${companyId}/migrations/${migrationId}`;
+  const csv = (name: string) => readFileSync(join(FIXTURES, 'csv', name), 'utf8');
+  async function stage(
+    kind: CsvImportKind,
+    file: string,
+    extra: Record<string, unknown> = {},
+    preview = false,
+  ) {
+    const content = csv(file);
+    const headers = parseCsv(content)[0]!;
+    const res = await owner.agent
+      .post(`${base()}/csv`)
+      .send({
+        kind,
+        fileName: file,
+        content,
+        mapping: guessColumnMapping(kind, headers),
+        preview,
+        ...extra,
+      });
+    expect(res.status, JSON.stringify(res.body)).toBe(201);
+    expect(res.body.errors).toEqual([]);
+    return res.body;
+  }
+
+  beforeAll(async () => {
+    companyId = await newCompany(owner, 'Harbor Bakery');
+    migrationId = (
+      await owner.agent
+        .post(`/companies/${companyId}/migrations`)
+        .send({ source: 'csv' })
+        .expect(201)
+    ).body.id;
+  });
+
+  it('maps QuickBooks export columns by their names and previews', async () => {
+    expect(guessColumnMapping('invoices', parseCsv(csv('invoices.csv'))[0]!)).toMatchObject({
+      number: 0,
+      customer: 1,
+      date: 2,
+      dueDate: 3,
+      item: 4,
+      account: 5,
+      description: 6,
+      quantity: 7,
+      rate: 8,
+      amount: 9,
+    });
+    const preview = await stage('customers', 'customers.csv', {}, true);
+    expect(preview).toMatchObject({
+      total: 2,
+      records: [{ label: 'Cafe Uno' }, { label: 'Hotel Blue' }],
+    });
+    const m = (await owner.agent.get(base()).expect(200)).body as MigrationDto;
+    expect(m.counts.total).toBe(0);
+  });
+
+  it('stages lists, balances and transactions, and reports for the tie-out', async () => {
+    await stage('accounts', 'accounts.csv');
+    await stage('customers', 'customers.csv');
+    await stage('vendors', 'vendors.csv');
+    await stage('items', 'items.csv');
+    await stage('opening_balances', 'opening.csv', { date: '2024-12-31' });
+    await stage('invoices', 'invoices.csv');
+    await stage('bills', 'bills.csv');
+    await stage('journal_entries', 'journal.csv');
+    const gl = await stage('gl_detail', 'gl-detail.csv');
+    expect(gl.byType).toEqual({ deposit: 1, check: 1, payment: 1 });
+    await stage('trial_balance', 'trial-balance.csv', {
+      date: '2025-03-31',
+      mapping: { account: 0, debit: 1, credit: 2 },
+    });
+    await stage('ar_aging', 'ar-aging.csv', { date: '2025-03-31' });
+    // A required column that isn't mapped is refused.
+    const bad = await owner.agent
+      .post(`${base()}/csv`)
+      .send({
+        kind: 'bills',
+        fileName: 'bills.csv',
+        content: csv('bills.csv'),
+        mapping: { vendor: 1 },
+      });
+    expect(bad.status).toBe(400);
+  });
+
+  it('imports and ties out to the uploaded trial balance and aging', async () => {
+    await runAndWait(owner, companyId, migrationId);
+    const errors = (await records(owner, companyId, migrationId, '&status=error')).records;
+    expect(errors.map((e) => `${e.sourceType} ${e.number}: ${e.message}`)).toEqual([]);
+    const report = (await owner.agent.get(`${base()}/report`).expect(200)).body as TieOutReportDto;
+    const diffs = [...report.trialBalances, report.arAging!].flatMap((s) =>
+      s.rows
+        .filter((r) => r.difference !== '0.00')
+        .map((r) => `${s.label} ${r.name}: ${r.source} vs ${r.ours}`),
+    );
+    expect(diffs).toEqual([]);
+    expect(report.trialBalances.map((s) => [s.asOf, s.origin])).toEqual([['2025-03-31', 'upload']]);
+    expect(report.status).toBe('tied_out');
+    // The check that paid an opening A/P balance has no document here: a journal entry.
+    const all = (await records(owner, companyId, migrationId)).records;
+    expect(all.find((r) => r.sourceType === 'Check')).toMatchObject({
+      entityType: 'check',
+      status: 'imported',
+    });
+    expect(all.find((r) => r.sourceType === 'Check')!.warnings.join(' ')).toContain(
+      'journal entry',
+    );
+    const customers = (await owner.agent.get(`/companies/${companyId}/customers`).expect(200))
+      .body as CustomerDto[];
+    // "Oregon" is a state name QuickBooks lets through; it becomes OR.
+    expect(customers.find((c) => c.displayName === 'Hotel Blue')).toMatchObject({
+      state: 'OR',
+      postalCode: '97201',
+    });
+  });
+});
+
+describe('completing a migration', () => {
+  let companyId: string;
+  let migrationId: string;
+  let accountant: SignedInUser;
+  const base = () => `/companies/${companyId}/migrations/${migrationId}`;
+
+  beforeAll(async () => {
+    companyId = await newCompany(owner, 'Differences Co');
+    migrationId = (
+      await owner.agent
+        .post(`/companies/${companyId}/migrations`)
+        .send({ source: 'iif' })
+        .expect(201)
+    ).body.id;
+    await owner.agent
+      .post(`${base()}/iif?fileName=green-valley.iif`)
+      .set('content-type', 'application/octet-stream')
+      .send(readFileSync(join(FIXTURES, 'green-valley.iif')))
+      .expect(201);
+    // QuickBooks' own trial balance, a cent different on Fuel.
+    await owner.agent
+      .post(`${base()}/csv`)
+      .send({
+        kind: 'trial_balance',
+        fileName: 'tb.csv',
+        content: [
+          'Account,Debit,Credit',
+          'Checking,8769.50,',
+          'Savings,15.00,',
+          'Accounts Receivable,1450.00,',
+          'Truck,"25,000.00",',
+          'Truck:Accumulated Depreciation,,"2,500.00"',
+          'Accounts Payable,,210.25',
+          'Sales Tax Payable,,40.00',
+          'Payroll Liabilities,,200.00',
+          'Loan Payable,,"20,000.00"',
+          'Opening Bal Equity,,"15,000.00"',
+          "Owner's Draw,1000.00,",
+          'Retained Earnings,"2,230.50",',
+          'Landscaping Income,,750.00',
+          'Materials,200.00,',
+          'Fuel,50.26,',
+          'Interest Income,,15.00',
+          'TOTAL,"38,715.26","38,715.25"',
+        ].join('\n'),
+        mapping: { account: 0, debit: 1, credit: 2 },
+        date: '2025-03-31',
+      })
+      .expect(201);
+    await owner.agent
+      .post(`/companies/${companyId}/invitations`)
+      .send({ email: 'acct@example.com', role: 'accountant' })
+      .expect(201);
+    accountant = await signUp(ctx.app, 'acct@example.com', 'Ada Accountant');
+    await accountant.agent
+      .post(`/invitations/${inviteTokenFrom(ctx.mailer, 'acct@example.com')}/accept`)
+      .expect(200);
+  });
+
+  it('refuses a company that already has its own transactions', async () => {
+    const other = await newCompany(owner, 'Busy Co');
+    const accounts = (await owner.agent.get(`/companies/${other}/accounts`).expect(200))
+      .body as AccountDto[];
+    const id = (name: string) => accounts.find((a) => a.name === name)!.id;
+    await owner.agent
+      .post(`/companies/${other}/journal-entries`)
+      .send({
+        txnDate: '2025-01-01',
+        lines: [
+          { accountId: id('Checking'), debit: '1' },
+          { accountId: id('Opening Balance Equity'), credit: '1' },
+        ],
+      })
+      .expect(201);
+    const m = (
+      await owner.agent.post(`/companies/${other}/migrations`).send({ source: 'csv' }).expect(201)
+    ).body;
+    const res = await owner.agent
+      .post(`/companies/${other}/migrations/${m.id}/run`)
+      .send({})
+      .expect(409);
+    expect(res.body.code).toBe('COMPANY_NOT_EMPTY');
+  });
+
+  it('shows the difference with the transactions behind it', async () => {
+    await runAndWait(owner, companyId, migrationId);
+    const report = (await owner.agent.get(`${base()}/report`).expect(200)).body as TieOutReportDto;
+    const tb = report.trialBalances.find((s) => s.asOf === '2025-03-31')!;
+    expect(tb.origin).toBe('upload');
+    const fuel = tb.rows.find((r) => r.name === 'Fuel')!;
+    expect(fuel).toMatchObject({ source: '50.26', ours: '50.25', difference: '-0.01' });
+    expect(tb.differences).toBe(1);
+    expect(report.status).toBe('differences');
+    const drill = (
+      await owner.agent
+        .get(`${base()}/report/drill?accountId=${fuel.id}&asOf=2025-03-31`)
+        .expect(200)
+    ).body as DrillRowDto[];
+    // The file's own GL lines say what each transaction was in QuickBooks.
+    expect(drill.map((d) => [d.number, d.ours, d.source])).toEqual([
+      ['HD-9', '10.25', '10.25'],
+      ['2004', '40.00', '40.00'],
+    ]);
+  });
+
+  it('needs an owner or admin, and a note, to accept differences', async () => {
+    const blocked = await owner.agent.post(`${base()}/complete`).send({}).expect(409);
+    expect(blocked.body.code).toBe('DIFFERENCES');
+    await accountant.agent
+      .post(`${base()}/complete`)
+      .send({ acceptDifferences: true, note: 'Rounding' })
+      .expect(403);
+    await owner.agent.post(`${base()}/complete`).send({ acceptDifferences: true }).expect(400);
+    const done = await owner.agent
+      .post(`${base()}/complete`)
+      .send({
+        acceptDifferences: true,
+        note: 'QuickBooks rounded fuel; confirmed with the client.',
+      })
+      .expect(201);
+    expect(done.body).toMatchObject({ status: 'complete', acceptedDifferences: true });
+    await owner.agent.post(`${base()}/run`).send({}).expect(409);
+    await owner.agent.delete(base()).expect(409);
+  });
+
+  it('is only for users who can manage migrations', async () => {
+    await owner.agent
+      .post(`/companies/${companyId}/invitations`)
+      .send({ email: 'clerk2@example.com', role: 'standard' })
+      .expect(201);
+    const clerk = await signUp(ctx.app, 'clerk2@example.com', 'Cal Clerk');
+    await clerk.agent
+      .post(`/invitations/${inviteTokenFrom(ctx.mailer, 'clerk2@example.com')}/accept`)
+      .expect(200);
+    await clerk.agent.get(`/companies/${companyId}/migrations`).expect(403);
+    const other = await signUp(ctx.app, 'stranger@example.com');
+    await other.agent.get(`/companies/${companyId}/migrations`).expect(404);
   });
 });
