@@ -32,7 +32,9 @@ A single package: `pnpm --filter @acct/api test`, `pnpm --filter @acct/db test`,
   bill payments/pay bills, checks and check printing, expenses, credit card credits, purchase
   orders, 1099 in `vendor-1099.ts`), banking (transfers, registers, reconciliation, bank feed
   For Review/rules/import, connections through `BankDataProvider` with Plaid and a mock in
-  `banking/providers/`), reports (A/R and A/P reports; cash basis in `cash-basis.ts`).
+  `banking/providers/`), documents (library, versions, links, receipts inbox and reading,
+  email-in; storage, scanning and extraction behind interfaces in `documents/`), reports (A/R
+  and A/P reports; cash basis in `cash-basis.ts`).
   The A/R and A/P subledgers share one engine: `ledger/subledger.ts`.
 - `apps/web`: Next.js 16 (App Router) + TanStack Query + Tailwind 4. Calls the API only via `/api/*`.
 - `packages/db`: plain-SQL migrations, migrator, Kysely types, `withTenant()`, `createTestDatabase()`.
@@ -89,6 +91,11 @@ A single package: `pnpm --filter @acct/api test`, `pnpm --filter @acct/db test`,
   previews, the API re-parses. External calls (Plaid) go through `BankDataProvider`; tests use the
   mock or a fake `fetch`, never the network.
 - Transaction links in the web go through `apps/web/src/lib/links.ts` (`txnHref`).
+- Files: detect types from bytes (`detectFileType`), never trust names or browser types. Bytes go
+  through `ObjectStore` (never the filesystem directly), are scanned by `VirusScanner` before they
+  are usable, and are downloaded only through `DocumentsService.url()` (permission check, 5-minute
+  link). Receipt reading goes through `ReceiptExtractor`; tests use fakes, never the network
+  (ADR 0012).
 - Database errors map to HTTP in `common/pg-error.filter.ts`; add friendly messages for new unique
   indexes there.
 
@@ -99,7 +106,7 @@ A single package: `pnpm --filter @acct/api test`, `pnpm --filter @acct/db test`,
 - [x] Phase 2: Sales & A/R (invoices, payments, deposits, estimates, statements, A/R reports, cash basis)
 - [x] Phase 3: Purchases & A/P (bills, pay bills, checks + printing, expenses, POs, vendor credits, 1099, A/P reports)
 - [x] Phase 4: Banking (registers, transfers, reconciliation, file imports, bank rules, Plaid feeds)
-- [ ] Phase 5: Documents
+- [x] Phase 5: Documents (library, attachments, versions, scanning, encrypted storage, receipt capture, email-in, retention)
 - [ ] Phase 6: QuickBooks migration
 - [ ] Phase 7: Reports suite, sales tax, budgets
 - [ ] Phase 8: Payroll core
