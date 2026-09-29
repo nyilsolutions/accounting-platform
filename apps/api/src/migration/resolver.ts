@@ -46,6 +46,11 @@ export class Resolver {
   /** Accounts: our id → type; items: our id → income/expense accounts. */
   readonly accountTypes = new Map<string, string>();
   readonly items = new Map<string, { income: string | null; expense: string | null }>();
+  /** Staged items' own accounts (QuickBooks may post an item to accounts our item list can't hold). */
+  private readonly stagedItemAccounts = new Map<
+    string,
+    { income: string | null; expense: string | null }
+  >();
 
   private constructor(readonly sourceKey: string) {}
 
@@ -78,6 +83,17 @@ export class Resolver {
       select entity_type, source_id, status, label,
              coalesce(payload->>'fullName', payload->>'displayName', payload->>'name') as full_name
       from migration_records where migration_id = ${migrationId}`.execute(tx);
+    const itemAccounts = await sql<{
+      source_id: string;
+      income: string | null;
+      expense: string | null;
+    }>`
+      select source_id, payload->>'incomeAccount' as income, payload->>'expenseAccount' as expense
+      from migration_records where migration_id = ${migrationId} and entity_type = 'item'`.execute(
+      tx,
+    );
+    for (const i of itemAccounts.rows)
+      r.stagedItemAccounts.set(i.source_id, { income: i.income, expense: i.expense });
     for (const s of staged.rows) {
       r.staged.set(`${s.entity_type}|${s.source_id}`, {
         status: s.status,
@@ -145,6 +161,25 @@ export class Resolver {
       .execute();
     for (const i of items)
       this.items.set(i.id, { income: i.income_account_id, expense: i.expense_account_id });
+  }
+
+  /**
+   * The account a line with this item posts to: QuickBooks' account for the item when it came
+   * from this migration (it may be one our item list can't hold, such as a liability), else ours.
+   */
+  itemAccount(itemId: string, kind: 'income' | 'expense'): string | null {
+    for (const [key, m] of this.mapped) {
+      if (m.targetId !== itemId || !key.startsWith('item|')) continue;
+      const staged = this.stagedItemAccounts.get(key.slice(5));
+      const ref = staged
+        ? kind === 'income'
+          ? staged.income
+          : (staged.expense ?? staged.income)
+        : null;
+      if (ref) return this.id('account', ref);
+    }
+    const ours = this.items.get(itemId);
+    return (kind === 'income' ? ours?.income : (ours?.expense ?? ours?.income)) ?? null;
   }
 
   /** Our id for a source record already imported, with the payload hash it was imported from. */

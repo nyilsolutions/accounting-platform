@@ -5,6 +5,7 @@ import {
   LIST_ENTITY_TYPES,
   type EntityType,
   type ListEntityType,
+  type SourceGlLine,
 } from '@acct/shared';
 import { AuditService } from '../audit/audit.service';
 import type { RequestMeta } from '../common/request';
@@ -20,6 +21,23 @@ import {
   type Actor,
 } from './migration-common';
 import { MissingReference, Resolver } from './resolver';
+
+const TXN_TYPES = new Set<string>([
+  'invoice',
+  'sales_receipt',
+  'credit_memo',
+  'refund_receipt',
+  'payment',
+  'deposit',
+  'bill',
+  'vendor_credit',
+  'check',
+  'expense',
+  'cc_credit',
+  'bill_payment',
+  'transfer',
+  'journal_entry',
+]);
 
 const LEASE_MINUTES = 10;
 
@@ -227,6 +245,7 @@ export class ImportEngine {
       const files = await this.attachments.importRecords(actor, migrationId, migration.source_key);
       summary.imported += files.imported;
       summary.errors += files.errors;
+      await this.attachments.rematch(actor, migrationId, migration.source_key);
 
       await this.finalize(actor, migrationId);
       await withTenant(this.db, { userId, companyId }, async (tx) => {
@@ -309,6 +328,8 @@ export class ImportEngine {
           if (rec.deleted) {
             // The map row stays: it records what the source record became.
             await this.importers.remove(ctx, mapped!.targetId);
+            const companion = resolver.lookup('journal_entry', `${rec.source_id}#gl`);
+            if (companion) await this.importers.remove(ctx, companion.targetId);
             await this.update(tx, rec.id, {
               status: 'imported',
               message: 'Deleted in QuickBooks, so deleted here',
@@ -316,6 +337,45 @@ export class ImportEngine {
             return 'deleted';
           }
           const res = await this.importers.run(type, ctx);
+          // Lines QuickBooks posted with the transaction that the document here doesn't.
+          const payload = ctx.payload as {
+            sourceGl?: SourceGlLine[];
+            txnDate?: string;
+            number?: string | null;
+          };
+          const companion = resolver.lookup('journal_entry', `${rec.source_id}#gl`);
+          if (res.targetId && payload.sourceGl?.length && payload.txnDate && TXN_TYPES.has(type)) {
+            const id = await this.importers.trueUp(
+              ctx,
+              res.targetId,
+              payload.sourceGl,
+              companion?.targetId ?? null,
+              {
+                txnDate: payload.txnDate,
+                number: payload.number ?? null,
+              },
+            );
+            if (id) {
+              await tx
+                .insertInto('migration_map')
+                .values({
+                  company_id: companyId,
+                  source_key: sourceKey,
+                  entity_type: 'journal_entry',
+                  source_id: `${rec.source_id}#gl`,
+                  target_id: id,
+                  payload_hash: rec.payload_hash,
+                  migration_id: migrationId,
+                })
+                .onConflict((oc) =>
+                  oc
+                    .columns(['company_id', 'source_key', 'entity_type', 'source_id'])
+                    .doUpdateSet({ target_id: id, updated_at: new Date() }),
+                )
+                .execute();
+              resolver.record('journal_entry', `${rec.source_id}#gl`, id, rec.payload_hash);
+            }
+          }
           if (res.skipped) {
             await this.update(tx, rec.id, { status: 'skipped', message: res.skipped, warnings });
             return res;

@@ -6,6 +6,8 @@ import { ListsModule } from '../lists/lists.module';
 import { PurchasesModule } from '../purchases/purchases.module';
 import { ReportsModule } from '../reports/reports.module';
 import { SalesModule } from '../sales/sales.module';
+import { AgentController, AgentKeyGuard } from './agent.controller';
+import { AgentService } from './agent.service';
 import { MigrationAttachmentsService } from './attachments.service';
 import { ImportEngine } from './import-engine';
 import { Importers } from './importers';
@@ -50,7 +52,7 @@ export function createQboApi(config: AppConfig): QboApi | null {
     ReportsModule,
     DocumentsModule,
   ],
-  controllers: [MigrationsController, QboCallbackController],
+  controllers: [MigrationsController, QboCallbackController, AgentController],
   providers: [
     { provide: QBO_API, inject: [APP_CONFIG], useFactory: createQboApi },
     Importers,
@@ -59,6 +61,8 @@ export function createQboApi(config: AppConfig): QboApi | null {
     QboService,
     MigrationAttachmentsService,
     MigrationsService,
+    AgentService,
+    AgentKeyGuard,
   ],
   exports: [MigrationsService, QboService],
 })

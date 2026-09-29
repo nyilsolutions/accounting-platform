@@ -169,6 +169,48 @@ export class MigrationAttachmentsService {
     return { imported, errors };
   }
 
+  /**
+   * After an import: files that arrived before what they belong to (the Desktop agent uploads
+   * the Attach folder first) are matched again now that the records exist.
+   */
+  async rematch(actor: Actor, migrationId: string, sourceKey: string): Promise<number> {
+    const { userId } = actor.auth;
+    const { companyId } = actor.ctx;
+    const waiting = await withTenant(this.db, { userId, companyId }, (tx) =>
+      tx
+        .selectFrom('migration_attachments')
+        .select(['id', 'document_id', 'source_path'])
+        .where('migration_id', '=', migrationId)
+        .where('status', '=', 'unmatched')
+        .where('matched_by', 'is', null)
+        .where('source_path', 'not like', 'qbo:%')
+        .execute(),
+    );
+    let matched = 0;
+    for (const w of waiting) {
+      const m = await this.match(actor, sourceKey, w.source_path);
+      await withTenant(this.db, { userId, companyId }, async (tx) => {
+        if (m.auto) {
+          await sql`
+            insert into document_links (company_id, document_id, entity_type, entity_id, created_by)
+            values (${companyId}, ${w.document_id}, ${m.auto.entityType}, ${m.auto.entityId}, ${userId})
+            on conflict do nothing`.execute(tx);
+          matched++;
+        }
+        await tx
+          .updateTable('migration_attachments')
+          .set({
+            status: m.auto ? 'matched' : 'unmatched',
+            matched_by: m.auto ? (m.byId ? 'source' : 'auto') : null,
+            suggestions: JSON.stringify(m.suggestions),
+          })
+          .where('id', '=', w.id)
+          .execute();
+      });
+    }
+    return matched;
+  }
+
   /** A file from the Desktop agent's Attach folder: stored, then matched. */
   async ingestAgentFile(
     actor: Actor,
@@ -298,7 +340,20 @@ export class MigrationAttachmentsService {
     migrationId: string,
     status?: string,
   ): Promise<MigrationAttachmentDto[]> {
-    return withTenant(this.db, { userId: auth.userId, companyId: ctx.companyId }, async (tx) => {
+    return withTenant(this.db, { userId: auth.userId, companyId: ctx.companyId }, (tx) =>
+      this.listInTx(tx, ctx.companyId, migrationId, status),
+    );
+  }
+
+  private async listInTx(
+    tx: Tx,
+    companyId: string,
+    migrationId: string,
+    status?: string,
+    id?: string,
+  ): Promise<MigrationAttachmentDto[]> {
+    const ctx = { companyId };
+    {
       let q = tx
         .selectFrom('migration_attachments as ma')
         .innerJoin('documents as d', 'd.id', 'ma.document_id')
@@ -318,6 +373,7 @@ export class MigrationAttachmentsService {
         .where('ma.migration_id', '=', migrationId)
         .where('ma.company_id', '=', ctx.companyId);
       if (status) q = q.where('ma.status', '=', status);
+      if (id) q = q.where('ma.id', '=', id);
       const rows = await q
         .orderBy('ma.status', 'desc')
         .orderBy('ma.source_path')
@@ -359,7 +415,7 @@ export class MigrationAttachmentsService {
           })),
         suggestions: (r.suggestions as AttachmentSuggestionDto[]) ?? [],
       }));
-    });
+    }
   }
 
   /** Link a file to a record, set it aside, or put it back in the queue. */
@@ -413,7 +469,7 @@ export class MigrationAttachmentsService {
         },
         meta,
       );
-      return (await this.list(auth, ctx, migrationId)).find((a) => a.id === id)!;
+      return (await this.listInTx(tx, ctx.companyId, migrationId, undefined, id))[0]!;
     });
   }
 

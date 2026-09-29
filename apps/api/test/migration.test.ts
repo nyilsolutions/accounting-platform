@@ -10,6 +10,8 @@ import type {
 } from '@acct/shared';
 import { Client } from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import request from 'supertest';
+import { makePdf } from '../src/documents/pdf-fixture';
 import { MigrationsService } from '../src/migration/migrations.service';
 import { QboService } from '../src/migration/qbo.service';
 import { mockQboChanges } from '../src/migration/sources/qbo/mock-company';
@@ -370,5 +372,159 @@ describe('QuickBooks Online', () => {
       await owner.agent.get(`/companies/${companyId}/customers?search=Pine`).expect(200)
     ).body as CustomerDto[];
     expect(cafe.find((c) => c.displayName === 'Pine Street Cafe')?.phone).toBe('(555) 010-3333');
+  });
+});
+
+describe('QuickBooks Desktop agent', () => {
+  let companyId: string;
+  let migrationId: string;
+  let key: string;
+  const base = () => `/companies/${companyId}/migrations/${migrationId}`;
+  const fixture = JSON.parse(readFileSync(join(FIXTURES, 'riverside-desktop.json'), 'utf8')) as {
+    batches: Array<{ entity: string; records: unknown[] }>;
+    reports: Array<{ kind: string; asOf: string; from?: string; report: unknown }>;
+    files: Array<{ path: string; lines: string[] }>;
+  };
+  const agentCall = (method: 'get' | 'post', path: string) =>
+    request(ctx.app.getHttpServer())
+      [method](`/agent/v1${path}`)
+      .set('authorization', `Bearer ${key}`);
+
+  beforeAll(async () => {
+    companyId = await newCompany(owner, 'Riverside Garden Supply LLC');
+    migrationId = (
+      await owner.agent
+        .post(`/companies/${companyId}/migrations`)
+        .send({ source: 'desktop' })
+        .expect(201)
+    ).body.id;
+  });
+
+  it('pairs the agent with a key shown once', async () => {
+    const res = await owner.agent.post(`${base()}/agent-key`).expect(201);
+    key = res.body.key;
+    expect(key).toMatch(/^qbm_/);
+    const m = (await owner.agent.get(base()).expect(200)).body as MigrationDto;
+    expect(m.agentKey?.prefix).toBe(res.body.prefix);
+    const [stored] = await adminQuery<{ key_hash: string }>(
+      'select key_hash from migration_agent_keys',
+    );
+    expect(stored!.key_hash).not.toContain(key);
+    // No key, a wrong key: refused. The key opens nothing else.
+    await request(ctx.app.getHttpServer()).get('/agent/v1/session').expect(401);
+    await request(ctx.app.getHttpServer())
+      .get('/agent/v1/session')
+      .set('authorization', 'Bearer qbm_notarealkey0000000000000')
+      .expect(401);
+    await request(ctx.app.getHttpServer())
+      .get(`/companies/${companyId}/migrations`)
+      .set('authorization', `Bearer ${key}`)
+      .expect(401);
+  });
+
+  it('receives records, reports and the Attach folder, resuming without duplicates', async () => {
+    const session = await agentCall('get', '/session').expect(200);
+    expect(session.body).toMatchObject({ migrationId, received: {}, apiVersion: 1 });
+    for (const b of fixture.batches) await agentCall('post', '/batches').send(b).expect(200);
+    // A resumed upload sends a batch again: same records, no duplicates.
+    await agentCall('post', '/batches')
+      .send(fixture.batches.find((b) => b.entity === 'InvoiceRet'))
+      .expect(200);
+    for (const r of fixture.reports) await agentCall('post', '/reports').send(r).expect(200);
+    for (const f of fixture.files) {
+      const res = await agentCall('post', `/attachments?path=${encodeURIComponent(f.path)}`)
+        .set('content-type', 'application/octet-stream')
+        .send(makePdf(f.lines))
+        .expect(200);
+      expect(res.body.duplicate).toBe(false);
+    }
+    const again = await agentCall(
+      'post',
+      `/attachments?path=${encodeURIComponent(fixture.files[0]!.path)}`,
+    )
+      .set('content-type', 'application/octet-stream')
+      .send(makePdf(fixture.files[0]!.lines))
+      .expect(200);
+    expect(again.body.duplicate).toBe(true);
+    const resumed = await agentCall('get', '/session').expect(200);
+    expect(resumed.body.received.InvoiceRet).toBe(2);
+    expect(resumed.body.attachments).toHaveLength(3);
+
+    const finish = await agentCall('post', '/finish')
+      .send({ counts: { InvoiceRet: 2 } })
+      .expect(200);
+    expect(finish.body.staged).toBeGreaterThan(30);
+    const m = (await owner.agent.get(base()).expect(200)).body as MigrationDto;
+    expect(m).toMatchObject({ name: 'Riverside Garden Supply', asOf: '2025-01-22' });
+  });
+
+  it('imports it and ties out, inventory cost and payment discounts included', async () => {
+    const m = await runAndWait(owner, companyId, migrationId);
+    const errors = (await records(owner, companyId, migrationId, '&status=error')).records;
+    expect(errors.map((e) => `${e.sourceType} ${e.number}: ${e.message}`)).toEqual([]);
+    expect(m.status).toBe('imported');
+    const report = (await owner.agent.get(`${base()}/report`).expect(200)).body as TieOutReportDto;
+    const diffs = [...report.trialBalances, report.arAging!, report.apAging!].flatMap((s) =>
+      s.rows
+        .filter((r) => r.difference !== '0.00')
+        .map((r) => `${s.label} ${r.name}: ${r.source} vs ${r.ours}`),
+    );
+    expect(diffs).toEqual([]);
+    expect(report.trialBalances.map((s) => s.asOf)).toEqual(['2024-12-31', '2025-01-20']);
+    expect(report.status).toBe('tied_out');
+
+    const all = (await records(owner, companyId, migrationId)).records;
+    // The paycheck came from the Journal report as a journal entry.
+    expect(all.find((r) => r.sourceType === 'Paycheck')).toMatchObject({
+      entityType: 'journal_entry',
+      status: 'imported',
+    });
+    // The early payment discount became a credit memo applied in the payment.
+    expect(all.find((r) => r.sourceType === 'Payment discount')).toMatchObject({
+      entityType: 'credit_memo',
+      status: 'imported',
+    });
+    const inv = all.find((r) => r.entityType === 'invoice' && r.number === '5001')!;
+    expect(inv.warnings.join(' ')).toContain('cost of goods sold');
+    const doc = (
+      await owner.agent.get(`/companies/${companyId}/sales/invoices/${inv.targetId}`).expect(200)
+    ).body as SalesDocumentDto;
+    expect(doc.balance).toBe('25.00');
+    expect(doc.lines.map((l) => [l.itemName, l.amount])).toEqual([
+      ['Rose Bush', '300.00'],
+      ['Delivery', '25.00'],
+      ['10% Off', '-30.00'],
+      [null, '21.60'],
+    ]);
+  });
+
+  it('matches Attach-folder files by id, by number and amount, and queues the rest', async () => {
+    const files = (await owner.agent.get(`${base()}/attachments`).expect(200))
+      .body as MigrationAttachmentDto[];
+    const byName = Object.fromEntries(files.map((f) => [f.fileName, f]));
+    expect(byName['April lease payment.pdf']).toMatchObject({
+      status: 'matched',
+      matchedBy: 'source',
+    });
+    expect(byName['Invoice 5003 89.80.pdf']).toMatchObject({
+      status: 'matched',
+      matchedBy: 'auto',
+    });
+    const scan = byName['scan0001.pdf']!;
+    expect(scan).toMatchObject({ status: 'unmatched', links: [] });
+
+    // Match it by hand from a search.
+    const targets = (await owner.agent.get(`${base()}/attachment-targets?q=Main St`).expect(200))
+      .body;
+    const vendor = targets.find((t: { label: string }) => t.label === 'Vendor: Main St Properties');
+    const linked = await owner.agent
+      .post(`${base()}/attachments/${scan.id}`)
+      .send({ action: 'link', entityType: vendor.entityType, entityId: vendor.entityId })
+      .expect(201);
+    expect(linked.body).toMatchObject({
+      status: 'matched',
+      matchedBy: 'user',
+      links: [{ label: 'Main St Properties' }],
+    });
   });
 });

@@ -178,21 +178,33 @@ export function classifyGl(ctx: GlContext, t: GlTxn): CanonicalRecord | null {
   const total = debit ? header.amount : negate(header.amount);
   const p = party(ctx, header.name ?? rest.find((l) => l.name)?.name ?? null);
 
+  // Inventory sold on a sales document: QuickBooks also posts cost of goods sold against the
+  // inventory asset. Those lines aren't sales lines; the per-transaction true-up posts them.
+  const cogs = rest.filter((l) => typeOf(l) === 'cost_of_goods_sold');
+  const assets = rest.filter((l) => typeOf(l) === 'other_current_asset');
+  const inventoryCost =
+    cogs.length &&
+    assets.length &&
+    isZero(addDecimals(...cogs.map((l) => l.amount), ...assets.map((l) => l.amount)))
+      ? new Set([...cogs, ...assets])
+      : new Set<GlLine>();
   const salesLines = (flip: boolean): CanonicalSalesLine[] =>
-    rest.map((l) => {
-      const itemType = l.item ? ctx.itemType(l.item) : null;
-      return {
-        item: itemType === 'sales_tax' || itemType === 'subtotal' ? null : l.item,
-        account: l.account,
-        description: l.memo,
-        quantity: l.quantity ? l.quantity.replace(/^-/, '') : null,
-        rate: l.price,
-        amount: flip ? negate(l.amount) : l.amount,
-        class: l.class,
-        serviceDate: null,
-        taxable: l.taxable ?? undefined,
-      };
-    });
+    rest
+      .filter((l) => !inventoryCost.has(l))
+      .map((l) => {
+        const itemType = l.item ? ctx.itemType(l.item) : null;
+        return {
+          item: itemType === 'sales_tax' || itemType === 'subtotal' ? null : l.item,
+          account: l.account,
+          description: l.memo,
+          quantity: l.quantity ? l.quantity.replace(/^-/, '') : null,
+          rate: l.price,
+          amount: flip ? negate(l.amount) : l.amount,
+          class: l.class,
+          serviceDate: null,
+          taxable: l.taxable ?? undefined,
+        };
+      });
   const purchaseLines = (flip: boolean) =>
     rest.map((l) => {
       const lp = party(ctx, l.name);

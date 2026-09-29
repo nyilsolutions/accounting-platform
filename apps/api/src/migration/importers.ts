@@ -40,6 +40,7 @@ import {
   type Money,
   type PurchaseDocType,
   type SalesDocType,
+  type SourceGlLine,
 } from '@acct/shared';
 import { AuditService } from '../audit/audit.service';
 import { AccountsService } from '../ledger/accounts.service';
@@ -469,8 +470,25 @@ export class Importers {
         'Imported as non-inventory: quantity on hand and average cost arrive with inventory (Phase 10)',
       );
     if (p.itemType === 'discount') itemType = 'other_charge';
-    let incomeAccountId = c.r.opt('account', p.incomeAccount);
-    const expenseAccountId = c.r.opt('account', p.expenseAccount);
+    // Our item list holds income and expense accounts only; transactions imported from QuickBooks
+    // keep whatever account QuickBooks posted the item to (see Resolver.itemAccount).
+    const allowed = (id: string | null, types: string[], label: string) => {
+      if (!id || types.includes(c.r.accountTypes.get(id) ?? '')) return id;
+      c.warnings.push(
+        `QuickBooks posts it to an account that isn't ${label}; imported transactions keep that account`,
+      );
+      return null;
+    };
+    let incomeAccountId = allowed(
+      c.r.opt('account', p.incomeAccount),
+      ['income', 'other_income'],
+      'an income account',
+    );
+    const expenseAccountId = allowed(
+      c.r.opt('account', p.expenseAccount),
+      ['expense', 'cost_of_goods_sold', 'other_expense'],
+      'an expense account',
+    );
     if (!incomeAccountId && !expenseAccountId) {
       incomeAccountId = c.r.id('account', 'role:uncategorized_income');
       c.warnings.push('No account in QuickBooks; set to Uncategorized Income');
@@ -533,7 +551,7 @@ export class Importers {
       const amount = toCents(l.amount);
       const itemId = c.r.optItem(l.item);
       let accountId = c.r.opt('account', l.account);
-      if (!accountId && itemId) accountId = c.r.items.get(itemId)?.income ?? null;
+      if (!accountId && itemId) accountId = c.r.itemAccount(itemId, 'income');
       if (!accountId) {
         if (amount === 0n) continue; // a description-only line
         accountId = c.r.id('account', 'role:uncategorized_income');
@@ -871,10 +889,7 @@ export class Importers {
       const amount = toCents(l.amount);
       const itemId = c.r.optItem(l.item);
       let accountId = c.r.opt('account', l.account);
-      if (!accountId && itemId) {
-        const it = c.r.items.get(itemId);
-        accountId = it?.expense ?? it?.income ?? null;
-      }
+      if (!accountId && itemId) accountId = c.r.itemAccount(itemId, 'expense');
       if (!accountId) {
         if (amount === 0n) continue;
         accountId = c.r.id('account', 'role:uncategorized_expense');
@@ -1318,6 +1333,82 @@ export class Importers {
       ? await this.journal.updateInTx(c.tx, auth, ctx, existing, input, meta)
       : await this.journal.createInTx(c.tx, auth, ctx, input, meta);
     return this.done(c, saved.id);
+  }
+
+  /**
+   * After a transaction is imported from a source that gives its GL lines (IIF, GL detail, the
+   * Desktop Journal report): QuickBooks may post lines the document here doesn't (the cost of
+   * goods sold of inventory sold on an invoice, most often). Those differences are posted as a
+   * companion journal entry, so each account ties out transaction by transaction. Differences on
+   * A/R or A/P are not trued up (they would change open balances); the tie-out shows them.
+   */
+  async trueUp(
+    c: ImportCtx,
+    targetId: string,
+    gl: SourceGlLine[],
+    companionId: string | null,
+    label: { txnDate: string; number: string | null },
+  ): Promise<string | null> {
+    const ours = await sql<{ account_id: string; net: string }>`
+      select l.account_id, sum(l.debit - l.credit) as net
+      from journal_lines l join transactions t on t.id = l.transaction_id and t.version = l.version
+      where t.id = ${targetId} and t.status = 'posted'
+      group by l.account_id`.execute(c.tx);
+    const diff = new Map<string, Money>();
+    for (const g of gl) {
+      const id = c.r.id('account', g.account);
+      diff.set(id, (diff.get(id) ?? 0n) + toCents(g.amount));
+    }
+    for (const o of ours.rows)
+      diff.set(o.account_id, (diff.get(o.account_id) ?? 0n) - toCents(o.net));
+    const lines = [...diff.entries()].filter(([, v]) => v !== 0n);
+    const onControl = lines.some(([id]) =>
+      ['accounts_receivable', 'accounts_payable'].includes(c.r.accountTypes.get(id) ?? ''),
+    );
+    if (lines.length === 0 || onControl || lines.reduce((sum, [, v]) => sum + v, 0n) !== 0n) {
+      if (onControl)
+        c.warnings.push(
+          'Its GL lines differ from QuickBooks’ on A/R or A/P; see the Migration Report',
+        );
+      if (companionId) await this.remove(c, companionId);
+      return null;
+    }
+    const input = journalEntryInputSchema.parse({
+      txnDate: label.txnDate,
+      number: truncate(label.number, 30),
+      memo: truncate(
+        `QuickBooks ${c.sourceType}${label.number ? ` ${label.number}` : ''}: GL lines posted with it in QuickBooks (such as cost of goods sold)`,
+        4000,
+      ),
+      isAdjusting: false,
+      lines: lines.map(([accountId, v]) => ({
+        accountId,
+        debit: v > 0n ? cents(v) : '',
+        credit: v < 0n ? cents(-v) : '',
+      })),
+      closingPassword: c.closingPassword,
+    });
+    const { auth, ctx, meta } = c.actor;
+    const existing = companionId
+      ? await c.tx
+          .selectFrom('transactions')
+          .select('status')
+          .where('id', '=', companionId)
+          .executeTakeFirst()
+      : undefined;
+    const saved =
+      existing?.status === 'posted'
+        ? await this.journal.updateInTx(c.tx, auth, ctx, companionId!, input, meta)
+        : await this.journal.createInTx(c.tx, auth, ctx, input, meta);
+    await c.tx
+      .updateTable('transactions')
+      .set({ source: 'import' })
+      .where('id', '=', saved.id)
+      .execute();
+    c.warnings.push(
+      `Added a journal entry for ${lines.length} GL line${lines.length === 1 ? '' : 's'} QuickBooks posted with it (such as cost of goods sold)`,
+    );
+    return saved.id;
   }
 
   /**
