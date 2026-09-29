@@ -43,11 +43,11 @@ export class CompanyAccessGuard implements CanActivate {
     const role = membership.role as Role;
     req.company = { companyId: companyId.toLowerCase(), role, permissions: ROLE_PERMISSIONS[role] };
 
-    const required = this.reflector.getAllAndOverride<Permission | undefined>(REQUIRED_PERMISSION, [
-      context.getHandler(),
-      context.getClass(),
-    ]);
-    if (required && !req.company.permissions.includes(required)) {
+    const required = this.reflector.getAllAndOverride<Permission[] | undefined>(
+      REQUIRED_PERMISSION,
+      [context.getHandler(), context.getClass()],
+    );
+    if (required && !required.some((p) => req.company!.permissions.includes(p))) {
       throw new ForbiddenException('You do not have permission to do this');
     }
     return true;

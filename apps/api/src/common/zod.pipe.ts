@@ -5,7 +5,8 @@ export class ZodPipe<T extends ZodType> implements PipeTransform {
   constructor(private readonly schema: T) {}
 
   transform(value: unknown) {
-    const result = this.schema.safeParse(value);
+    // Express 5 leaves req.body undefined for requests without a body (e.g. a bare POST/DELETE).
+    const result = this.schema.safeParse(value === undefined ? {} : value);
     if (!result.success) {
       throw new BadRequestException({
         statusCode: 400,

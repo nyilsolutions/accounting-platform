@@ -103,6 +103,7 @@ export class AuditService {
       if (q.action)
         query = query.where('a.action', 'like', `${q.action.replace(/[\\%_]/g, '\\$&')}%`);
       if (q.entityType) query = query.where('a.entity_type', '=', q.entityType);
+      if (q.entityId) query = query.where('a.entity_id', '=', q.entityId);
       if (q.actorUserId) query = query.where('a.actor_user_id', '=', q.actorUserId);
       if (q.from) query = query.where('a.created_at', '>=', new Date(q.from));
       if (q.to) {
