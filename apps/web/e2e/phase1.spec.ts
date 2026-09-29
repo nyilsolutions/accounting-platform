@@ -121,6 +121,7 @@ test('ledger: chart of accounts, journal entries, reports with drill-down, closi
   await expect(page.getByRole('cell', { name: 'Acme Corp', exact: true })).toBeVisible();
 
   await go(page, 'e');
+  await page.getByRole('link', { name: 'Vendors', exact: true }).click();
   await page.getByRole('button', { name: 'New vendor' }).click();
   await page.getByLabel('Vendor display name').fill('Joe Plumbing');
   await page.getByLabel('Track payments for 1099').check();

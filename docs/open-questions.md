@@ -44,3 +44,17 @@ Add new questions here instead of guessing.
 16. **Cash-basis A/R:** on the cash Balance Sheet, an unapplied payment shows as a credit balance
     in A/R (QuickBooks behavior). Would your CPAs prefer it reclassified as a customer deposit
     liability?
+
+## Purchases and payables (Phase 3)
+
+17. **1099 thresholds for 2026** (`tax-data/2026/form-1099.json`): $2,000 for NEC and MISC boxes
+    1, 3 and 6 under the One Big Beautiful Bill Act, and $10 for royalties. Please have a CPA
+    confirm these and the citations, and set `reviewedBy`. Should box 10 (gross proceeds paid to an
+    attorney) be tracked too?
+18. **Early-payment discounts** on bills (such as "1% 10 Net 30"): should Pay Bills offer the
+    discount automatically, and which account should it post to (Discounts Taken, or reducing the
+    expense)?
+19. **Check numbers:** should typing a number already used on a check be blocked (as printing
+    does) or only warned?
+20. **1099 and card payments:** we exclude anything paid by credit card (reported on 1099-K). Is
+    that right for your clients, including debit cards and payment apps?

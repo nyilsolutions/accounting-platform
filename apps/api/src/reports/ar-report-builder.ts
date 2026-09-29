@@ -5,26 +5,33 @@ import {
   agingOf,
   bucketOf,
   daysPastDue,
-  type ArItem,
-} from '../sales/ar-ledger';
+  type LedgerItem,
+} from '../ledger/subledger';
 
 /**
- * Accounts-receivable report layouts. Pure functions over the A/R subledger (open items as of the
- * report date), so they can be tested without a database.
+ * Receivables and payables report layouts. Pure functions over a subledger (open items as of the
+ * report date), so they can be tested without a database. `party` decides whether rows drill down
+ * to customers (A/R) or vendors (A/P).
  */
 
-const NO_CUSTOMER = 'Not specified';
+export type Party = 'customer' | 'vendor';
+type Item = LedgerItem;
+
+const NOT_SPECIFIED = 'Not specified';
 const m = (v: Money) => moneyToString(v);
 
-function byCustomer(
-  items: ArItem[],
-): Array<{ customerId: string | null; name: string; items: ArItem[] }> {
-  const groups = new Map<string, { customerId: string | null; name: string; items: ArItem[] }>();
+function partyKey(party: Party, id: string | null): Partial<ReportRow> {
+  if (!id) return {};
+  return party === 'customer' ? { customerId: id } : { vendorId: id };
+}
+
+function byParty(items: Item[]): Array<{ partyId: string | null; name: string; items: Item[] }> {
+  const groups = new Map<string, { partyId: string | null; name: string; items: Item[] }>();
   for (const i of items) {
-    const key = i.customerId ?? '';
+    const key = i.partyId ?? '';
     const g = groups.get(key) ?? {
-      customerId: i.customerId,
-      name: i.customerName ?? NO_CUSTOMER,
+      partyId: i.partyId,
+      name: i.partyName ?? NOT_SPECIFIED,
       items: [],
     };
     g.items.push(i);
@@ -35,44 +42,45 @@ function byCustomer(
   );
 }
 
-const openOnly = (items: ArItem[]) => items.filter((i) => i.open !== 0n);
+const openOnly = (items: Item[]) => items.filter((i) => i.open !== 0n);
 
-function customerRow(
+function partyRow(
+  party: Party,
   label: string,
-  customerId: string | null,
+  id: string | null,
   amounts: Array<string | null>,
 ): ReportRow {
-  return { kind: 'row', label, depth: 0, ...(customerId ? { customerId } : {}), amounts };
+  return { kind: 'row', label, depth: 0, ...partyKey(party, id), amounts };
 }
 
-function itemRow(i: ArItem, cells: Array<string | null>, depth = 1): ReportRow {
+function itemRow(party: Party, i: Item, cells: Array<string | null>, depth = 1): ReportRow {
   return {
     kind: 'row',
     label: `${TXN_TYPE_LABELS[i.txnType] ?? i.txnType}${i.number ? ` ${i.number}` : ''}`,
     depth,
     txnId: i.txnId,
     txnType: i.txnType,
-    ...(i.customerId ? { customerId: i.customerId } : {}),
+    ...partyKey(party, i.partyId),
     cells,
     amounts: [m(i.amount), m(i.open)],
   };
 }
 
-function pastDue(i: ArItem, asOf: string): string | null {
+function pastDue(i: Item, asOf: string): string | null {
   const d = daysPastDue(i, asOf);
   return d > 0 ? String(d) : null;
 }
 
 export const AGING_COLUMNS = [...AGING_BUCKETS.map((b) => AGING_LABELS[b]), 'Total'];
 
-/** One row per customer with the open balance split into aging buckets. */
-export function arAgingSummary(items: ArItem[], asOf: string): ReportRow[] {
+/** One row per customer/vendor with the open balance split into aging buckets. */
+export function agingSummary(items: Item[], asOf: string, party: Party = 'customer'): ReportRow[] {
   const rows: ReportRow[] = [];
-  for (const g of byCustomer(openOnly(items))) {
+  for (const g of byParty(openOnly(items))) {
     const a = agingOf(g.items, asOf);
     if (a.total === 0n && AGING_BUCKETS.every((b) => a[b] === 0n)) continue;
     rows.push(
-      customerRow(g.name, g.customerId, [...AGING_BUCKETS.map((b) => m(a[b])), m(a.total)]),
+      partyRow(party, g.name, g.partyId, [...AGING_BUCKETS.map((b) => m(a[b])), m(a.total)]),
     );
   }
   const t = agingOf(items, asOf);
@@ -85,17 +93,19 @@ export function arAgingSummary(items: ArItem[], asOf: string): ReportRow[] {
   return rows;
 }
 
-export const AR_DETAIL_TEXT_COLUMNS = [
-  'Date',
-  'Transaction type',
-  'Num',
-  'Customer',
-  'Due date',
-  'Past due',
-];
+export function agingDetailColumns(party: Party): string[] {
+  return [
+    'Date',
+    'Transaction type',
+    'Num',
+    party === 'customer' ? 'Customer' : 'Vendor',
+    'Due date',
+    'Past due',
+  ];
+}
 
 /** Every open item, grouped by aging bucket. */
-export function arAgingDetail(items: ArItem[], asOf: string): ReportRow[] {
+export function agingDetail(items: Item[], asOf: string, party: Party = 'customer'): ReportRow[] {
   const rows: ReportRow[] = [];
   const open = openOnly(items);
   let grandAmount = 0n;
@@ -109,11 +119,11 @@ export function arAgingDetail(items: ArItem[], asOf: string): ReportRow[] {
     let openSum = 0n;
     for (const i of inBucket) {
       rows.push(
-        itemRow(i, [
+        itemRow(party, i, [
           i.txnDate,
           TXN_TYPE_LABELS[i.txnType] ?? i.txnType,
           i.number,
-          i.customerName ?? NO_CUSTOMER,
+          i.partyName ?? NOT_SPECIFIED,
           i.dueDate,
           pastDue(i, asOf),
         ]),
@@ -139,7 +149,7 @@ export function arAgingDetail(items: ArItem[], asOf: string): ReportRow[] {
   return rows;
 }
 
-export const OPEN_INVOICES_TEXT_COLUMNS = [
+export const OPEN_DOCUMENTS_TEXT_COLUMNS = [
   'Date',
   'Transaction type',
   'Num',
@@ -147,24 +157,27 @@ export const OPEN_INVOICES_TEXT_COLUMNS = [
   'Past due',
 ];
 
-/** Open invoices, unused credits and unapplied payments, grouped by customer. */
-export function openInvoices(items: ArItem[], asOf: string): ReportRow[] {
+/**
+ * Open invoices (or unpaid bills), unused credits and unapplied payments, grouped by customer
+ * (or vendor).
+ */
+export function openDocuments(items: Item[], asOf: string, party: Party = 'customer'): ReportRow[] {
   const rows: ReportRow[] = [];
   let grandAmount = 0n;
   let grandOpen = 0n;
-  for (const g of byCustomer(openOnly(items))) {
+  for (const g of byParty(openOnly(items))) {
     rows.push({
       kind: 'section',
       label: g.name,
       depth: 0,
-      ...(g.customerId ? { customerId: g.customerId } : {}),
+      ...partyKey(party, g.partyId),
       amounts: [null, null],
     });
     let amount = 0n;
     let openSum = 0n;
     for (const i of g.items) {
       rows.push(
-        itemRow(i, [
+        itemRow(party, i, [
           i.txnDate,
           TXN_TYPE_LABELS[i.txnType] ?? i.txnType,
           i.number,
@@ -193,14 +206,14 @@ export function openInvoices(items: ArItem[], asOf: string): ReportRow[] {
   return rows;
 }
 
-/** Open balance per customer. */
-export function customerBalanceSummary(items: ArItem[]): ReportRow[] {
+/** Open balance per customer (or vendor). */
+export function balanceSummary(items: Item[], party: Party = 'customer'): ReportRow[] {
   const rows: ReportRow[] = [];
   let total = 0n;
-  for (const g of byCustomer(openOnly(items))) {
+  for (const g of byParty(openOnly(items))) {
     const sum = g.items.reduce((s, i) => s + i.open, 0n);
     if (sum === 0n) continue;
-    rows.push(customerRow(g.name, g.customerId, [m(sum)]));
+    rows.push(partyRow(party, g.name, g.partyId, [m(sum)]));
     total += sum;
   }
   rows.push({ kind: 'grand_total', label: 'TOTAL', depth: 0, amounts: [m(total)] });
@@ -214,14 +227,17 @@ export interface SalesAggregate {
   amount: Money;
 }
 
-/** Sales by customer: net sales per customer (invoices and receipts less credits and refunds). */
-export function salesByCustomer(groups: SalesAggregate[]): ReportRow[] {
+/**
+ * Net amount per customer (sales: invoices and receipts less credits and refunds) or per vendor
+ * (expenses: bills, checks and expenses less vendor and card credits).
+ */
+export function amountByParty(groups: SalesAggregate[], party: Party = 'customer'): ReportRow[] {
   const sorted = [...groups].sort((a, b) =>
     a.label.localeCompare(b.label, 'en', { sensitivity: 'base' }),
   );
   const rows: ReportRow[] = sorted
     .filter((g) => g.amount !== 0n)
-    .map((g) => customerRow(g.label, g.key, [m(g.amount)]));
+    .map((g) => partyRow(party, g.label, g.key, [m(g.amount)]));
   rows.push({
     kind: 'grand_total',
     label: 'TOTAL',

@@ -85,7 +85,7 @@ export function StatementView({
         </thead>
         <tbody>
           {report.rows.map((row, i) => {
-            const drillable = row.accountId || row.customerId || row.txnId;
+            const drillable = row.accountId || row.customerId || row.vendorId || row.txnId;
             const href = drillable && row.kind !== 'section' ? drillHref(row) : null;
             const tabular = text.length > 0 && row.cells;
             return (

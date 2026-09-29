@@ -2,24 +2,23 @@ import { sql, type Tx } from '@acct/db';
 import { parseMoney, type Money } from '@acct/shared';
 
 /**
- * Cash-basis conversion (ADR 0009).
+ * Cash-basis conversion (ADR 0009, extended to payables in ADR 0010).
  *
- * On the accrual ledger an invoice debits A/R and credits income when it is issued. On a cash
- * basis the income belongs to the day the customer pays. The conversion is done at report time,
- * never stored:
+ * On the accrual ledger an invoice debits A/R and credits income when it is issued, and a bill
+ * debits expense and credits A/P when it is entered. On a cash basis the income or expense
+ * belongs to the day the money moves. The conversion is done at report time, never stored:
  *
- *   1. Invoice and credit-memo journal lines are left out entirely.
- *   2. Every other posting (payments, receipts, deposits, journal entries…) counts as-is. A
- *      payment still debits Undeposited Funds/bank and credits A/R.
- *   3. Each application of a payment to an invoice, on its effective date (the later of the
- *      payment and invoice dates), recognises that share of the invoice: debit A/R by the amount
- *      applied and credit each invoice line in proportion. Credit memos applied work the same way
- *      with the signs reversed.
+ *   1. Invoice, credit-memo, bill and vendor-credit journal lines are left out entirely.
+ *   2. Every other posting (payments, bill payments, receipts, checks, expenses, deposits,
+ *      journal entries…) counts as-is. A payment still credits A/R; a bill payment debits A/P.
+ *   3. Each application of a payment to a document, on its effective date (the later of the
+ *      payment and document dates), recognises that share of the document's lines and moves the
+ *      same amount back through A/R or A/P. Credits applied work the same way, signs reversed.
  *
- * So a fully paid invoice leaves A/R at zero and its income on the payment date; an unpaid one
- * leaves nothing; an overpayment shows as a credit balance in A/R. Shares are allocated on the
- * cumulative amount applied, so once a document is fully applied every line is recognised
- * exactly, with no rounding drift.
+ * So a fully paid invoice or bill leaves A/R/A/P at zero and its income/expense on the payment
+ * date; an unpaid one leaves nothing; an overpayment shows as a credit balance in A/R. Shares are
+ * allocated on the cumulative amount applied, so once a document is fully applied every line is
+ * recognised exactly, with no rounding drift.
  */
 
 /**
@@ -66,7 +65,6 @@ interface Application {
   payment_id: string;
   amount: string;
   eff_date: string;
-  total: string;
   txn_type: string;
 }
 
@@ -76,31 +74,51 @@ interface TargetLine {
   net: string;
   class_id: string | null;
   location_id: string | null;
-  is_ar: boolean;
+  is_control: boolean;
 }
 
-/** Recognised amounts from invoice/credit-memo applications, as net debit − credit per account. */
-export async function cashRecognition(
+/** One recognised amount: part of a document's line, recognised when a payment was applied. */
+export interface Recognition {
+  accountId: string;
+  /** Net debit − credit. */
+  amount: Money;
+  date: string;
+  targetId: string;
+  targetType: string;
+  paymentId: string;
+  classId: string | null;
+  locationId: string | null;
+}
+
+/**
+ * Recognitions from applications of payments to invoices, credit memos, bills and vendor credits
+ * with an effective date in [from, to]. For each application of amount x the document's non-control
+ * lines are recognised in proportion (cumulatively, see `allocate`) and the control account (A/R or
+ * A/P) takes the opposite amount, which cancels the payment's own control-account posting.
+ */
+export async function recognitions(
   tx: Tx,
   companyId: string,
-  f: CashFilter,
-): Promise<Map<string, Money>> {
+  f: { from?: string | null; to: string },
+  opts: { targetTypes?: string[] } = {},
+): Promise<Recognition[]> {
   // Every application up to `to` is needed, even before `from`, to allocate cumulatively.
   const apps = await sql<Application>`
     select pa.target_id, pa.payment_id, pa.amount, greatest(p.txn_date, t.txn_date) as eff_date,
-           t.total, t.txn_type
+           t.txn_type
     from payment_applications pa
     join transactions p on p.id = pa.payment_id and p.status = 'posted'
     join transactions t on t.id = pa.target_id and t.status = 'posted'
     where pa.company_id = ${companyId} and greatest(p.txn_date, t.txn_date) <= ${f.to}
+      ${opts.targetTypes ? sql`and t.txn_type in (${sql.join(opts.targetTypes)})` : sql``}
     order by pa.target_id, eff_date, p.txn_date, pa.payment_id`.execute(tx);
-  const out = new Map<string, Money>();
+  const out: Recognition[] = [];
   if (apps.rows.length === 0) return out;
 
   const targetIds = [...new Set(apps.rows.map((a) => a.target_id))];
   const lines = await sql<TargetLine>`
     select l.transaction_id, l.account_id, (l.debit - l.credit) as net, l.class_id, l.location_id,
-           a.account_type = 'accounts_receivable' as is_ar
+           a.account_type in ('accounts_receivable', 'accounts_payable') as is_control
     from journal_lines l
     join transactions t on t.id = l.transaction_id and t.version = l.version
     join accounts a on a.id = l.account_id
@@ -113,37 +131,71 @@ export async function cashRecognition(
     byTarget.set(l.transaction_id, list);
   }
 
-  const matches = (l: { class_id: string | null; location_id: string | null }) =>
-    (!f.classId || l.class_id === f.classId) && (!f.locationId || l.location_id === f.locationId);
-  const add = (accountId: string, v: Money) => {
-    if (v !== 0n) out.set(accountId, (out.get(accountId) ?? 0n) + v);
-  };
-
   let i = 0;
   while (i < apps.rows.length) {
-    const targetId = apps.rows[i]!.target_id;
-    const tLines = byTarget.get(targetId) ?? [];
-    const arLines = tLines.filter((l) => l.is_ar);
-    const other = tLines.filter((l) => !l.is_ar);
+    const first = apps.rows[i]!;
+    const tLines = byTarget.get(first.target_id) ?? [];
+    const control = tLines.find((l) => l.is_control);
+    const other = tLines.filter((l) => !l.is_control);
     const values = other.map((l) => parseMoney(l.net));
-    // Signed total of the non-A/R side: −total for an invoice (credits), +total for a credit memo.
+    // Signed total of the non-control side: negative for invoices and vendor credits (credits to
+    // income/expense), positive for credit memos and bills.
     const sideTotal = values.reduce((s, v) => s + v, 0n);
-    const sign = apps.rows[i]!.txn_type === 'invoice' ? -1n : 1n;
+    const sign = sideTotal < 0n ? -1n : 1n;
     let cumulative = 0n;
     let previous = values.map(() => 0n);
-    for (; i < apps.rows.length && apps.rows[i]!.target_id === targetId; i++) {
+    for (; i < apps.rows.length && apps.rows[i]!.target_id === first.target_id; i++) {
       const a = apps.rows[i]!;
       cumulative += parseMoney(a.amount);
       const current = allocate(values, sideTotal, sign * cumulative);
       if (!f.from || a.eff_date >= f.from) {
+        const base = {
+          date: a.eff_date,
+          targetId: a.target_id,
+          targetType: a.txn_type,
+          paymentId: a.payment_id,
+        };
         other.forEach((l, k) => {
-          if (matches(l)) add(l.account_id, current[k]! - previous[k]!);
+          const v = current[k]! - previous[k]!;
+          if (v !== 0n)
+            out.push({
+              ...base,
+              accountId: l.account_id,
+              amount: v,
+              classId: l.class_id,
+              locationId: l.location_id,
+            });
         });
-        const arLine = arLines[0];
-        if (arLine && matches(arLine)) add(arLine.account_id, -sign * parseMoney(a.amount));
+        if (control) {
+          out.push({
+            ...base,
+            accountId: control.account_id,
+            amount: -sign * parseMoney(a.amount),
+            classId: control.class_id,
+            locationId: control.location_id,
+          });
+        }
       }
       previous = current;
     }
   }
   return out;
 }
+
+/** Recognised amounts as net debit − credit per account (cash-basis reports). */
+export async function cashRecognition(
+  tx: Tx,
+  companyId: string,
+  f: CashFilter,
+): Promise<Map<string, Money>> {
+  const out = new Map<string, Money>();
+  for (const r of await recognitions(tx, companyId, f)) {
+    if (f.classId && r.classId !== f.classId) continue;
+    if (f.locationId && r.locationId !== f.locationId) continue;
+    out.set(r.accountId, (out.get(r.accountId) ?? 0n) + r.amount);
+  }
+  return out;
+}
+
+/** Document types whose postings are replaced by recognitions on the cash basis. */
+export const ACCRUAL_ONLY_TYPES = ['invoice', 'credit_memo', 'bill', 'vendor_credit'] as const;

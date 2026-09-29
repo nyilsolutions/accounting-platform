@@ -8,6 +8,7 @@ import {
   sumMoney,
   tryParseMoney,
   type Money,
+  type PurchaseDocumentInput,
   type SalesLineInput,
 } from '@acct/shared';
 import { cx } from '@/components/ui';
@@ -24,6 +25,8 @@ export interface LineState {
   amount: string;
   classId: string;
   serviceDate: string;
+  /** Purchases: the customer/job the cost is for. */
+  customerId: string;
 }
 
 let nextKey = 1;
@@ -36,6 +39,7 @@ export const emptyLine = (): LineState => ({
   amount: '',
   classId: '',
   serviceDate: '',
+  customerId: '',
 });
 
 const QTY = /^-?\d{1,15}(\.\d{1,4})?$/;
@@ -64,7 +68,8 @@ export function linesFrom(
     rate: string | null;
     amount: string;
     classId: string | null;
-    serviceDate: string | null;
+    serviceDate?: string | null;
+    customerId?: string | null;
   }>,
 ): LineState[] {
   return lines.map((l) => ({
@@ -76,6 +81,7 @@ export function linesFrom(
     amount: l.amount,
     classId: l.classId ?? '',
     serviceDate: l.serviceDate ?? '',
+    customerId: l.customerId ?? '',
   }));
 }
 
@@ -94,7 +100,25 @@ export function linesToInput(lines: LineState[]): SalesLineInput[] {
     }));
 }
 
+/** Purchase lines: category (account) or product, plus the customer/job it was for. */
+export function purchaseLinesToInput(lines: LineState[]): PurchaseDocumentInput['lines'] {
+  return lines
+    .filter((l) => !isBlankLine(l))
+    .map((l) => ({
+      itemId: l.product.startsWith('i:') ? l.product.slice(2) : null,
+      accountId: l.product.startsWith('a:') ? l.product.slice(2) : null,
+      description: l.description,
+      quantity: l.quantity.trim() || null,
+      rate: l.rate.trim() || null,
+      amount: moneyToString(lineTotal(l)),
+      customerId: l.customerId || null,
+      classId: l.classId || null,
+    }));
+}
+
 const LINE_ACCOUNT_TYPES = ['income', 'other_income'] as const;
+/** A/R and A/P only move through invoices, bills and payments. */
+const NOT_ON_PURCHASES = ['accounts_receivable', 'accounts_payable'];
 
 /**
  * Product/service grid for invoices, receipts, credit memos and estimates. Choosing a product
@@ -106,30 +130,46 @@ export function SalesLines({
   lookups,
   readOnly,
   fieldError,
+  variant = 'sales',
 }: {
   lines: LineState[];
   onChange: (lines: LineState[]) => void;
   lookups: SalesLookups;
   readOnly?: boolean;
   fieldError: (path: string) => string | undefined;
+  /** 'purchase': expense categories and items with an expense account, and a Customer column. */
+  variant?: 'sales' | 'purchase';
 }) {
+  const purchase = variant === 'purchase';
   const hasClasses = lookups.classes.length > 0;
   const selected = new Set(lines.map((l) => l.product));
   const productOptions = [
     ...lookups.items
-      .filter((i) => (i.isActive && i.incomeAccountId) || selected.has(`i:${i.id}`))
+      .filter(
+        (i) =>
+          (i.isActive && (purchase ? i.expenseAccountId : i.incomeAccountId)) ||
+          selected.has(`i:${i.id}`),
+      )
       .map((i) => ({ id: `i:${i.id}`, label: i.name })),
     ...lookups.accounts
       .filter(
         (a) =>
-          ((LINE_ACCOUNT_TYPES as readonly string[]).includes(a.accountType) && a.isActive) ||
+          (a.isActive &&
+            (purchase
+              ? !NOT_ON_PURCHASES.includes(a.accountType)
+              : (LINE_ACCOUNT_TYPES as readonly string[]).includes(a.accountType))) ||
           selected.has(`a:${a.id}`),
       )
       .map((a) => ({
         id: `a:${a.id}`,
-        label: `${a.fullName} (${ACCOUNT_TYPE_INFO[a.accountType].label} account)`,
+        label: `${a.fullName} (${ACCOUNT_TYPE_INFO[a.accountType].label}${purchase ? '' : ' account'})`,
       })),
   ];
+  const customerOptions = purchase
+    ? lookups.customers
+        .filter((c) => c.isActive || lines.some((l) => l.customerId === c.id))
+        .map((c) => ({ id: c.id, label: c.displayName, depth: c.depth }))
+    : [];
 
   function update(key: number, patch: Partial<LineState>) {
     const next = lines.map((l) => (l.key === key ? { ...l, ...patch } : l));
@@ -142,9 +182,12 @@ export function SalesLines({
     if (product.startsWith('i:')) {
       const item = lookups.items.find((i) => i.id === product.slice(2));
       if (item) {
-        patch.description = item.description ?? l.description;
-        if (item.salesPrice) {
-          patch.rate = item.salesPrice;
+        patch.description =
+          (purchase ? (item.purchaseDescription ?? item.description) : item.description) ??
+          l.description;
+        const price = purchase ? item.cost : item.salesPrice;
+        if (price) {
+          patch.rate = price;
           patch.quantity = l.quantity || '1';
         }
       }
@@ -160,12 +203,15 @@ export function SalesLines({
         <thead className="border-b border-gray-200 bg-gray-50 text-left text-xs uppercase tracking-wide text-gray-500">
           <tr>
             <th className="w-8 px-2 py-2">#</th>
-            <th className="w-32 px-2 py-2">Service date</th>
-            <th className="w-60 px-2 py-2">Product/service</th>
+            {!purchase && <th className="w-32 px-2 py-2">Service date</th>}
+            <th className="w-60 px-2 py-2">
+              {purchase ? 'Category or product' : 'Product/service'}
+            </th>
             <th className="px-2 py-2">Description</th>
             <th className="w-20 px-2 py-2 text-right">Qty</th>
             <th className="w-28 px-2 py-2 text-right">Rate</th>
             <th className="w-32 px-2 py-2 text-right">Amount</th>
+            {purchase && <th className="w-44 px-2 py-2">Customer</th>}
             {hasClasses && <th className="w-36 px-2 py-2">Class</th>}
             <th className="w-8" />
           </tr>
@@ -176,18 +222,20 @@ export function SalesLines({
             return (
               <tr key={l.key} data-testid={`sales-line-${i}`}>
                 <td className="px-2 text-center text-xs text-gray-400">{i + 1}</td>
-                <td className="px-1 py-1">
-                  <input
-                    type="date"
-                    aria-label={`Line ${i + 1} service date`}
-                    value={l.serviceDate}
-                    onChange={(e) => update(l.key, { serviceDate: e.target.value })}
-                    className={cellInputClass}
-                  />
-                </td>
+                {!purchase && (
+                  <td className="px-1 py-1">
+                    <input
+                      type="date"
+                      aria-label={`Line ${i + 1} service date`}
+                      value={l.serviceDate}
+                      onChange={(e) => update(l.key, { serviceDate: e.target.value })}
+                      className={cellInputClass}
+                    />
+                  </td>
+                )}
                 <td className="px-1 py-1">
                   <OptionSelect
-                    aria-label={`Line ${i + 1} product or service`}
+                    aria-label={`Line ${i + 1} ${purchase ? 'category or product' : 'product or service'}`}
                     options={productOptions}
                     value={l.product}
                     onChange={(e) => onProduct(l, e.target.value)}
@@ -253,6 +301,17 @@ export function SalesLines({
                     title={err(i, 'amount')}
                   />
                 </td>
+                {purchase && (
+                  <td className="px-1 py-1">
+                    <OptionSelect
+                      aria-label={`Line ${i + 1} customer`}
+                      options={customerOptions}
+                      value={l.customerId}
+                      onChange={(e) => update(l.key, { customerId: e.target.value })}
+                      className="border-transparent hover:border-gray-300"
+                    />
+                  </td>
+                )}
                 {hasClasses && (
                   <td className="px-1 py-1">
                     <OptionSelect
@@ -289,13 +348,16 @@ export function SalesLines({
         </tbody>
         <tfoot className="border-t-2 border-gray-200 bg-gray-50 font-medium">
           <tr>
-            <td colSpan={6} className="px-3 py-2 text-right text-xs uppercase text-gray-500">
+            <td
+              colSpan={purchase ? 5 : 6}
+              className="px-3 py-2 text-right text-xs uppercase text-gray-500"
+            >
               Total
             </td>
             <td className="px-3 py-2 text-right tabular-nums" data-testid="lines-total">
               {formatMoney(linesTotal(lines))}
             </td>
-            <td colSpan={hasClasses ? 2 : 1} />
+            <td colSpan={(hasClasses ? 2 : 1) + (purchase ? 1 : 0)} />
           </tr>
         </tfoot>
       </table>
