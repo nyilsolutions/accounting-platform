@@ -1,0 +1,35 @@
+@import 'tailwindcss';
+
+@theme {
+  --color-brand-50: #ecfdf5;
+  --color-brand-100: #d1fae5;
+  --color-brand-500: #0f9f6e;
+  --color-brand-600: #0b8a5f;
+  --color-brand-700: #086b4a;
+  --color-brand-900: #053d2b;
+  --color-sidebar: #10231d;
+  --color-sidebar-hover: #1b362d;
+  --font-sans:
+    ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  background: #f5f7f6;
+  color: #1f2a26;
+  font-feature-settings: 'tnum' 1; /* tabular numbers: columns of amounts line up */
+}
+
+kbd {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.75rem;
+  border: 1px solid #d4d9d7;
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  padding: 0 0.3rem;
+  background: #fff;
+}
