@@ -11,7 +11,8 @@ Add new questions here instead of guessing.
 3. **Registration:** open self-signup (current), or invite-only for your firm's clients?
    Self-signup currently reveals whether an email is registered (409 on duplicate); invite-only
    would remove that.
-4. **Which states** should payroll support first (Phase 8)?
+4. **Which states** should payroll support first (Phase 8)? _Answered: Illinois, Texas, Florida,
+   California and New York (see `docs/states.md`)._
 5. **Which QuickBooks editions** do your clients use (Online, Desktop Pro/Premier/Enterprise)? Sample
    files or a QBO sandbox are needed for Phase 6.
 
