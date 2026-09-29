@@ -124,9 +124,21 @@ export class CustomersService {
         ['displayName', 'display_name'],
         ['parentId', 'parent_id'],
         ['taxExempt', 'tax_exempt'],
+        ['taxRateId', 'tax_rate_id'],
+        ['taxExemptionReason', 'tax_exemption_reason'],
+        ['taxExemptionNumber', 'tax_exemption_number'],
       ]),
       updated_by: auth.userId,
     };
+    if (input.taxRateId) {
+      const rate = await tx
+        .selectFrom('tax_rates')
+        .select('is_active')
+        .where('id', '=', input.taxRateId)
+        .where('company_id', '=', ctx.companyId)
+        .executeTakeFirst();
+      if (!rate?.is_active) throw new BadRequestException('Sales tax rate not found or inactive');
+    }
     if (input.parentId) {
       if (input.parentId === id)
         throw new BadRequestException('A customer cannot be its own parent');
@@ -219,6 +231,9 @@ function toCustomerDto(r: Customer, fullName: string, depth: number): CustomerDt
     parentId: r.parent_id,
     depth,
     taxExempt: r.tax_exempt,
+    taxRateId: r.tax_rate_id,
+    taxExemptionReason: r.tax_exemption_reason as CustomerDto['taxExemptionReason'],
+    taxExemptionNumber: r.tax_exemption_number,
     ...contactDto(r),
   };
 }

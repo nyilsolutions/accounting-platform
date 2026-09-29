@@ -176,6 +176,10 @@ export interface CustomersTable extends Audited, ContactColumns {
   display_name: string;
   parent_id: string | null;
   tax_exempt: Generated<boolean>;
+  // Sales tax (migration 0009)
+  tax_rate_id: ColumnType<string | null, string | null | undefined, string | null>;
+  tax_exemption_reason: ColumnType<string | null, string | null | undefined, string | null>;
+  tax_exemption_number: ColumnType<string | null, string | null | undefined, string | null>;
 }
 
 export interface VendorsTable extends Audited, ContactColumns {
@@ -239,6 +243,9 @@ export interface TransactionsTable extends Audited {
   payment_account_id: ColumnType<string | null, string | null | undefined, string | null>;
   print_status: ColumnType<string | null, string | null | undefined, string | null>;
   mailing_address: ColumnType<string | null, string | null | undefined, string | null>;
+  // Sales tax (migration 0009)
+  tax_rate_id: ColumnType<string | null, string | null | undefined, string | null>;
+  tax_agency_id: ColumnType<string | null, string | null | undefined, string | null>;
 }
 
 export interface JournalLinesTable {
@@ -313,6 +320,8 @@ export interface EstimatesTable extends Audited {
   total: Generated<string>;
   invoice_id: string | null;
   sent_at: Timestamp | null;
+  tax_rate_id: ColumnType<string | null, string | null | undefined, string | null>;
+  tax_total: Generated<string>;
 }
 
 export interface EstimateLinesTable {
@@ -694,6 +703,93 @@ export interface QboConnectionsTable extends Audited {
   synced_through: Timestamp | null;
 }
 
+export interface TaxAgenciesTable extends Audited {
+  id: Generated<string>;
+  company_id: string;
+  name: string;
+  registration_number: string | null;
+  filing_frequency: Generated<string>;
+  is_active: Generated<boolean>;
+}
+
+export interface TaxRatesTable extends Audited {
+  id: Generated<string>;
+  company_id: string;
+  name: string;
+  description: string | null;
+  kind: string;
+  agency_id: string | null;
+  is_active: Generated<boolean>;
+}
+
+export interface TaxRateValuesTable {
+  company_id: string;
+  tax_rate_id: string;
+  effective_from: DateCol;
+  rate: Numeric;
+  created_by: string | null;
+  created_at: Generated<Date>;
+}
+
+export interface TaxRateComponentsTable {
+  company_id: string;
+  combined_id: string;
+  component_id: string;
+}
+
+export interface SalesTaxLinesTable {
+  id: Generated<string>;
+  company_id: string;
+  transaction_id: string;
+  line_no: number;
+  agency_id: string;
+  tax_rate_id: string | null;
+  rate: Numeric | null;
+  taxable_amount: Numeric;
+  amount: Numeric;
+}
+
+export interface BudgetsTable extends Audited {
+  id: Generated<string>;
+  company_id: string;
+  name: string;
+  start_date: DateCol;
+  dimension: Generated<string>;
+}
+
+export interface BudgetAmountsTable {
+  company_id: string;
+  budget_id: string;
+  account_id: string;
+  dimension_id: string | null;
+  month: number;
+  amount: Numeric;
+}
+
+export interface MemorizedReportsTable {
+  id: Generated<string>;
+  company_id: string;
+  name: string;
+  report_key: string;
+  params: ColumnType<unknown, string | undefined, string>;
+  shared: Generated<boolean>;
+  schedule_frequency: string | null;
+  schedule_day: number | null;
+  schedule_hour: number | null;
+  schedule_timezone: string | null;
+  recipients: ColumnType<string[], string[] | undefined, string[]>;
+  format: Generated<string>;
+  next_run_at: Timestamp | null;
+  lease_until: Timestamp | null;
+  last_run_at: Timestamp | null;
+  last_status: string | null;
+  last_error: string | null;
+  created_by: string;
+  updated_by: string | null;
+  created_at: Generated<Date>;
+  updated_at: Generated<Date>;
+}
+
 export interface Database {
   users: UsersTable;
   mfa_recovery_codes: MfaRecoveryCodesTable;
@@ -744,6 +840,14 @@ export interface Database {
   migration_attachments: MigrationAttachmentsTable;
   migration_agent_keys: MigrationAgentKeysTable;
   qbo_connections: QboConnectionsTable;
+  tax_agencies: TaxAgenciesTable;
+  tax_rates: TaxRatesTable;
+  tax_rate_values: TaxRateValuesTable;
+  tax_rate_components: TaxRateComponentsTable;
+  sales_tax_lines: SalesTaxLinesTable;
+  budgets: BudgetsTable;
+  budget_amounts: BudgetAmountsTable;
+  memorized_reports: MemorizedReportsTable;
 }
 
 export type User = Selectable<UsersTable>;

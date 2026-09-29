@@ -15,3 +15,6 @@ export * from './bank-files';
 export * from './banking';
 export * from './documents';
 export * from './migration';
+export * from './sales-tax';
+export * from './budgets';
+export * from './report-definitions';

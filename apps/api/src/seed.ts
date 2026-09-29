@@ -27,6 +27,7 @@ import { makePdf } from './documents/pdf-fixture';
 import { ReceiptsService } from './documents/receipts.service';
 import { EstimatesService } from './sales/estimates.service';
 import { PaymentsService } from './sales/payments.service';
+import { RateTableCalculator } from './sales-tax/tax-calculator';
 import { SalesDocumentsService } from './sales/sales-documents.service';
 import { IMPORTED_COMPANY, seedMigration } from './seed-migration';
 
@@ -295,10 +296,17 @@ async function seedSales(
   const audit = new AuditService(db);
   const posting = new PostingService();
   const noMail: Mailer = { send: async () => undefined };
-  const documents = new SalesDocumentsService(db, config, noMail, posting, audit);
+  const documents = new SalesDocumentsService(
+    db,
+    config,
+    noMail,
+    new RateTableCalculator(),
+    posting,
+    audit,
+  );
   const payments = new PaymentsService(db, posting, audit);
   const deposits = new DepositsService(db, posting, audit);
-  const estimates = new EstimatesService(db, noMail, documents, audit);
+  const estimates = new EstimatesService(db, noMail, new RateTableCalculator(), documents, audit);
   const auth = {
     userId,
     sessionId: 'seed',

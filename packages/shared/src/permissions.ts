@@ -27,6 +27,8 @@ export const PERMISSIONS = [
   'documents.view',
   'documents.manage',
   'migration.manage',
+  'sales_tax.manage',
+  'budgets.manage',
 ] as const;
 
 export type Permission = (typeof PERMISSIONS)[number];
@@ -60,6 +62,7 @@ const TRANSACTIONS: readonly Permission[] = [
   'documents.view',
   'documents.manage',
   'reports.view',
+  'sales_tax.manage',
 ];
 
 export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
