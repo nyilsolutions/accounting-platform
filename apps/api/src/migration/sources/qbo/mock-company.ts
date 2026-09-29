@@ -762,6 +762,17 @@ const attachables: Array<{ data: Obj; bytes: () => Buffer }> = [
     bytes: png,
   },
   {
+    // Attached to a time activity, which doesn't come over: it waits on Match attachments.
+    data: {
+      Id: '304',
+      FileName: 'Oak Hills invoice 1050 signed.pdf',
+      ContentType: 'application/pdf',
+      AttachableRef: [{ EntityRef: { type: 'TimeActivity', value: '1' } }],
+      MetaData: meta('2025-01-16T09:00:00-08:00'),
+    },
+    bytes: () => makePdf(['Invoice 1050', 'Oak Hills Estates', 'Received and approved']),
+  },
+  {
     data: {
       Id: '303',
       Note: 'Call before visiting',

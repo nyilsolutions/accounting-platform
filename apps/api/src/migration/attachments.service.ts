@@ -119,6 +119,11 @@ export class MigrationAttachmentsService {
           return out;
         });
         const data = await this.qbo.download(companyId, userId, migrationId, p.fetch.id);
+        // Attached in QuickBooks to something that didn't come over (a time activity, a
+        // deleted record): suggest what it may belong to, from its name.
+        const match = links.length ? null : await this.match(actor, sourceKey, p.fileName);
+        if (match?.auto)
+          links.push({ entityType: match.auto.entityType, entityId: match.auto.entityId });
         const doc = await this.ingest(
           actor,
           migrationId,
@@ -129,7 +134,8 @@ export class MigrationAttachmentsService {
             note: p.note ?? null,
             createdAt: p.createdAt ?? null,
             links,
-            matchedBy: 'source',
+            matchedBy: match?.auto ? 'auto' : 'source',
+            suggestions: match?.suggestions,
           },
         );
         await withTenant(this.db, { userId, companyId }, async (tx) => {

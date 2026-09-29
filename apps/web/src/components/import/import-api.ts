@@ -1,6 +1,7 @@
 'use client';
 
-import { useQuery } from '@tanstack/react-query';
+import { useEffect, useRef } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type {
   MigrationAttachmentDto,
   MigrationDto,
@@ -10,7 +11,7 @@ import type {
   TieOutReportDto,
 } from '@acct/shared';
 import { api } from '@/lib/api';
-import { keys } from '@/lib/queries';
+import { keys, ledgerKeys } from '@/lib/queries';
 
 export const base = (companyId: string, id?: string) =>
   `/companies/${companyId}/migrations${id ? `/${id}` : ''}`;
@@ -22,13 +23,27 @@ export function useMigrations(companyId: string) {
   });
 }
 
-/** One migration; polls while a pull or an import runs. */
+/**
+ * One migration; polls while a pull or an import runs, and refreshes what depends on it (its
+ * records, the report, attachments, the books) when a run finishes.
+ */
 export function useMigration(companyId: string, id: string) {
-  return useQuery({
+  const qc = useQueryClient();
+  const wasRunning = useRef(false);
+  const q = useQuery({
     queryKey: [...keys.migrations(companyId), id],
     queryFn: () => api<MigrationDto>(base(companyId, id)),
     refetchInterval: (q) => (q.state.data?.running ? 1500 : false),
   });
+  const running = q.data?.running ?? false;
+  useEffect(() => {
+    if (wasRunning.current && !running) {
+      void qc.invalidateQueries({ queryKey: keys.migrations(companyId) });
+      for (const k of ledgerKeys(companyId)) void qc.invalidateQueries({ queryKey: k });
+    }
+    wasRunning.current = running;
+  }, [running, companyId, qc]);
+  return q;
 }
 
 export function useRecords(

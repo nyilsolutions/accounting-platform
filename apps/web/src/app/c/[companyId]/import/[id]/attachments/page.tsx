@@ -63,7 +63,13 @@ function Match({
       <div className="space-y-3">
         <div>
           <p className="font-medium">{a.fileName}</p>
-          <p className="break-all text-xs text-gray-500">{a.sourcePath}</p>
+          <p className="break-all text-xs text-gray-500">
+            {a.sourcePath.startsWith('qbo:')
+              ? a.links.length
+                ? 'Attached in QuickBooks Online'
+                : 'Attached in QuickBooks Online to a record that didn’t come over'
+              : `Attach folder: ${a.sourcePath}`}
+          </p>
         </div>
         {error && <Alert>{error}</Alert>}
         {a.links.length > 0 && (

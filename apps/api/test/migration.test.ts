@@ -282,7 +282,7 @@ describe('QuickBooks Online', () => {
       check: 1,
       expense: 2,
       cc_credit: 1,
-      attachment: 3,
+      attachment: 4,
     });
   });
 
@@ -329,6 +329,13 @@ describe('QuickBooks Online', () => {
         ['patio-site.png', 'matched', 1],
       ]),
     );
+    // Attached to a time activity in QuickBooks: waits on Match attachments, with a suggestion.
+    const unmatched = files.find((f) => f.fileName === 'Oak Hills invoice 1050 signed.pdf')!;
+    expect(unmatched).toMatchObject({ status: 'unmatched', links: [] });
+    expect(unmatched.suggestions[0]).toMatchObject({
+      entityType: 'transaction',
+      reason: expect.stringContaining('number 1050'),
+    });
     const receipt = files.find((f) => f.fileName === 'Metro Fuel receipt 1002.pdf')!;
     const document = (
       await owner.agent.get(`/companies/${companyId}/documents/${receipt.documentId}`).expect(200)

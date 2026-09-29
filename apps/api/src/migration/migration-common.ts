@@ -261,9 +261,11 @@ export function recordLabel(r: CanonicalRecord): string | null {
   const p = r.payload as Record<string, unknown>;
   const name = (p.fullName ?? p.displayName ?? p.name ?? p.fileName) as string | undefined;
   if (name) return name;
-  const party = (p.customer ?? p.vendor ?? p.payeeName) as string | undefined;
+  // Names only (file sources refer by name); QuickBooks ids mean nothing to a reader.
+  const ref = (p.customer ?? p.vendor) as string | undefined;
+  const party = ref?.startsWith('name:') ? ref.slice(5) : (p.payeeName as string | undefined);
   const amount = (p.total ?? p.amount) as string | undefined;
-  return [party?.replace(/^name:/, ''), amount].filter(Boolean).join(' · ') || null;
+  return [party, amount].filter(Boolean).join(' · ') || null;
 }
 
 export const LIST_ORDER: EntityType[] = [
