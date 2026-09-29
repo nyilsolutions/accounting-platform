@@ -4,6 +4,7 @@ import { useParams } from 'next/navigation';
 import { useQueryClient } from '@tanstack/react-query';
 import type { CompanyDto } from '@acct/shared';
 import { CompanyForm } from '@/components/company/company-form';
+import { LedgerSettingsCard } from '@/components/ledger/ledger-settings-card';
 import { Card, PageHeader, Spinner } from '@/components/ui';
 import { api } from '@/lib/api';
 import { keys, useAccess, useCompany } from '@/lib/queries';
@@ -53,6 +54,9 @@ export default function CompanySettingsPage() {
           }
         />
       </Card>
+      <div className="mt-6">
+        <LedgerSettingsCard companyId={companyId} canEdit={canEdit} />
+      </div>
     </>
   );
 }

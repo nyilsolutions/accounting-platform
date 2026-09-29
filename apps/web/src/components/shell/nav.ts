@@ -8,7 +8,8 @@ export interface NavItem {
   /** Second key of the "g <key>" navigation shortcut. */
   shortcut?: string;
   permission?: Permission;
-  section: 'main' | 'settings';
+  /** 'hidden' items are reachable by shortcut and command palette only. */
+  section: 'main' | 'settings' | 'hidden';
 }
 
 export const NAV: NavItem[] = [
@@ -62,6 +63,14 @@ export const NAV: NavItem[] = [
     section: 'main',
   },
   {
+    key: 'journal',
+    label: 'New journal entry',
+    path: '/accounting/journal-entries/new',
+    shortcut: 'j',
+    permission: 'ledger.manage',
+    section: 'hidden',
+  },
+  {
     key: 'documents',
     label: 'Documents',
     path: '/documents',
@@ -82,6 +91,14 @@ export const NAV: NavItem[] = [
     label: 'Company settings',
     path: '/settings',
     shortcut: 'c',
+    permission: 'company.view',
+    section: 'settings',
+  },
+  {
+    key: 'lists',
+    label: 'Lists',
+    path: '/settings/lists',
+    shortcut: 't',
     permission: 'company.view',
     section: 'settings',
   },
@@ -108,28 +125,6 @@ export const UPCOMING_MODULES: Record<
   string,
   { title: string; phase: string; features: string[] }
 > = {
-  sales: {
-    title: 'Sales & customers',
-    phase: 'Phase 2',
-    features: [
-      'Customers and jobs',
-      'Estimates, sales orders and invoices',
-      'Sales receipts, payments and deposits',
-      'Credit memos, refunds and statements',
-      'A/R aging and collections',
-    ],
-  },
-  expenses: {
-    title: 'Expenses & vendors',
-    phase: 'Phase 3',
-    features: [
-      'Vendors with 1099 tracking',
-      'Purchase orders, bills and bill payments',
-      'Check writing and printing',
-      'Expenses and credit card charges',
-      'A/P aging',
-    ],
-  },
   banking: {
     title: 'Banking',
     phase: 'Phase 4',
@@ -150,27 +145,6 @@ export const UPCOMING_MODULES: Record<
       'Direct deposit (NACHA)',
       'Tax liabilities and deposits',
       'Forms 941, 940, W-2/W-3, 1099-NEC/MISC',
-    ],
-  },
-  reports: {
-    title: 'Reports',
-    phase: 'Phases 1 & 7',
-    features: [
-      'Profit & Loss, Balance Sheet, Cash Flow',
-      'Trial Balance and General Ledger',
-      'Drill-down to transactions',
-      'Excel / PDF export',
-      'Custom and memorized reports',
-    ],
-  },
-  accounting: {
-    title: 'Accounting',
-    phase: 'Phase 1',
-    features: [
-      'Chart of accounts',
-      'Journal entries',
-      'Classes and locations',
-      'Closing date and password',
     ],
   },
   documents: {
