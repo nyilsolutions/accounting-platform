@@ -30,6 +30,7 @@ import { PaymentsService } from './sales/payments.service';
 import { RateTableCalculator } from './sales-tax/tax-calculator';
 import { SalesDocumentsService } from './sales/sales-documents.service';
 import { IMPORTED_COMPANY, seedMigration } from './seed-migration';
+import { seedPhase7 } from './seed-phase7';
 
 const DEMO_EMAIL = 'demo@example.com';
 const DEMO_PASSWORD = 'demo-password-change-me';
@@ -161,6 +162,7 @@ async function main(): Promise<void> {
         .executeTakeFirst(),
     );
     if (!hasDocuments) await seedDocuments(db, config, enc, userId, companyId!);
+    await seedPhase7(db, config, userId, companyId!);
     await seedMigration(db, config, userId);
 
     console.log(

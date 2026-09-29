@@ -63,7 +63,7 @@ test('ledger: chart of accounts, journal entries, reports with drill-down, closi
 
   // --- Reports: P&L, drill-down to the general ledger and back to the entry --------------
   await go(page, 'r');
-  await page.getByRole('link', { name: /Profit and Loss/ }).click();
+  await page.getByRole('link', { name: 'Profit and Loss', exact: true }).click();
   const table = page.getByTestId('report-table');
   await expect(table.getByRole('row', { name: /Net Income/ })).toContainText('-120.00');
   await expect(table.getByRole('row', { name: /Total Car and Truck/ })).toContainText('120.00');
@@ -82,7 +82,7 @@ test('ledger: chart of accounts, journal entries, reports with drill-down, closi
 
   // Balance sheet balances.
   await go(page, 'r');
-  await page.getByRole('link', { name: /Balance Sheet/ }).click();
+  await page.getByRole('link', { name: 'Balance Sheet', exact: true }).click();
   const bs = page.getByTestId('report-table');
   await expect(bs.getByRole('row', { name: /^TOTAL ASSETS/ })).toContainText('5,000.00');
   await expect(bs.getByRole('row', { name: /TOTAL LIABILITIES AND EQUITY/ })).toContainText(

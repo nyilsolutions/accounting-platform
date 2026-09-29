@@ -151,7 +151,7 @@ test('sales: invoice, payment, receipt, deposit, estimate, statement and A/R rep
   await expect(page.getByTestId('customer-name')).toHaveText('Green Acres HOA');
 
   await go(page, 'r');
-  await page.getByRole('link', { name: /Profit and Loss/ }).click();
+  await page.getByRole('link', { name: 'Profit and Loss', exact: true }).click();
   const pl = page.getByTestId('report-table');
   await expect(pl.getByRole('row', { name: /Net Income/ })).toContainText('835.00');
   await page.getByLabel('Accounting method').selectOption('cash');

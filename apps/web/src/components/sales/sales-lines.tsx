@@ -27,6 +27,8 @@ export interface LineState {
   serviceDate: string;
   /** Purchases: the customer/job the cost is for. */
   customerId: string;
+  /** Sales: charged sales tax; null = as the product/service says. */
+  taxable: boolean | null;
 }
 
 let nextKey = 1;
@@ -40,6 +42,7 @@ export const emptyLine = (): LineState => ({
   classId: '',
   serviceDate: '',
   customerId: '',
+  taxable: null,
 });
 
 const QTY = /^-?\d{1,15}(\.\d{1,4})?$/;
@@ -59,6 +62,14 @@ export function linesTotal(lines: LineState[]): Money {
   return sumMoney(lines.map(lineTotal));
 }
 
+/** Whether a line is taxed: as set on the line, else as its product/service says. */
+export function lineTaxable(l: LineState, items: Array<{ id: string; taxable: boolean }>): boolean {
+  if (l.taxable !== null) return l.taxable;
+  return l.product.startsWith('i:')
+    ? (items.find((i) => i.id === l.product.slice(2))?.taxable ?? false)
+    : false;
+}
+
 export function linesFrom(
   lines: Array<{
     itemId: string | null;
@@ -70,6 +81,7 @@ export function linesFrom(
     classId: string | null;
     serviceDate?: string | null;
     customerId?: string | null;
+    taxable?: boolean;
   }>,
 ): LineState[] {
   return lines.map((l) => ({
@@ -82,6 +94,7 @@ export function linesFrom(
     classId: l.classId ?? '',
     serviceDate: l.serviceDate ?? '',
     customerId: l.customerId ?? '',
+    taxable: l.taxable ?? null,
   }));
 }
 
@@ -97,6 +110,7 @@ export function linesToInput(lines: LineState[]): SalesLineInput[] {
       amount: moneyToString(lineTotal(l)),
       classId: l.classId || null,
       serviceDate: l.serviceDate || null,
+      ...(l.taxable !== null ? { taxable: l.taxable } : {}),
     }));
 }
 
@@ -131,6 +145,7 @@ export function SalesLines({
   readOnly,
   fieldError,
   variant = 'sales',
+  showTax = false,
 }: {
   lines: LineState[];
   onChange: (lines: LineState[]) => void;
@@ -139,7 +154,10 @@ export function SalesLines({
   fieldError: (path: string) => string | undefined;
   /** 'purchase': expense categories and items with an expense account, and a Customer column. */
   variant?: 'sales' | 'purchase';
+  /** Sales: a Tax column (the company charges sales tax). */
+  showTax?: boolean;
 }) {
+  const tax = showTax && variant === 'sales';
   const purchase = variant === 'purchase';
   const hasClasses = lookups.classes.length > 0;
   const selected = new Set(lines.map((l) => l.product));
@@ -182,6 +200,7 @@ export function SalesLines({
     if (product.startsWith('i:')) {
       const item = lookups.items.find((i) => i.id === product.slice(2));
       if (item) {
+        patch.taxable = item.taxable;
         patch.description =
           (purchase ? (item.purchaseDescription ?? item.description) : item.description) ??
           l.description;
@@ -211,6 +230,7 @@ export function SalesLines({
             <th className="w-20 px-2 py-2 text-right">Qty</th>
             <th className="w-28 px-2 py-2 text-right">Rate</th>
             <th className="w-32 px-2 py-2 text-right">Amount</th>
+            {tax && <th className="w-12 px-2 py-2 text-center">Tax</th>}
             {purchase && <th className="w-44 px-2 py-2">Customer</th>}
             {hasClasses && <th className="w-36 px-2 py-2">Class</th>}
             <th className="w-8" />
@@ -301,6 +321,16 @@ export function SalesLines({
                     title={err(i, 'amount')}
                   />
                 </td>
+                {tax && (
+                  <td className="px-1 py-1 text-center">
+                    <input
+                      type="checkbox"
+                      aria-label={`Line ${i + 1} taxable`}
+                      checked={lineTaxable(l, lookups.items)}
+                      onChange={(e) => update(l.key, { taxable: e.target.checked })}
+                    />
+                  </td>
+                )}
                 {purchase && (
                   <td className="px-1 py-1">
                     <OptionSelect
@@ -357,7 +387,7 @@ export function SalesLines({
             <td className="px-3 py-2 text-right tabular-nums" data-testid="lines-total">
               {formatMoney(linesTotal(lines))}
             </td>
-            <td colSpan={(hasClasses ? 2 : 1) + (purchase ? 1 : 0)} />
+            <td colSpan={(hasClasses ? 2 : 1) + (purchase ? 1 : 0) + (tax ? 1 : 0)} />
           </tr>
         </tfoot>
       </table>

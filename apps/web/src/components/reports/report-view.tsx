@@ -12,8 +12,9 @@ import {
 } from '@acct/shared';
 import { cx } from '@/components/ui';
 
-function Amount({ value }: { value: string | null | undefined }) {
-  return <>{value === null || value === undefined ? '' : formatMoney(value)}</>;
+function Amount({ value, percent }: { value: string | null | undefined; percent?: boolean }) {
+  if (value === null || value === undefined) return null;
+  return <>{percent ? `${formatMoney(value)}%` : formatMoney(value)}</>;
 }
 
 function ReportHeader({
@@ -41,22 +42,41 @@ function ReportHeader({
   );
 }
 
+function Notes({ notes, truncated }: { notes?: string[]; truncated?: boolean }) {
+  if (!notes?.length && !truncated) return null;
+  return (
+    <div className="mt-4 space-y-1 text-center text-xs text-gray-500" data-testid="report-notes">
+      {truncated && (
+        <p className="rounded bg-amber-50 p-2 text-amber-800">
+          This report is limited to the first 20,000 lines. Narrow the dates or filter it.
+        </p>
+      )}
+      {notes?.map((n) => (
+        <p key={n}>{n}</p>
+      ))}
+    </div>
+  );
+}
+
 /**
- * Statement-style report (P&L, balance sheet, trial balance, A/R summaries). Amounts drill down
- * (accounts to the general ledger, customers to their page). Reports with `textColumns` (aging
- * detail, open invoices) are tabular: each row's `cells` come before the amounts.
+ * Statement-style report (P&L, balance sheet, trial balance, A/R summaries, budgets…). Amounts
+ * drill down: an account's amount in a column opens the transactions behind it for that column's
+ * period and filters; customers and vendors open their pages; detail rows open the transaction.
+ * Reports with `textColumns` are tabular: each row's `cells` come before the amounts.
  */
 export function StatementView({
   report,
   drillHref,
 }: {
   report: ReportDto;
-  drillHref: (row: ReportRow) => string | null;
+  /** Where a row's amount in column `col` leads (null: not a link). */
+  drillHref: (row: ReportRow, col: number) => string | null;
 }) {
   const text = report.textColumns ?? [];
   const wide = text.length > 0 || report.columns.length > 3;
+  const percent = new Set(report.percentColumns ?? []);
   return (
-    <div className={cx('mx-auto', wide ? 'max-w-6xl overflow-x-auto' : 'max-w-3xl')}>
+    <div className={cx('mx-auto', wide ? 'max-w-full overflow-x-auto' : 'max-w-3xl')}>
       <ReportHeader
         companyName={report.companyName}
         title={report.title}
@@ -69,7 +89,7 @@ export function StatementView({
           <tr className="border-b border-gray-300 text-left text-xs uppercase tracking-wide text-gray-500">
             {text.length ? (
               text.map((c) => (
-                <th key={c} className="px-2 py-1">
+                <th key={c} className="whitespace-nowrap px-2 py-1">
                   {c}
                 </th>
               ))
@@ -77,7 +97,7 @@ export function StatementView({
               <th />
             )}
             {report.columns.map((c) => (
-              <th key={c} className="w-32 px-2 py-1 text-right">
+              <th key={c} className="min-w-28 px-2 py-1 text-right">
                 {c}
               </th>
             ))}
@@ -86,8 +106,9 @@ export function StatementView({
         <tbody>
           {report.rows.map((row, i) => {
             const drillable = row.accountId || row.customerId || row.vendorId || row.txnId;
-            const href = drillable && row.kind !== 'section' ? drillHref(row) : null;
+            const canDrill = drillable && row.kind !== 'section';
             const tabular = text.length > 0 && row.cells;
+            const firstHref = canDrill ? drillHref(row, 0) : null;
             return (
               <tr
                 key={i}
@@ -101,13 +122,17 @@ export function StatementView({
               >
                 {tabular ? (
                   row.cells!.map((c, j) => (
-                    <td key={j} className={cx('whitespace-nowrap px-2 py-1', j === 0 && 'pl-6')}>
-                      {j === 0 && href && c ? (
+                    <td
+                      key={j}
+                      className={cx('whitespace-nowrap px-2 py-1', j === 0 && 'pl-6')}
+                      style={j === 0 ? { paddingLeft: `${row.depth * 1.25 + 0.5}rem` } : undefined}
+                    >
+                      {j === 0 && firstHref && c ? (
                         <Link
-                          href={href}
+                          href={firstHref}
                           className="text-brand-700 hover:underline print:text-inherit"
                         >
-                          {formatDate(c)}
+                          {/^\d{4}-\d{2}-\d{2}$/.test(c) ? formatDate(c) : c}
                         </Link>
                       ) : c && /^\d{4}-\d{2}-\d{2}$/.test(c) ? (
                         formatDate(c)
@@ -125,31 +150,35 @@ export function StatementView({
                     {row.label}
                   </td>
                 )}
-                {row.amounts.map((a, j) => (
-                  <td
-                    key={j}
-                    className={cx(
-                      'px-2 py-1 text-right tabular-nums',
-                      row.kind === 'total' && a !== null && 'border-t border-gray-300',
-                    )}
-                  >
-                    {href && a !== null ? (
-                      <Link
-                        href={href}
-                        className="text-brand-700 hover:underline print:text-inherit"
-                      >
-                        <Amount value={a} />
-                      </Link>
-                    ) : (
-                      <Amount value={a} />
-                    )}
-                  </td>
-                ))}
+                {row.amounts.map((a, j) => {
+                  const href = canDrill && a !== null ? drillHref(row, j) : null;
+                  return (
+                    <td
+                      key={j}
+                      className={cx(
+                        'whitespace-nowrap px-2 py-1 text-right tabular-nums',
+                        row.kind === 'total' && a !== null && 'border-t border-gray-300',
+                      )}
+                    >
+                      {href ? (
+                        <Link
+                          href={href}
+                          className="text-brand-700 hover:underline print:text-inherit"
+                        >
+                          <Amount value={a} percent={percent.has(j)} />
+                        </Link>
+                      ) : (
+                        <Amount value={a} percent={percent.has(j)} />
+                      )}
+                    </td>
+                  );
+                })}
               </tr>
             );
           })}
         </tbody>
       </table>
+      <Notes notes={report.notes} truncated={report.truncated} />
       <p className="mt-6 text-center text-xs text-gray-400">
         Generated {new Date(report.generatedAt).toLocaleString()}
       </p>
@@ -159,6 +188,7 @@ export function StatementView({
 
 const TXN_LABELS = TXN_TYPE_LABELS;
 
+/** General Ledger, P&L Detail, Balance Sheet Detail, Transaction Detail by Account. */
 export function LedgerView({
   report,
   txnHref,
@@ -175,12 +205,6 @@ export function LedgerView({
         to={report.to}
         basis={report.basis}
       />
-      {report.truncated && (
-        <p className="mb-4 rounded bg-amber-50 p-2 text-center text-sm text-amber-800">
-          This report is limited to the first 20,000 lines. Narrow the date range or choose an
-          account.
-        </p>
-      )}
       <div className="overflow-x-auto">
         <table className="w-full min-w-[900px] text-sm" data-testid="report-table">
           <thead>
@@ -203,14 +227,16 @@ export function LedgerView({
                   {acc.label}
                 </td>
               </tr>
-              <tr className="text-gray-600">
-                <td colSpan={8} className="px-2 py-1 pl-6">
-                  Beginning balance
-                </td>
-                <td className="px-2 py-1 text-right tabular-nums">
-                  <Amount value={acc.beginningBalance} />
-                </td>
-              </tr>
+              {report.beginningBalances && (
+                <tr className="text-gray-600">
+                  <td colSpan={8} className="px-2 py-1 pl-6">
+                    Beginning balance
+                  </td>
+                  <td className="px-2 py-1 text-right tabular-nums">
+                    <Amount value={acc.beginningBalance} />
+                  </td>
+                </tr>
+              )}
               {acc.rows.map((r, i) => (
                 <tr key={`${r.transactionId}-${i}`} className="hover:bg-gray-50">
                   <td className="whitespace-nowrap px-2 py-1 pl-6">
@@ -258,74 +284,7 @@ export function LedgerView({
           <p className="py-8 text-center text-sm text-gray-500">No transactions in this period.</p>
         )}
       </div>
+      <Notes truncated={report.truncated} />
     </div>
   );
-}
-
-/** CSV export (opens in Excel). Numbers are plain, unformatted decimals. */
-export function toCsv(report: ReportDto | GeneralLedgerDto): string {
-  const esc = (v: string | null | undefined) => {
-    const s = v ?? '';
-    return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-  };
-  const lines: string[][] = [
-    [report.companyName],
-    [report.title],
-    [formatPeriod(report.from, report.to)],
-    [],
-  ];
-  if (report.key === 'general_ledger') {
-    lines.push([
-      'Account',
-      'Date',
-      'Type',
-      'No.',
-      'Name',
-      'Memo/Description',
-      'Split',
-      'Debit',
-      'Credit',
-      'Balance',
-    ]);
-    for (const a of report.accounts) {
-      lines.push([a.label, '', '', '', '', 'Beginning balance', '', '', '', a.beginningBalance]);
-      for (const r of a.rows) {
-        lines.push([
-          a.label,
-          r.txnDate,
-          TXN_LABELS[r.txnType] ?? r.txnType,
-          r.number ?? '',
-          r.name ?? '',
-          r.description ?? '',
-          r.split,
-          r.debit ?? '',
-          r.credit ?? '',
-          r.balance,
-        ]);
-      }
-      lines.push([
-        `Total for ${a.label}`,
-        '',
-        '',
-        '',
-        '',
-        '',
-        '',
-        a.totalDebit,
-        a.totalCredit,
-        a.endingBalance,
-      ]);
-    }
-  } else {
-    const text = report.textColumns ?? [];
-    lines.push(text.length ? [...text, ...report.columns] : ['', ...report.columns]);
-    for (const r of report.rows) {
-      const lead =
-        text.length && r.cells
-          ? r.cells.map((c) => c ?? '')
-          : [`${'  '.repeat(r.depth)}${r.label}`, ...text.slice(1).map(() => '')];
-      lines.push([...lead, ...r.amounts.map((a) => a ?? '')]);
-    }
-  }
-  return lines.map((l) => l.map(esc).join(',')).join('\r\n');
 }

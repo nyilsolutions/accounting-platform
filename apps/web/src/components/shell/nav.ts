@@ -55,6 +55,27 @@ export const NAV: NavItem[] = [
     section: 'main',
   },
   {
+    key: 'sales-tax',
+    label: 'Sales tax',
+    path: '/sales-tax',
+    permission: 'sales_tax.manage',
+    section: 'main',
+  },
+  {
+    key: 'budgets',
+    label: 'Budgets',
+    path: '/reports/budgets',
+    permission: 'reports.view',
+    section: 'hidden',
+  },
+  {
+    key: 'custom-report',
+    label: 'Custom report',
+    path: '/reports/custom',
+    permission: 'reports.view',
+    section: 'hidden',
+  },
+  {
     key: 'accounting',
     label: 'Accounting',
     path: '/accounting',
