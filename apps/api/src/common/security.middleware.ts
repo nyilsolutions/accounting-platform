@@ -23,7 +23,13 @@ export function csrfMiddleware(allowedOrigins: string[]) {
   return (req: AppRequest, _res: Response, next: NextFunction): void => {
     if (SAFE_METHODS.has(req.method)) return next();
     // Aggregator webhooks and email-in carry no cookies; they are authenticated by signature.
-    if (req.path.startsWith('/webhooks/') || req.path === '/inbound/email') return next();
+    // The Desktop agent sends no cookies either; it is authenticated by its pairing key.
+    if (
+      req.path.startsWith('/webhooks/') ||
+      req.path === '/inbound/email' ||
+      req.path.startsWith('/agent/v1/')
+    )
+      return next();
     if (req.get(CSRF_HEADER) !== '1') {
       return next(new ForbiddenException('Missing CSRF protection header'));
     }

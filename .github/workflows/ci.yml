@@ -58,3 +58,32 @@ jobs:
             apps/web/playwright-report
             apps/web/test-results
           retention-days: 7
+
+  # The QuickBooks Desktop migration agent (Phase 6, apps/desktop-agent): its logic is tested on
+  # Linux; the Windows wizard is built on Windows and published as a single-file executable.
+  agent:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+      - name: Test the agent's core
+        run: dotnet test apps/desktop-agent/QbMigrationAgent.sln
+
+  agent-windows:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+      - name: Publish the agent (win-x86, self-contained, single file)
+        run: dotnet publish apps/desktop-agent/src/QbMigrationAgent.Windows -c Release -p:PublishSingleFile=true -o agent-publish
+      - uses: actions/upload-artifact@v4
+        with:
+          name: qb-migration-agent-unsigned
+          path: agent-publish/QbMigrationAgent.exe
+          retention-days: 14

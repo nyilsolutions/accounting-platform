@@ -226,7 +226,7 @@ export const NAV: NavItem[] = [
     label: 'Import from QuickBooks',
     path: '/import',
     shortcut: 'i',
-    permission: 'company.settings.manage',
+    permission: 'migration.manage',
     section: 'main',
   },
   {
@@ -277,16 +277,6 @@ export const UPCOMING_MODULES: Record<
       'Direct deposit (NACHA)',
       'Tax liabilities and deposits',
       'Forms 941, 940, W-2/W-3, 1099-NEC/MISC',
-    ],
-  },
-  import: {
-    title: 'Import from QuickBooks',
-    phase: 'Phase 6',
-    features: [
-      'QuickBooks Online connection (including attachments)',
-      'QuickBooks Desktop migration agent',
-      'IIF and Excel/CSV import',
-      'Automated tie-out report',
     ],
   },
 };

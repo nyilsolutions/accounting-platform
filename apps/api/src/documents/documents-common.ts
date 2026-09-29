@@ -233,6 +233,7 @@ export async function loadDocumentDtos(
         folderId: d.folder_id,
         source: d.source as DocumentDto['source'],
         emailFrom: d.email_from,
+        originalCreatedAt: d.original_created_at?.toISOString() ?? null,
         emailSubject: d.email_subject,
         tags: d.tags,
         note: d.note,

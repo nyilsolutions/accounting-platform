@@ -1,0 +1,119 @@
+!ACCNT	NAME	ACCNTTYPE	ACCNUM	DESC	HIDDEN
+ACCNT	Checking	BANK	1000		
+ACCNT	Savings	BANK	1010		
+ACCNT	Accounts Receivable	AR	1100		
+ACCNT	Undeposited Funds	OCASSET	1200		
+ACCNT	Truck	FIXASSET	1500		
+ACCNT	Truck:Accumulated Depreciation	FIXASSET	1510		
+ACCNT	Accounts Payable	AP	2000		
+ACCNT	Visa	CCARD	2100		
+ACCNT	Sales Tax Payable	OCLIAB	2200		
+ACCNT	Payroll Liabilities	OCLIAB	2300		
+ACCNT	Loan Payable	LTLIAB	2700		
+ACCNT	Opening Bal Equity	EQUITY	3000		
+ACCNT	Retained Earnings	EQUITY	3100		
+ACCNT	Owner's Draw	EQUITY	3200		
+ACCNT	Landscaping Income	INC	4000		
+ACCNT	Plant Sales	INC	4100		
+ACCNT	Materials	COGS	5000		
+ACCNT	Fuel	EXP	6100		
+ACCNT	Payroll Expenses	EXP	6200		
+ACCNT	Depreciation	EXP	6300		
+ACCNT	Old Advertising	EXP	6400		Y
+ACCNT	Interest Income	EXINC	7000		
+ACCNT	Estimates	NONPOSTING			
+!CUST	NAME	BADDR1	BADDR2	BADDR3	COMPANYNAME	EMAIL	PHONE1	TERMS	TAXABLE	HIDDEN
+CUST	Green Acres HOA	Green Acres HOA	100 Meadow Ln	Springfield, IL 62704	Green Acres HOA	board@greenacres.example	555-0100	Net 30	Y	N
+CUST	Maple Street Dental		22 Maple St	Springfield, IL 62701			555-0110		Y	N
+CUST	Maple Street Dental:Parking Lot								Y	N
+CUST	Rivera Residence		9 Oak Ct	Toronto, ON M5V 2T6		rivera at example			N	Y
+!VEND	NAME	ADDR1	ADDR2	ADDR3	COMPANYNAME	PHONE1	TERMS	1099	HIDDEN
+VEND	Home Depot	Home Depot	PO Box 1	Atlanta, GA 30348	Home Depot			N	N
+VEND	Green Supply Co.		500 Industrial Rd	Peoria, IL 61602	Green Supply Co.	555-0200	Net 30	Y	N
+VEND	Shell							N	N
+!EMP	NAME
+EMP	Jamie Lee
+!INVITEM	NAME	INVITEMTYPE	DESC	ACCNT	COGSACCNT	PRICE	COST	TAXABLE	HIDDEN
+INVITEM	Mowing	SERV	Weekly mowing	Landscaping Income		100		N	N
+INVITEM	Shrubs	PART	Boxwood shrub	Plant Sales	Materials	50	20	Y	N
+INVITEM	CA Sales Tax	STAX	Sales tax	Sales Tax Payable		8		N	N
+!CLASS	NAME	HIDDEN
+CLASS	Residential	N
+CLASS	Commercial	N
+!PAYMETH	NAME	HIDDEN
+PAYMETH	Check	N
+!TRNS	TRNSID	TRNSTYPE	DATE	ACCNT	NAME	CLASS	AMOUNT	DOCNUM	MEMO	DUEDATE	TERMS	TOPRINT
+!SPL	SPLID	TRNSTYPE	DATE	ACCNT	NAME	CLASS	AMOUNT	DOCNUM	MEMO	QNTY	PRICE	INVITEM	TAXABLE
+!ENDTRNS
+TRNS	1	GENERAL JOURNAL	1/1/2024	Checking			10000.00	OB-1	Opening balances			N
+SPL		GENERAL JOURNAL	1/1/2024	Truck			25000.00	OB-1					
+SPL		GENERAL JOURNAL	1/1/2024	Loan Payable			-20000.00	OB-1					
+SPL		GENERAL JOURNAL	1/1/2024	Opening Bal Equity			-15000.00	OB-1					
+ENDTRNS
+TRNS	2	INVOICE	3/5/2024	Accounts Receivable	Green Acres HOA		540.00	1001	Spring cleanup	4/4/2024	Net 30	N
+SPL		INVOICE	3/5/2024	Landscaping Income	Green Acres HOA	Commercial	-400.00	1001	Mowing	-4	100	Mowing	
+SPL		INVOICE	3/5/2024	Plant Sales	Green Acres HOA		-100.00	1001	Boxwood	-2	50	Shrubs	Y
+SPL		INVOICE	3/5/2024	Sales Tax Payable			-40.00	1001	Sales tax			CA Sales Tax	
+ENDTRNS
+TRNS	3	PAYMENT	3/20/2024	Undeposited Funds	Green Acres HOA		540.00	1455				N
+SPL		PAYMENT	3/20/2024	Accounts Receivable	Green Acres HOA		-540.00	1455					
+ENDTRNS
+TRNS	4	DEPOSIT	3/21/2024	Checking			540.00					N
+SPL		DEPOSIT	3/21/2024	Undeposited Funds	Green Acres HOA		-540.00						
+ENDTRNS
+TRNS	5	BILL	4/1/2024	Accounts Payable	Green Supply Co.		-300.00	GS-77	Mulch	5/1/2024	Net 30	N
+SPL		BILL	4/1/2024	Materials			300.00	GS-77	Mulch				
+ENDTRNS
+TRNS	6	BILL PMT	4/15/2024	Checking	Green Supply Co.		-300.00	2001				N
+SPL		BILL PMT	4/15/2024	Accounts Payable	Green Supply Co.		300.00	2001					
+ENDTRNS
+TRNS	7	CHECK	5/1/2024	Checking	Shell		-85.50	2002				N
+SPL		CHECK	5/1/2024	Fuel			85.50	2002					
+ENDTRNS
+TRNS	8	CREDIT CARD	6/2/2024	Visa	Home Depot		-120.00					N
+SPL		CREDIT CARD	6/2/2024	Materials			120.00						
+ENDTRNS
+TRNS	9	TRANSFER	6/30/2024	Checking			-120.00		Pay Visa			N
+SPL		TRANSFER	6/30/2024	Visa			120.00						
+ENDTRNS
+TRNS	10	INVOICE	11/15/2024	Accounts Receivable	Maple Street Dental:Parking Lot		1200.00	1002		12/15/2024		N
+SPL		INVOICE	11/15/2024	Landscaping Income			-1200.00	1002		-12	100	Mowing	
+ENDTRNS
+TRNS	11	CASH SALE	12/1/2024	Undeposited Funds	Rivera Residence		75.00	3001				N
+SPL		CASH SALE	12/1/2024	Plant Sales			-75.00	3001		-1.5	50	Shrubs	
+ENDTRNS
+TRNS	12	DEPOSIT	12/5/2024	Checking			75.00					N
+SPL		DEPOSIT	12/5/2024	Undeposited Funds	Rivera Residence		-75.00						
+ENDTRNS
+TRNS	13	PAYCHECK	12/15/2024	Checking	Jamie Lee		-800.00	2003				N
+SPL		PAYCHECK	12/15/2024	Payroll Expenses	Jamie Lee		1000.00	2003					
+SPL		PAYCHECK	12/15/2024	Payroll Liabilities			-200.00	2003					
+ENDTRNS
+TRNS	14	GENERAL JOURNAL	12/31/2024	Depreciation			2500.00	ADJ-1	Truck depreciation			N
+SPL		GENERAL JOURNAL	12/31/2024	Truck:Accumulated Depreciation			-2500.00	ADJ-1					
+ENDTRNS
+TRNS	15	INVOICE	1/10/2025	Accounts Receivable	Green Acres HOA		800.00	1003		2/9/2025	Net 30	N
+SPL		INVOICE	1/10/2025	Landscaping Income			-800.00	1003		-8	100	Mowing	
+ENDTRNS
+TRNS	16	PAYMENT	1/25/2025	Checking	Green Acres HOA		500.00	1502				N
+SPL		PAYMENT	1/25/2025	Accounts Receivable	Green Acres HOA		-500.00	1502					
+ENDTRNS
+TRNS	17	CREDIT MEMO	2/1/2025	Accounts Receivable	Green Acres HOA		-50.00	1004	Missed visit			N
+SPL		CREDIT MEMO	2/1/2025	Landscaping Income			50.00	1004				Mowing	
+ENDTRNS
+TRNS	18	BILL	2/5/2025	Accounts Payable	Home Depot		-210.25	HD-9		3/7/2025		N
+SPL		BILL	2/5/2025	Materials			200.00	HD-9					
+SPL		BILL	2/5/2025	Fuel			10.25	HD-9					
+ENDTRNS
+TRNS	19	DEPOSIT	2/10/2025	Savings			15.00		Interest			N
+SPL		DEPOSIT	2/10/2025	Interest Income			-15.00						
+ENDTRNS
+TRNS	20	ESTIMATE	2/15/2025	Estimates	Green Acres HOA		900.00	E-7				N
+SPL		ESTIMATE	2/15/2025	Estimates			-900.00	E-7					
+ENDTRNS
+TRNS	21	CHECK	3/1/2025	Checking	Jamie Lee		-40.00	2004	Fuel reimbursement			N
+SPL		CHECK	3/1/2025	Fuel			40.00	2004					
+ENDTRNS
+TRNS	22	GENERAL JOURNAL	3/31/2025	Owner's Draw			1000.00	OD-1				N
+SPL		GENERAL JOURNAL	3/31/2025	Checking			-1000.00	OD-1					
+ENDTRNS

@@ -39,7 +39,8 @@ export async function uploadVersion(
   );
 }
 
-async function rawPost<T>(path: string, file: File): Promise<T> {
+/** POSTs a file as the raw request body through the /api proxy. */
+export async function rawPost<T>(path: string, file: Blob): Promise<T> {
   const res = await fetch(`/api${path}`, {
     method: 'POST',
     credentials: 'same-origin',

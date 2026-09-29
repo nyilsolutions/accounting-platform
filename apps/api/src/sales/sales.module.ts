@@ -9,6 +9,6 @@ import { SalesController } from './sales.controller';
 @Module({
   controllers: [SalesController],
   providers: [SalesDocumentsService, PaymentsService, DepositsService, EstimatesService, ArService],
-  exports: [ArService, DepositsService],
+  exports: [ArService, DepositsService, SalesDocumentsService, PaymentsService, EstimatesService],
 })
 export class SalesModule {}

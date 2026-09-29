@@ -14,3 +14,4 @@ export * from './money-words';
 export * from './bank-files';
 export * from './banking';
 export * from './documents';
+export * from './migration';
