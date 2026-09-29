@@ -1,6 +1,7 @@
 import {
   ACCOUNT_TYPE_INFO,
   moneyToString,
+  parseMoney,
   type AccountType,
   type Money,
   type ReportRow,
@@ -11,6 +12,9 @@ import { buildTree, type TreeNode } from '../common/tree';
  * Pure report layout functions. They take account metadata and amounts (already signed for
  * presentation) and produce QuickBooks-style rows: sections, accounts (with sub-accounts),
  * "Total …" rows and calculated lines. No database access here, so they are unit-tested directly.
+ *
+ * Amounts are vectors, one value per report column (months, classes, a comparison…). An account
+ * appears when any column has activity.
  */
 export interface ReportAccount {
   id: string;
@@ -25,7 +29,16 @@ export interface LayoutOptions {
   useNumbers: boolean;
 }
 
+/** One amount per column. */
+export type Vec = Money[];
+
 const fmt = (m: Money) => moneyToString(m);
+const fmtVec = (v: Vec) => v.map(fmt);
+const zeros = (n: number): Vec => Array.from({ length: n }, () => 0n);
+const add = (a: Vec, b: Vec): Vec => a.map((x, i) => x + b[i]!);
+const sub = (a: Vec, b: Vec): Vec => a.map((x, i) => x - b[i]!);
+const nulls = (n: number) => Array.from({ length: n }, () => null);
+const isZero = (v: Vec) => v.every((x) => x === 0n);
 
 function label(a: ReportAccount, opts: LayoutOptions): string {
   return opts.useNumbers && a.number ? `${a.number} ${a.name}` : a.name;
@@ -36,62 +49,41 @@ function sortKey(a: ReportAccount, opts: LayoutOptions): string {
 }
 
 /** Account rows for one group of accounts; omits branches whose amounts are all zero. */
-export function accountRows(
+export function accountRowsColumns(
   accounts: ReportAccount[],
-  amounts: Map<string, Money>,
+  amounts: Map<string, Vec>,
   depth: number,
   opts: LayoutOptions,
-): { rows: ReportRow[]; total: Money } {
+  n: number,
+): { rows: ReportRow[]; total: Vec } {
   const tree = buildTree(
     accounts,
     (a) => a.name,
     (a) => sortKey(a, opts),
   );
-  const subtotal = (n: TreeNode<ReportAccount>): Money =>
-    (amounts.get(n.item.id) ?? 0n) + n.children.reduce((s, c) => s + subtotal(c), 0n);
-  const hasActivity = (n: TreeNode<ReportAccount>): boolean =>
-    (amounts.get(n.item.id) ?? 0n) !== 0n || n.children.some(hasActivity);
+  const own = (node: TreeNode<ReportAccount>) => amounts.get(node.item.id) ?? zeros(n);
+  const subtotal = (node: TreeNode<ReportAccount>): Vec =>
+    node.children.reduce((s, c) => add(s, subtotal(c)), own(node));
+  const hasActivity = (node: TreeNode<ReportAccount>): boolean =>
+    !isZero(own(node)) || node.children.some(hasActivity);
 
-  const render = (n: TreeNode<ReportAccount>, d: number): ReportRow[] => {
-    const own = amounts.get(n.item.id) ?? 0n;
-    const kids = n.children.filter(hasActivity);
-    if (kids.length === 0) {
-      return [
-        {
-          kind: 'account',
-          label: label(n.item, opts),
-          depth: d,
-          accountId: n.item.id,
-          amounts: [fmt(own)],
-        },
-      ];
-    }
+  const render = (node: TreeNode<ReportAccount>, d: number): ReportRow[] => {
+    const mine = own(node);
+    const kids = node.children.filter(hasActivity);
+    const base = { label: label(node.item, opts), accountId: node.item.id };
+    if (kids.length === 0) return [{ kind: 'account', ...base, depth: d, amounts: fmtVec(mine) }];
     return [
-      {
-        kind: 'account',
-        label: label(n.item, opts),
-        depth: d,
-        accountId: n.item.id,
-        amounts: [null],
-      },
+      { kind: 'account', ...base, depth: d, amounts: nulls(n) },
       ...kids.flatMap((k) => render(k, d + 1)),
-      ...(own !== 0n
-        ? [
-            {
-              kind: 'account' as const,
-              label: label(n.item, opts),
-              depth: d + 1,
-              accountId: n.item.id,
-              amounts: [fmt(own)],
-            },
-          ]
+      ...(!isZero(mine)
+        ? [{ kind: 'account' as const, ...base, depth: d + 1, amounts: fmtVec(mine) }]
         : []),
       {
         kind: 'total',
-        label: `Total ${label(n.item, opts)}`,
+        label: `Total ${base.label}`,
         depth: d,
-        accountId: n.item.id,
-        amounts: [fmt(subtotal(n))],
+        accountId: node.item.id,
+        amounts: fmtVec(subtotal(node)),
       },
     ];
   };
@@ -99,26 +91,42 @@ export function accountRows(
   const roots = tree.filter(hasActivity);
   return {
     rows: roots.flatMap((r) => render(r, depth)),
-    total: roots.reduce((s, r) => s + subtotal(r), 0n),
+    total: roots.reduce((s, r) => add(s, subtotal(r)), zeros(n)),
   };
 }
+
+/** Single-column form of accountRowsColumns. */
+export function accountRows(
+  accounts: ReportAccount[],
+  amounts: Map<string, Money>,
+  depth: number,
+  opts: LayoutOptions,
+): { rows: ReportRow[]; total: Money } {
+  const r = accountRowsColumns(accounts, toVecs(amounts), depth, opts, 1);
+  return { rows: r.rows, total: r.total[0]! };
+}
+
+const toVecs = (m: Map<string, Money>) => new Map([...m].map(([k, v]) => [k, [v]]));
 
 function section(
   title: string,
   depth: number,
   body: ReportRow[],
-  total: Money,
+  total: Vec,
   totalLabel = `Total ${title}`,
 ): ReportRow[] {
   return [
-    { kind: 'section', label: title, depth, amounts: [null] },
+    { kind: 'section', label: title, depth, amounts: nulls(total.length) },
     ...body,
-    { kind: 'total', label: totalLabel, depth, amounts: [fmt(total)] },
+    { kind: 'total', label: totalLabel, depth, amounts: fmtVec(total) },
   ];
 }
 
 const ofTypes = (accounts: ReportAccount[], types: AccountType[]) =>
   accounts.filter((a) => (types as string[]).includes(a.account_type));
+
+const normalSign = (a: ReportAccount) =>
+  ACCOUNT_TYPE_INFO[a.account_type as AccountType].normalBalance === 'debit' ? 1n : -1n;
 
 /** Presentation sign: positive when the account carries its normal balance. */
 export function presentationAmounts(
@@ -128,10 +136,22 @@ export function presentationAmounts(
   const out = new Map<string, Money>();
   for (const a of accounts) {
     const v = net.get(a.id);
-    if (v === undefined) continue;
+    if (v !== undefined) out.set(a.id, normalSign(a) * v);
+  }
+  return out;
+}
+
+/** Presentation amounts per account across several columns of debit − credit nets. */
+export function presentationColumns(
+  accounts: ReportAccount[],
+  nets: Array<Map<string, Money>>,
+): Map<string, Vec> {
+  const out = new Map<string, Vec>();
+  for (const a of accounts) {
+    if (!nets.some((m) => m.has(a.id))) continue;
     out.set(
       a.id,
-      ACCOUNT_TYPE_INFO[a.account_type as AccountType].normalBalance === 'debit' ? v : -v,
+      nets.map((m) => normalSign(a) * (m.get(a.id) ?? 0n)),
     );
   }
   return out;
@@ -147,30 +167,37 @@ export function netIncomeOf(accounts: ReportAccount[], net: Map<string, Money>):
   return total;
 }
 
-export function profitAndLoss(
+export function profitAndLossColumns(
   accounts: ReportAccount[],
-  net: Map<string, Money>,
+  nets: Array<Map<string, Money>>,
   opts: LayoutOptions,
-): { rows: ReportRow[]; netIncome: Money } {
-  const amounts = presentationAmounts(accounts, net);
-  const group = (types: AccountType[]) => accountRows(ofTypes(accounts, types), amounts, 1, opts);
+): { rows: ReportRow[]; netIncome: Vec } {
+  const n = nets.length;
+  const amounts = presentationColumns(accounts, nets);
+  const group = (types: AccountType[]) =>
+    accountRowsColumns(ofTypes(accounts, types), amounts, 1, opts, n);
   const income = group(['income']);
   const cogs = group(['cost_of_goods_sold']);
   const expenses = group(['expense']);
   const otherIncome = group(['other_income']);
   const otherExpenses = group(['other_expense']);
 
-  const grossProfit = income.total - cogs.total;
-  const netOperating = grossProfit - expenses.total;
-  const netOther = otherIncome.total - otherExpenses.total;
-  const netIncome = netOperating + netOther;
+  const grossProfit = sub(income.total, cogs.total);
+  const netOperating = sub(grossProfit, expenses.total);
+  const netOther = sub(otherIncome.total, otherExpenses.total);
+  const netIncome = add(netOperating, netOther);
 
   const rows: ReportRow[] = [
     ...section('Income', 0, income.rows, income.total),
     ...(cogs.rows.length ? section('Cost of Goods Sold', 0, cogs.rows, cogs.total) : []),
-    { kind: 'calculated', label: 'Gross Profit', depth: 0, amounts: [fmt(grossProfit)] },
+    { kind: 'calculated', label: 'Gross Profit', depth: 0, amounts: fmtVec(grossProfit) },
     ...section('Expenses', 0, expenses.rows, expenses.total),
-    { kind: 'calculated', label: 'Net Operating Income', depth: 0, amounts: [fmt(netOperating)] },
+    {
+      kind: 'calculated',
+      label: 'Net Operating Income',
+      depth: 0,
+      amounts: fmtVec(netOperating),
+    },
   ];
   if (otherIncome.rows.length || otherExpenses.rows.length) {
     if (otherIncome.rows.length)
@@ -181,79 +208,89 @@ export function profitAndLoss(
       kind: 'calculated',
       label: 'Net Other Income',
       depth: 0,
-      amounts: [fmt(netOther)],
+      amounts: fmtVec(netOther),
     });
   }
-  rows.push({ kind: 'grand_total', label: 'Net Income', depth: 0, amounts: [fmt(netIncome)] });
+  rows.push({ kind: 'grand_total', label: 'Net Income', depth: 0, amounts: fmtVec(netIncome) });
   return { rows, netIncome };
 }
 
-/**
- * Balance sheet. `net` holds debit−credit through the report date for balance-sheet accounts.
- * Profit and loss accounts close to retained earnings automatically at each fiscal year end:
- * `priorYearsIncome` (all fiscal years before the current one) is added to Retained Earnings and
- * `currentYearIncome` is shown as Net Income.
- */
-export function balanceSheet(
+export function profitAndLoss(
   accounts: ReportAccount[],
   net: Map<string, Money>,
-  priorYearsIncome: Money,
-  currentYearIncome: Money,
   opts: LayoutOptions,
-): { rows: ReportRow[]; totalAssets: Money; totalLiabilitiesAndEquity: Money } {
+): { rows: ReportRow[]; netIncome: Money } {
+  const r = profitAndLossColumns(accounts, [net], opts);
+  return { rows: r.rows, netIncome: r.netIncome[0]! };
+}
+
+/**
+ * Balance sheet. `nets` hold debit−credit through each column's date for balance-sheet accounts.
+ * Profit and loss accounts close to retained earnings automatically at each fiscal year end:
+ * `priorYearsIncome` (all fiscal years before the one containing the column's date) is added to
+ * Retained Earnings and `currentYearIncome` is shown as Net Income.
+ */
+export function balanceSheetColumns(
+  accounts: ReportAccount[],
+  nets: Array<Map<string, Money>>,
+  priorYearsIncome: Vec,
+  currentYearIncome: Vec,
+  opts: LayoutOptions,
+): { rows: ReportRow[]; totalAssets: Vec; totalLiabilitiesAndEquity: Vec } {
+  const n = nets.length;
   const bsAccounts = accounts.filter(
     (a) => ACCOUNT_TYPE_INFO[a.account_type as AccountType].statement === 'balance_sheet',
   );
-  const amounts = presentationAmounts(bsAccounts, net);
+  const amounts = presentationColumns(bsAccounts, nets);
   const re = bsAccounts.find((a) => a.system_role === 'retained_earnings');
-  if (re) amounts.set(re.id, (amounts.get(re.id) ?? 0n) + priorYearsIncome);
+  if (re) amounts.set(re.id, add(amounts.get(re.id) ?? zeros(n), priorYearsIncome));
 
-  const sub = (title: string, types: AccountType[], depth: number) => {
-    const g = accountRows(ofTypes(bsAccounts, types), amounts, depth + 1, opts);
+  const part = (title: string, types: AccountType[], depth: number) => {
+    const g = accountRowsColumns(ofTypes(bsAccounts, types), amounts, depth + 1, opts, n);
     return { rows: g.rows.length ? section(title, depth, g.rows, g.total) : [], total: g.total };
   };
 
-  const bank = sub('Bank Accounts', ['bank'], 2);
-  const ar = sub('Accounts Receivable', ['accounts_receivable'], 2);
-  const oca = sub('Other Current Assets', ['other_current_asset'], 2);
-  const currentAssets = bank.total + ar.total + oca.total;
-  const fixed = sub('Fixed Assets', ['fixed_asset'], 1);
-  const other = sub('Other Assets', ['other_asset'], 1);
-  const totalAssets = currentAssets + fixed.total + other.total;
+  const bank = part('Bank Accounts', ['bank'], 2);
+  const ar = part('Accounts Receivable', ['accounts_receivable'], 2);
+  const oca = part('Other Current Assets', ['other_current_asset'], 2);
+  const currentAssets = add(add(bank.total, ar.total), oca.total);
+  const fixed = part('Fixed Assets', ['fixed_asset'], 1);
+  const other = part('Other Assets', ['other_asset'], 1);
+  const totalAssets = add(add(currentAssets, fixed.total), other.total);
 
-  const ap = sub('Accounts Payable', ['accounts_payable'], 3);
-  const cc = sub('Credit Cards', ['credit_card'], 3);
-  const ocl = sub('Other Current Liabilities', ['other_current_liability'], 3);
-  const currentLiabilities = ap.total + cc.total + ocl.total;
-  const longTerm = sub('Long-Term Liabilities', ['long_term_liability'], 2);
-  const totalLiabilities = currentLiabilities + longTerm.total;
+  const ap = part('Accounts Payable', ['accounts_payable'], 3);
+  const cc = part('Credit Cards', ['credit_card'], 3);
+  const ocl = part('Other Current Liabilities', ['other_current_liability'], 3);
+  const currentLiabilities = add(add(ap.total, cc.total), ocl.total);
+  const longTerm = part('Long-Term Liabilities', ['long_term_liability'], 2);
+  const totalLiabilities = add(currentLiabilities, longTerm.total);
 
-  const equity = accountRows(ofTypes(bsAccounts, ['equity']), amounts, 2, opts);
+  const equity = accountRowsColumns(ofTypes(bsAccounts, ['equity']), amounts, 2, opts, n);
   const equityRows = [...equity.rows];
-  if (!re && priorYearsIncome !== 0n) {
+  if (!re && !isZero(priorYearsIncome)) {
     equityRows.push({
       kind: 'calculated',
       label: 'Retained Earnings',
       depth: 2,
-      amounts: [fmt(priorYearsIncome)],
+      amounts: fmtVec(priorYearsIncome),
     });
   }
   equityRows.push({
     kind: 'calculated',
     label: 'Net Income',
     depth: 2,
-    amounts: [fmt(currentYearIncome)],
+    amounts: fmtVec(currentYearIncome),
   });
-  const totalEquity = equity.total + (re ? 0n : priorYearsIncome) + currentYearIncome;
-  const totalLiabilitiesAndEquity = totalLiabilities + totalEquity;
+  const totalEquity = add(add(equity.total, re ? zeros(n) : priorYearsIncome), currentYearIncome);
+  const totalLiabilitiesAndEquity = add(totalLiabilities, totalEquity);
 
   const rows: ReportRow[] = [
-    { kind: 'section', label: 'ASSETS', depth: 0, amounts: [null] },
+    { kind: 'section', label: 'ASSETS', depth: 0, amounts: nulls(n) },
     ...section('Current Assets', 1, [...bank.rows, ...ar.rows, ...oca.rows], currentAssets),
     ...fixed.rows,
     ...other.rows,
-    { kind: 'grand_total', label: 'TOTAL ASSETS', depth: 0, amounts: [fmt(totalAssets)] },
-    { kind: 'section', label: 'LIABILITIES AND EQUITY', depth: 0, amounts: [null] },
+    { kind: 'grand_total', label: 'TOTAL ASSETS', depth: 0, amounts: fmtVec(totalAssets) },
+    { kind: 'section', label: 'LIABILITIES AND EQUITY', depth: 0, amounts: nulls(n) },
     ...section(
       'Liabilities',
       1,
@@ -275,10 +312,25 @@ export function balanceSheet(
       kind: 'grand_total',
       label: 'TOTAL LIABILITIES AND EQUITY',
       depth: 0,
-      amounts: [fmt(totalLiabilitiesAndEquity)],
+      amounts: fmtVec(totalLiabilitiesAndEquity),
     },
   ];
   return { rows, totalAssets, totalLiabilitiesAndEquity };
+}
+
+export function balanceSheet(
+  accounts: ReportAccount[],
+  net: Map<string, Money>,
+  priorYearsIncome: Money,
+  currentYearIncome: Money,
+  opts: LayoutOptions,
+): { rows: ReportRow[]; totalAssets: Money; totalLiabilitiesAndEquity: Money } {
+  const r = balanceSheetColumns(accounts, [net], [priorYearsIncome], [currentYearIncome], opts);
+  return {
+    rows: r.rows,
+    totalAssets: r.totalAssets[0]!,
+    totalLiabilitiesAndEquity: r.totalLiabilitiesAndEquity[0]!,
+  };
 }
 
 /**
@@ -348,4 +400,45 @@ export function accountRowsFlat(
     );
   }
   return out;
+}
+
+// ---------------------------------------------------------------------------------------------
+// Derived columns: comparisons and budgets
+// ---------------------------------------------------------------------------------------------
+
+/** `part` as a percentage of `whole`, as a 2-decimal string; null when `whole` is zero. */
+export function percentOf(part: Money, whole: Money): string | null {
+  if (whole === 0n) return null;
+  const abs = whole < 0n ? -whole : whole;
+  // Percent in 1/10,000 units: part / |whole| × 100 × 10,000, rounded half away from zero.
+  const exact = part * 1_000_000n;
+  const q = exact / abs;
+  const r = exact % abs;
+  const bump = (r < 0n ? -r : r) * 2n >= abs ? (exact < 0n ? -1n : 1n) : 0n;
+  return moneyToString(q + bump, 2);
+}
+
+/**
+ * Adds "$ change" and "% change" after each pair of [current, prior] amounts. Rows with blank
+ * amounts (sections) stay blank.
+ */
+export function withChange(rows: ReportRow[]): ReportRow[] {
+  return rows.map((r) => {
+    const [a, b] = r.amounts;
+    if (a == null || b == null) return { ...r, amounts: [a ?? null, b ?? null, null, null] };
+    const cur = parseMoney(a);
+    const prev = parseMoney(b);
+    return { ...r, amounts: [a, b, fmt(cur - prev), percentOf(cur - prev, prev)] };
+  });
+}
+
+/** Adds "Over budget" and "% of budget" after each pair of [actual, budget] amounts. */
+export function withBudget(rows: ReportRow[]): ReportRow[] {
+  return rows.map((r) => {
+    const [a, b] = r.amounts;
+    if (a == null || b == null) return { ...r, amounts: [a ?? null, b ?? null, null, null] };
+    const actual = parseMoney(a);
+    const budget = parseMoney(b);
+    return { ...r, amounts: [a, b, fmt(actual - budget), percentOf(actual, budget)] };
+  });
 }

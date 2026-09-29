@@ -237,6 +237,8 @@ export interface GeneralLedgerDto {
   from: string;
   to: string;
   accounts: LedgerAccountDto[];
+  /** False for reports that start each account at zero (P&L Detail, Transaction Detail). */
+  beginningBalances: boolean;
   truncated: boolean;
   generatedAt: string;
 }

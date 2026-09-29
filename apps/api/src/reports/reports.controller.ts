@@ -1,15 +1,50 @@
-import { Controller, Get, Query, UseGuards } from '@nestjs/common';
 import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  NotFoundException,
+  Param,
+  Post,
+  Query,
+  StreamableFile,
+  UseGuards,
+} from '@nestjs/common';
+import { z } from 'zod';
+import {
+  customReportRunSchema,
+  REPORT_FORMATS,
+  reportKeyFromSlug,
   reportQuerySchema,
-  type GeneralLedgerDto,
   type ReportDto,
+  type ReportKey,
   type ReportQuery,
 } from '@acct/shared';
 import { CurrentAuth, CurrentCompany, RequirePermission } from '../common/decorators';
 import type { AuthContext, CompanyContext } from '../common/request';
 import { ZodPipe } from '../common/zod.pipe';
 import { CompanyAccessGuard } from '../companies/company-access.guard';
-import { ReportsService } from './reports.service';
+import { renderReport } from './export/render';
+import { ReportsService, type AnyReport } from './reports.service';
+
+type Parsed<T extends { parse: (v: unknown) => unknown }> = ReturnType<T['parse']>;
+
+const formatSchema = z.object({ format: z.enum(REPORT_FORMATS) });
+const customExportSchema = z.intersection(customReportRunSchema, formatSchema);
+
+function keyOf(slug: string): Exclude<ReportKey, 'custom'> {
+  const key = reportKeyFromSlug(slug);
+  if (!key || key === 'custom') throw new NotFoundException('Report not found');
+  return key;
+}
+
+function file(r: Awaited<ReturnType<typeof renderReport>>): StreamableFile {
+  return new StreamableFile(r.data, {
+    type: r.contentType,
+    disposition: `attachment; filename="${r.filename}"`,
+    length: r.data.length,
+  });
+}
 
 @Controller('companies/:companyId/reports')
 @UseGuards(CompanyAccessGuard)
@@ -17,147 +52,48 @@ import { ReportsService } from './reports.service';
 export class ReportsController {
   constructor(private readonly reports: ReportsService) {}
 
-  @Get('profit-and-loss')
-  profitAndLoss(
+  @Post('custom/run')
+  @HttpCode(200)
+  runCustom(
     @CurrentAuth() a: AuthContext,
     @CurrentCompany() c: CompanyContext,
-    @Query(new ZodPipe(reportQuerySchema)) q: ReportQuery,
+    @Body(new ZodPipe(customReportRunSchema)) body: Parsed<typeof customReportRunSchema>,
   ): Promise<ReportDto> {
-    return this.reports.profitAndLoss(a, c, q);
+    return this.reports.runCustom(a, c, body.from, body.to, body.definition);
   }
 
-  @Get('balance-sheet')
-  balanceSheet(
+  @Post('custom/export')
+  @HttpCode(200)
+  async exportCustom(
     @CurrentAuth() a: AuthContext,
     @CurrentCompany() c: CompanyContext,
-    @Query(new ZodPipe(reportQuerySchema)) q: ReportQuery,
-  ): Promise<ReportDto> {
-    return this.reports.balanceSheet(a, c, q);
+    @Body(new ZodPipe(customExportSchema)) body: Parsed<typeof customExportSchema>,
+  ): Promise<StreamableFile> {
+    const report = await this.reports.runCustom(a, c, body.from, body.to, body.definition);
+    return file(await renderReport(report, body.format));
   }
 
-  @Get('trial-balance')
-  trialBalance(
+  /** Any report by its URL name: /reports/profit-and-loss?from=…&to=…&columns=months */
+  @Get(':slug')
+  run(
     @CurrentAuth() a: AuthContext,
     @CurrentCompany() c: CompanyContext,
+    @Param('slug') slug: string,
     @Query(new ZodPipe(reportQuerySchema)) q: ReportQuery,
-  ): Promise<ReportDto> {
-    return this.reports.trialBalance(a, c, q);
+  ): Promise<AnyReport> {
+    return this.reports.run(a, c, keyOf(slug), q);
   }
 
-  @Get('general-ledger')
-  generalLedger(
+  /** The same report as a PDF, Excel workbook or CSV file. */
+  @Get(':slug/export')
+  async export(
     @CurrentAuth() a: AuthContext,
     @CurrentCompany() c: CompanyContext,
+    @Param('slug') slug: string,
+    @Query(new ZodPipe(formatSchema.passthrough())) f: Parsed<typeof formatSchema>,
     @Query(new ZodPipe(reportQuerySchema)) q: ReportQuery,
-  ): Promise<GeneralLedgerDto> {
-    return this.reports.generalLedger(a, c, q);
-  }
-
-  @Get('ar-aging-summary')
-  arAgingSummary(
-    @CurrentAuth() a: AuthContext,
-    @CurrentCompany() c: CompanyContext,
-    @Query(new ZodPipe(reportQuerySchema)) q: ReportQuery,
-  ): Promise<ReportDto> {
-    return this.reports.arAgingSummary(a, c, q);
-  }
-
-  @Get('ar-aging-detail')
-  arAgingDetail(
-    @CurrentAuth() a: AuthContext,
-    @CurrentCompany() c: CompanyContext,
-    @Query(new ZodPipe(reportQuerySchema)) q: ReportQuery,
-  ): Promise<ReportDto> {
-    return this.reports.arAgingDetail(a, c, q);
-  }
-
-  @Get('open-invoices')
-  openInvoices(
-    @CurrentAuth() a: AuthContext,
-    @CurrentCompany() c: CompanyContext,
-    @Query(new ZodPipe(reportQuerySchema)) q: ReportQuery,
-  ): Promise<ReportDto> {
-    return this.reports.openInvoices(a, c, q);
-  }
-
-  @Get('customer-balance-summary')
-  customerBalanceSummary(
-    @CurrentAuth() a: AuthContext,
-    @CurrentCompany() c: CompanyContext,
-    @Query(new ZodPipe(reportQuerySchema)) q: ReportQuery,
-  ): Promise<ReportDto> {
-    return this.reports.customerBalanceSummary(a, c, q);
-  }
-
-  @Get('sales-by-customer')
-  salesByCustomer(
-    @CurrentAuth() a: AuthContext,
-    @CurrentCompany() c: CompanyContext,
-    @Query(new ZodPipe(reportQuerySchema)) q: ReportQuery,
-  ): Promise<ReportDto> {
-    return this.reports.salesByCustomer(a, c, q);
-  }
-
-  @Get('sales-by-item')
-  salesByItem(
-    @CurrentAuth() a: AuthContext,
-    @CurrentCompany() c: CompanyContext,
-    @Query(new ZodPipe(reportQuerySchema)) q: ReportQuery,
-  ): Promise<ReportDto> {
-    return this.reports.salesByItem(a, c, q);
-  }
-
-  @Get('ap-aging-summary')
-  apAgingSummary(
-    @CurrentAuth() a: AuthContext,
-    @CurrentCompany() c: CompanyContext,
-    @Query(new ZodPipe(reportQuerySchema)) q: ReportQuery,
-  ): Promise<ReportDto> {
-    return this.reports.apAgingSummary(a, c, q);
-  }
-
-  @Get('ap-aging-detail')
-  apAgingDetail(
-    @CurrentAuth() a: AuthContext,
-    @CurrentCompany() c: CompanyContext,
-    @Query(new ZodPipe(reportQuerySchema)) q: ReportQuery,
-  ): Promise<ReportDto> {
-    return this.reports.apAgingDetail(a, c, q);
-  }
-
-  @Get('unpaid-bills')
-  unpaidBills(
-    @CurrentAuth() a: AuthContext,
-    @CurrentCompany() c: CompanyContext,
-    @Query(new ZodPipe(reportQuerySchema)) q: ReportQuery,
-  ): Promise<ReportDto> {
-    return this.reports.unpaidBills(a, c, q);
-  }
-
-  @Get('vendor-balance-summary')
-  vendorBalanceSummary(
-    @CurrentAuth() a: AuthContext,
-    @CurrentCompany() c: CompanyContext,
-    @Query(new ZodPipe(reportQuerySchema)) q: ReportQuery,
-  ): Promise<ReportDto> {
-    return this.reports.vendorBalanceSummary(a, c, q);
-  }
-
-  @Get('expenses-by-vendor')
-  expensesByVendor(
-    @CurrentAuth() a: AuthContext,
-    @CurrentCompany() c: CompanyContext,
-    @Query(new ZodPipe(reportQuerySchema)) q: ReportQuery,
-  ): Promise<ReportDto> {
-    return this.reports.expensesByVendor(a, c, q);
-  }
-
-  @Get('vendor-1099-summary')
-  vendor1099Summary(
-    @CurrentAuth() a: AuthContext,
-    @CurrentCompany() c: CompanyContext,
-    @Query(new ZodPipe(reportQuerySchema)) q: ReportQuery,
-  ): Promise<ReportDto> {
-    return this.reports.vendor1099Summary(a, c, q);
+  ): Promise<StreamableFile> {
+    const report = await this.reports.run(a, c, keyOf(slug), q);
+    return file(await renderReport(report, f.format));
   }
 }

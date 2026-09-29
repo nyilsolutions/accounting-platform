@@ -13,6 +13,7 @@ import { MailModule } from './mail/mail.module';
 import { MembersModule } from './members/members.module';
 import { MigrationModule } from './migration/migration.module';
 import { BankingModule } from './banking/banking.module';
+import { BudgetsModule } from './budgets/budgets.module';
 import { DocumentsModule } from './documents/documents.module';
 import { PurchasesModule } from './purchases/purchases.module';
 import { ReportsModule } from './reports/reports.module';
@@ -43,6 +44,7 @@ export class AppModule {
         ReportsModule,
         SalesModule,
         SalesTaxModule,
+        BudgetsModule,
         PurchasesModule,
         BankingModule,
         DocumentsModule,
