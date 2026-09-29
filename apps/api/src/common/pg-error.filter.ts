@@ -20,6 +20,11 @@ const UNIQUE_MESSAGES: Record<string, string> = {
   deposit_lines_source_key: 'This payment is already in another deposit',
   purchase_orders_number_key: 'This purchase order number is already in use',
   payment_applications_payment_id_target_id_key: 'This invoice is listed twice on the payment',
+  reconciliations_in_progress_key: 'A reconciliation of this account is already in progress',
+  bank_feed_accounts_account_key: 'That account is already connected to another bank account',
+  bank_feed_connections_item_key: 'This bank login is already connected',
+  bank_rules_name_key: 'A bank rule with this name already exists',
+  bank_feed_transactions_account_id_external_id_key: 'This bank transaction was already imported',
 };
 
 /**

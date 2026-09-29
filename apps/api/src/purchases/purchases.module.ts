@@ -8,5 +8,6 @@ import { PurchasesController } from './purchases.controller';
 @Module({
   controllers: [PurchasesController],
   providers: [PurchaseDocumentsService, BillPaymentsService, PurchaseOrdersService, ApService],
+  exports: [PurchaseDocumentsService],
 })
 export class PurchasesModule {}

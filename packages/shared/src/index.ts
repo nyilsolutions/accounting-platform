@@ -11,3 +11,5 @@ export * from './reports';
 export * from './sales';
 export * from './purchases';
 export * from './money-words';
+export * from './bank-files';
+export * from './banking';
