@@ -22,6 +22,7 @@ import { Alert, Badge, Button, buttonClass, Card, Spinner } from '@/components/u
 import { api, errorMessage } from '@/lib/api';
 import { txnHref } from '@/lib/links';
 import { keys, ledgerKeys, useAccess } from '@/lib/queries';
+import { Attachments } from '@/components/documents/attachments';
 
 export default function PurchaseDocumentPage() {
   const { companyId, doc, id } = useParams<{ companyId: string; doc: string; id: string }>();
@@ -182,6 +183,7 @@ export default function PurchaseDocumentPage() {
           )
         }
       />
+      <Attachments companyId={companyId} entityType="transaction" entityId={id} />
       {closing.dialog}
     </>
   );

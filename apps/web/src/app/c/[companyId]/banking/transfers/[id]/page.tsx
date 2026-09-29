@@ -10,6 +10,7 @@ import { useSalesLookups } from '@/components/sales/use-sales-lookups';
 import { Alert, Badge, Button, Spinner } from '@/components/ui';
 import { api, errorMessage } from '@/lib/api';
 import { keys, ledgerKeys, useAccess } from '@/lib/queries';
+import { Attachments } from '@/components/documents/attachments';
 
 export default function TransferPage() {
   const { companyId, id } = useParams<{ companyId: string; id: string }>();
@@ -100,6 +101,7 @@ export default function TransferPage() {
           )
         }
       />
+      <Attachments companyId={companyId} entityType="transaction" entityId={id} />
       {closing.dialog}
     </>
   );
