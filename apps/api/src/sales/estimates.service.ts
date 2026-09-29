@@ -22,7 +22,7 @@ import type { AuthContext, CompanyContext, RequestMeta } from '../common/request
 import { DB } from '../db/db.module';
 import { MAILER, type Mailer } from '../mail/mailer';
 import { nextEstimateNumber, validationError } from './sales-common';
-import { SalesDocumentsService } from './sales-documents.service';
+import { FORBIDDEN_LINE_ACCOUNTS, SalesDocumentsService } from './sales-documents.service';
 
 type EstimateInput = z.output<typeof estimateInputSchema>;
 
@@ -103,6 +103,21 @@ export class EstimatesService {
             ).map((i) => [i.id, i])
           : [],
       );
+      const accountIds = [
+        ...new Set(input.lines.map((l) => l.accountId).filter((v): v is string => !!v)),
+      ];
+      const accounts = new Map(
+        accountIds.length
+          ? (
+              await tx
+                .selectFrom('accounts')
+                .select(['id', 'name', 'is_active', 'account_type'])
+                .where('company_id', '=', companyId)
+                .where('id', 'in', accountIds)
+                .execute()
+            ).map((a) => [a.id, a])
+          : [],
+      );
       const errors: Array<{ path: string; message: string }> = [];
       const lines = input.lines.map((l, i) => {
         const item = l.itemId ? items.get(l.itemId) : undefined;
@@ -111,6 +126,16 @@ export class EstimatesService {
             path: `lines.${i}.itemId`,
             message: 'Product/service not found or inactive',
           });
+        const account = l.accountId ? accounts.get(l.accountId) : undefined;
+        if (l.accountId && !l.itemId) {
+          if (!account?.is_active)
+            errors.push({ path: `lines.${i}.accountId`, message: 'Account not found or inactive' });
+          else if (FORBIDDEN_LINE_ACCOUNTS.includes(account.account_type))
+            errors.push({
+              path: `lines.${i}.accountId`,
+              message: `"${account.name}" cannot be used on a sales line`,
+            });
+        }
         return {
           ...l,
           description: l.description ?? item?.description ?? null,
@@ -153,6 +178,8 @@ export class EstimatesService {
             estimate_id: estimateId!,
             line_no: i + 1,
             item_id: l.itemId ?? null,
+            // The item decides the account when there is one (as on invoices).
+            account_id: l.itemId ? null : (l.accountId ?? null),
             description: l.description,
             quantity: l.quantity ?? null,
             rate: l.rate ?? null,
@@ -265,6 +292,7 @@ export class EstimatesService {
           memo: est.number ? `From estimate ${est.number}` : null,
           lines: est.lines.map((l) => ({
             itemId: l.itemId,
+            accountId: l.accountId,
             description: l.description,
             quantity: l.quantity,
             rate: l.rate,
@@ -391,6 +419,7 @@ export class EstimatesService {
         lineNo: l.line_no,
         itemId: l.item_id,
         itemName: l.item_name,
+        accountId: l.account_id,
         description: l.description,
         quantity: trim(l.quantity),
         rate: trim(l.rate),

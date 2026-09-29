@@ -421,6 +421,13 @@ export const estimateInputSchema = z
   })
   .superRefine((e, ctx) => {
     e.lines.forEach((l, i) => {
+      if (!l.itemId && !l.accountId) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['lines', i, 'itemId'],
+          message: 'Choose a product/service or an income account',
+        });
+      }
       if (!(l.quantity && l.rate) && !l.amount) {
         ctx.addIssue({
           code: 'custom',
@@ -447,7 +454,7 @@ export interface EstimateDto {
   total: string;
   invoiceId: string | null;
   sentAt: string | null;
-  lines: Omit<SalesLineDto, 'accountId'>[];
+  lines: Array<Omit<SalesLineDto, 'accountId'> & { accountId: string | null }>;
 }
 
 // ---------------------------------------------------------------------------------------------

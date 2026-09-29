@@ -550,6 +550,40 @@ describe('estimates', () => {
       .expect(409);
   });
 
+  it('converts estimate lines that use an income account instead of an item', async () => {
+    const e = (
+      await owner.agent
+        .post(`${base()}/estimates`)
+        .send({
+          customerId: beta,
+          txnDate: '2026-06-03',
+          lines: [{ accountId: acct('Services'), description: 'Design', amount: '250' }],
+        })
+        .expect(201)
+    ).body as EstimateDto;
+    expect(e.lines[0]).toMatchObject({ accountId: acct('Services'), itemId: null });
+    const inv = (
+      await owner.agent
+        .post(`${base()}/estimates/${e.id}/convert`)
+        .send({ txnDate: '2026-06-04' })
+        .expect(201)
+    ).body as SalesDocumentDto;
+    expect(inv.lines[0]).toMatchObject({ accountId: acct('Services'), amount: '250.00' });
+    // A line needs an item or an account.
+    await owner.agent
+      .post(`${base()}/estimates`)
+      .send({ customerId: beta, txnDate: '2026-06-03', lines: [{ description: 'x', amount: '1' }] })
+      .expect(400);
+    await owner.agent
+      .post(`${base()}/estimates`)
+      .send({
+        customerId: beta,
+        txnDate: '2026-06-03',
+        lines: [{ accountId: acct('Checking'), amount: '1' }],
+      })
+      .expect(400);
+  });
+
   it('lists and deletes estimates', async () => {
     const other = (
       await owner.agent
@@ -561,10 +595,11 @@ describe('estimates', () => {
         })
         .expect(201)
     ).body as EstimateDto;
-    expect(other.number).toBe('1002');
+    expect(other.number).toBe('1003');
     const forBeta = (await owner.agent.get(`${base()}/estimates?customerId=${beta}`).expect(200))
       .body as EstimateDto[];
-    expect(forBeta.map((e) => e.id)).toEqual([other.id]);
+    expect(forBeta.map((e) => e.id)).toContain(other.id);
+    expect(forBeta.every((e) => e.customerId === beta)).toBe(true);
     await owner.agent.delete(`${base()}/estimates/${other.id}`).expect(204);
     await owner.agent.get(`${base()}/estimates/${other.id}`).expect(404);
   });
@@ -623,8 +658,9 @@ describe('A/R views', () => {
     ]);
     expect(st.endingBalance).toBe('50.00');
     expect(st.aging.total).toBe('50.00');
+    // Today's balance also includes the June invoice converted from an estimate (250).
     const bal = await customerBalance(beta);
-    expect(bal.openBalance).toBe('50.00');
+    expect(bal.openBalance).toBe('300.00');
   });
 
   it('hides everything from people outside the company', async () => {

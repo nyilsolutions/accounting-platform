@@ -51,7 +51,12 @@ const TOTAL_SIDE: Record<SalesDocType, { account: 'ar' | 'deposit'; side: 'debit
   refund_receipt: { account: 'deposit', side: 'credit' },
 };
 
-const FORBIDDEN_LINE_ACCOUNTS = ['accounts_receivable', 'accounts_payable', 'bank', 'credit_card'];
+export const FORBIDDEN_LINE_ACCOUNTS = [
+  'accounts_receivable',
+  'accounts_payable',
+  'bank',
+  'credit_card',
+];
 
 /**
  * Invoices, sales receipts, credit memos and refund receipts. Each saves its document detail

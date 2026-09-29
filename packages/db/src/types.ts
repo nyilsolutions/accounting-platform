@@ -316,6 +316,7 @@ export interface EstimateLinesTable {
   estimate_id: string;
   line_no: number;
   item_id: string | null;
+  account_id: string | null;
   description: string | null;
   quantity: string | null;
   rate: string | null;
