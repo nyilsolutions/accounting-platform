@@ -19,14 +19,58 @@ export interface PostingLine {
   locationId: string | null;
 }
 
+export type PostingTxnType =
+  | 'journal_entry'
+  | 'invoice'
+  | 'sales_receipt'
+  | 'credit_memo'
+  | 'refund_receipt'
+  | 'payment'
+  | 'deposit';
+
+/** Document fields stored on the transaction header (sales/A/R documents). */
+export interface DocumentDetails {
+  customerId?: string | null;
+  dueDate?: string | null;
+  termsId?: string | null;
+  paymentMethodId?: string | null;
+  reference?: string | null;
+  depositAccountId?: string | null;
+  customerMessage?: string | null;
+  billTo?: string | null;
+  emailTo?: string | null;
+  /** Document amount, as a decimal string. */
+  total?: string | null;
+}
+
+function detailColumns(d: DocumentDetails | undefined) {
+  if (!d) return {};
+  const out: Record<string, string | null> = {};
+  const map: Array<[keyof DocumentDetails, string]> = [
+    ['customerId', 'customer_id'],
+    ['dueDate', 'due_date'],
+    ['termsId', 'terms_id'],
+    ['paymentMethodId', 'payment_method_id'],
+    ['reference', 'reference'],
+    ['depositAccountId', 'deposit_account_id'],
+    ['customerMessage', 'customer_message'],
+    ['billTo', 'bill_to'],
+    ['emailTo', 'email_to'],
+    ['total', 'total'],
+  ];
+  for (const [key, column] of map) if (d[key] !== undefined) out[column] = d[key] ?? null;
+  return out;
+}
+
 export interface PostingHeader {
-  txnType: 'journal_entry';
+  txnType: PostingTxnType;
   txnDate: string;
   number: string | null;
   memo: string | null;
   isAdjusting: boolean;
   reversalOfId?: string | null;
   source?: 'manual' | 'import' | 'bank_feed' | 'api' | 'system';
+  details?: DocumentDetails;
 }
 
 export interface PostingContext {
@@ -67,6 +111,7 @@ export class PostingService {
         source: header.source ?? 'manual',
         created_by: ctx.userId,
         updated_by: ctx.userId,
+        ...detailColumns(header.details),
       })
       .returning('id')
       .executeTakeFirstOrThrow();
@@ -106,6 +151,7 @@ export class PostingService {
         memo: header.memo,
         is_adjusting: header.isAdjusting,
         updated_by: ctx.userId,
+        ...detailColumns(header.details),
       })
       .where('id', '=', txnId)
       .execute();
@@ -273,6 +319,8 @@ export class PostingService {
     txnDate: string,
     lines: PostingLine[],
   ): Promise<void> {
+    // A credit-only payment has no lines; the database allows that only for zero-amount payments.
+    if (lines.length === 0) return;
     await tx
       .insertInto('journal_lines')
       .values(
