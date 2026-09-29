@@ -19,7 +19,8 @@ test('sales tax, report columns and exports, memorized and scheduled reports, bu
   await page.getByRole('button', { name: 'Create company' }).click();
   await expect(page.getByRole('heading', { name: 'Harbor Garden Supply' })).toBeVisible();
   const companyPath = new URL(page.url()).pathname.replace(/\/$/, '');
-  const year = new Date().getFullYear();
+  // Last year, so every date is in the past whenever the test runs.
+  const year = new Date().getFullYear() - 1;
 
   // --- Sales tax: an agency, two rates and a combined rate -----------------------------------
   await page.getByRole('link', { name: 'Sales tax' }).click();

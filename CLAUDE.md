@@ -36,8 +36,12 @@ A single package: `pnpm --filter @acct/api test`, `pnpm --filter @acct/db test`,
   email-in; storage, scanning and extraction behind interfaces in `documents/`), migration
   (QuickBooks import: sources in `migration/sources/` map to canonical records, `import-engine.ts`
   creates them through the normal services, `tie-out.ts` is the Migration Report; QuickBooks
-  Online behind `QboApi` with a mock), reports (A/R and A/P reports; cash basis in
-  `cash-basis.ts`).
+  Online behind `QboApi` with a mock), sales-tax (agencies, rates, the `SalesTaxCalculator`,
+  payments and adjustments, the liability report), budgets, reports (every report dispatched by
+  key in `reports.service.ts` over a `ReportScope`; statements in `financial-reports.ts`, detail
+  and banking reports in `detail-reports.ts`, the custom builder in `custom-report.ts`, exports
+  in `reports/export/`, memorized reports and the email scheduler in
+  `memorized-reports.service.ts`; cash basis in `cash-basis.ts`).
   The A/R and A/P subledgers share one engine: `ledger/subledger.ts`.
 - `apps/desktop-agent`: QuickBooks Desktop migration agent (C#/.NET 8; `Core` is portable and
   tested on Linux with `dotnet test`, `Windows` is the WinForms wizard and QBXMLRP2 session).
@@ -108,6 +112,15 @@ A single package: `pnpm --filter @acct/api test`, `pnpm --filter @acct/db test`,
   QuickBooks posted (true-up or journal entry fallback), and the tie-out must reach zero in
   tests. Tax ids, SSNs and bank/card numbers from QuickBooks are dropped before staging
   (`withoutSensitive`).
+- Sales tax (ADR 0014): the calculation is `computeSalesTax` in `@acct/shared` (the web previews,
+  the API recomputes through `SalesTaxCalculator`). Every posting that changes what an agency is
+  owed also writes `sales_tax_lines` (`replaceSalesTaxLines`) so the liability ties to Sales Tax
+  Payable. Rates are effective-dated; never change a single rate's percentage in place.
+- Reports: add a report as a function `(scope, query) => ReportDto | GeneralLedgerDto`
+  registered in `ReportsService.runners`, a key in `REPORT_KEYS` and an entry in the web
+  catalog (`components/reports/catalog.ts`); exports, memorizing and schedules then work.
+  Multi-column reports set `columnDrill` so every amount drills down. Custom report columns and
+  filters map to fixed SQL expressions only.
 - Database errors map to HTTP in `common/pg-error.filter.ts`; add friendly messages for new unique
   indexes there.
 
@@ -120,7 +133,7 @@ A single package: `pnpm --filter @acct/api test`, `pnpm --filter @acct/db test`,
 - [x] Phase 4: Banking (registers, transfers, reconciliation, file imports, bank rules, Plaid feeds)
 - [x] Phase 5: Documents (library, attachments, versions, scanning, encrypted storage, receipt capture, email-in, retention)
 - [x] Phase 6: QuickBooks migration (QBO connector + attachments, Desktop agent, IIF/CSV, Migration Report, Match attachments)
-- [ ] Phase 7: Reports suite, sales tax, budgets
+- [x] Phase 7: Reports suite, sales tax, budgets (columns/comparisons, cash flow, detail reports, custom builder, PDF/Excel/CSV, memorized + scheduled, sales tax, budgets)
 - [ ] Phase 8: Payroll core
 - [ ] Phase 9: Payroll and 1099 tax forms
 - [ ] Phase 10: Advanced (inventory, time, multi-currency, …)

@@ -470,12 +470,18 @@ export class MemorizedReportsService implements OnApplicationBootstrap, BeforeAp
   }
 }
 
+/** Settings saved by an earlier version may no longer validate: fall back rather than fail. */
+function paramsOf(v: unknown): MemorizedParams {
+  const parsed = memorizedParamsSchema.safeParse(v);
+  return parsed.success ? parsed.data : memorizedParamsSchema.parse({});
+}
+
 function toDto(r: Row, userId: string): MemorizedReportDto {
   return {
     id: r.id,
     name: r.name,
     reportKey: r.report_key as ReportKey,
-    params: memorizedParamsSchema.parse(r.params),
+    params: paramsOf(r.params),
     shared: r.shared,
     mine: r.created_by === userId,
     createdByName: r.created_by_name ?? '',
