@@ -116,6 +116,36 @@ export const NAV: NavItem[] = [
     section: 'hidden',
   },
   {
+    key: 'transfer',
+    label: 'Transfer (or pay a credit card)',
+    path: '/banking/transfers/new',
+    shortcut: 'f',
+    permission: 'banking.manage',
+    section: 'hidden',
+  },
+  {
+    key: 'reconcile',
+    label: 'Reconcile',
+    path: '/banking/reconcile',
+    shortcut: 'z',
+    permission: 'banking.manage',
+    section: 'hidden',
+  },
+  {
+    key: 'bank-rules',
+    label: 'Bank rules',
+    path: '/banking/rules',
+    permission: 'banking.view',
+    section: 'hidden',
+  },
+  {
+    key: 'upload-transactions',
+    label: 'Upload bank transactions',
+    path: '/banking/import',
+    permission: 'banking.manage',
+    section: 'hidden',
+  },
+  {
     key: 'new-bill',
     label: 'New bill',
     path: '/expenses/bills/new',
@@ -230,17 +260,6 @@ export const UPCOMING_MODULES: Record<
   string,
   { title: string; phase: string; features: string[] }
 > = {
-  banking: {
-    title: 'Banking',
-    phase: 'Phase 4',
-    features: [
-      'Bank and credit card registers',
-      'Import QBO / QFX / OFX / CSV files',
-      'Live bank feeds (Plaid)',
-      'Bank rules and matching',
-      'Reconciliation with reports',
-    ],
-  },
   payroll: {
     title: 'Payroll',
     phase: 'Phases 8–9',

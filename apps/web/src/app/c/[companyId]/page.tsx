@@ -5,6 +5,7 @@ import { useParams } from 'next/navigation';
 import { Badge, Card, PageHeader, Spinner } from '@/components/ui';
 import { useQuery } from '@tanstack/react-query';
 import {
+  formatDollars,
   formatMoney,
   parseMoney,
   presetRange,
@@ -15,6 +16,7 @@ import {
   type VendorBalanceDto,
 } from '@acct/shared';
 import { api } from '@/lib/api';
+import { useBankAccounts } from '@/components/banking/use-bank-accounts';
 import { useAccess, useAccounts, useCompany } from '@/lib/queries';
 
 export default function DashboardPage() {
@@ -43,6 +45,7 @@ export default function DashboardPage() {
     queryFn: () => api<VendorBalanceDto[]>(`/companies/${companyId}/vendor-balances`),
     enabled: access.can('purchases.view'),
   });
+  const bank = useBankAccounts(companyId, access.can('banking.view'));
   if (company.isPending) return <Spinner />;
   if (!company.data) return null;
   const c = company.data;
@@ -67,7 +70,12 @@ export default function DashboardPage() {
       show: access.can('ledger.view'),
     },
     { label: 'Import your QuickBooks company', done: false, soon: 'Phase 6' },
-    { label: 'Connect your bank accounts', done: false, soon: 'Phase 4' },
+    {
+      label: 'Connect your bank accounts or upload statements',
+      done: (bank.data ?? []).some((b) => b.connection || b.bankBalance !== null),
+      href: `${base}/banking`,
+      show: access.can('banking.view'),
+    },
     { label: 'Set up payroll', done: false, soon: 'Phase 8' },
   ].filter((i) => i.show !== false);
 
@@ -136,6 +144,36 @@ export default function DashboardPage() {
             >
               View report
             </Link>
+          </Card>
+        )}
+        {bank.data && bank.data.length > 0 && (
+          <Card className="p-5">
+            <h2 className="mb-3 font-semibold text-gray-900">Bank accounts</h2>
+            <ul className="space-y-2 text-sm" data-testid="dashboard-bank">
+              {bank.data.map((b) => (
+                <li key={b.accountId}>
+                  <Link
+                    href={`${base}/banking?account=${b.accountId}`}
+                    className="flex justify-between gap-3 hover:underline"
+                  >
+                    <span className="text-gray-800">
+                      {b.name}{' '}
+                      {b.forReviewCount > 0 && (
+                        <Badge tone="amber">{b.forReviewCount} to review</Badge>
+                      )}
+                    </span>
+                    <span className="font-semibold tabular-nums">
+                      {formatDollars(b.bookBalance)}
+                    </span>
+                  </Link>
+                  {b.bankBalance !== null && (
+                    <div className="text-xs text-gray-500">
+                      Bank balance {formatDollars(b.bankBalance)}
+                    </div>
+                  )}
+                </li>
+              ))}
+            </ul>
           </Card>
         )}
         {ar.data && (

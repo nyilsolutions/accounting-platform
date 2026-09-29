@@ -42,6 +42,8 @@ export const keys = {
   sales: (id: string) => ['company', id, 'sales'] as const,
   salesDoc: (id: string, kind: string, docId: string) =>
     ['company', id, 'sales', kind, docId] as const,
+  /** Banking: account summaries, registers, bank transactions, reconciliations, rules. */
+  banking: (id: string) => ['company', id, 'banking'] as const,
 };
 
 /** Invalidates everything derived from the ledger (balances, lists of entries, reports). */
@@ -51,6 +53,7 @@ export function ledgerKeys(id: string) {
     ['company', id, 'journal'],
     ['company', id, 'report'],
     ['company', id, 'sales'],
+    ['company', id, 'banking'],
   ] as const;
 }
 
