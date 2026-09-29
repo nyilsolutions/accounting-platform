@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { openingEntry } from '../agent.service';
+import { withoutSensitive } from '../migration-common';
 import { csvToCanonical } from './csv';
 import {
   parseDesktopAging,
@@ -331,6 +332,34 @@ describe('QuickBooks Online', () => {
       TimeActivity: 1,
       'Attachable (note only)': 1,
     });
+  });
+});
+
+describe('sensitive source fields', () => {
+  it('drops tax ids, SSNs, birth dates, bank and card numbers at any depth', () => {
+    const vendor = {
+      ListID: '80-1',
+      Name: 'Green Supply',
+      VendorTaxIdent: '12-3456789',
+      IsVendorEligibleFor1099: 'true',
+    };
+    const employee = { Id: '5', SSN: 'XXX-XX-6789', BirthDate: '1990-01-02', GivenName: 'Ann' };
+    const payment = {
+      TxnID: '9-1',
+      CreditCardTxnInfo: { CreditCardTxnInputInfo: { CreditCardNumber: 'xxxx1111' } },
+      AppliedToTxnRet: [{ TxnID: '4-1', Amount: '10.00' }],
+    };
+    expect(withoutSensitive(vendor)).toEqual({
+      ListID: '80-1',
+      Name: 'Green Supply',
+      IsVendorEligibleFor1099: 'true',
+    });
+    expect(withoutSensitive(employee)).toEqual({ Id: '5', GivenName: 'Ann' });
+    expect(withoutSensitive(payment)).toEqual({
+      TxnID: '9-1',
+      AppliedToTxnRet: [{ TxnID: '4-1', Amount: '10.00' }],
+    });
+    expect(vendor.VendorTaxIdent).toBe('12-3456789'); // a copy; the input is untouched
   });
 });
 

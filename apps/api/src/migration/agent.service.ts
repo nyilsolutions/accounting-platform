@@ -24,6 +24,7 @@ import {
   recordLabel,
   stageRecords,
   stageReports,
+  withoutSensitive,
 } from './migration-common';
 import { mapDesktop, type DesktopRaw } from './sources/desktop/desktop-mapper';
 import { addDecimals, isZero, negate } from './sources/names';
@@ -118,7 +119,7 @@ export class AgentService {
       const id = String(r.TxnID ?? r.ListID ?? (body.entity === 'CompanyRet' ? 'company' : ''));
       if (!id || id.length > 200)
         throw new BadRequestException(`A ${body.entity} record has no TxnID or ListID.`);
-      return { id, data: r };
+      return { id, data: withoutSensitive(r) };
     });
     await this.tenant(a, async (tx) => {
       for (let i = 0; i < rows.length; i += 500) {

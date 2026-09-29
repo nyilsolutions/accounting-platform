@@ -26,6 +26,23 @@ public class QbXmlTests
     }
 
     [Fact]
+    public void Never_uploads_tax_ids_ssns_or_card_numbers()
+    {
+        var ret = XElement.Parse("""<VendorRet><ListID>80-1</ListID><Name>Green Supply</Name><VendorTaxIdent>12-3456789</VendorTaxIdent><IsVendorEligibleFor1099>true</IsVendorEligibleFor1099></VendorRet>""");
+        var json = QbXmlConverter.ToObject(ret).ToJsonString();
+        Assert.DoesNotContain("12-3456789", json);
+        Assert.Contains("IsVendorEligibleFor1099", json);
+
+        var emp = XElement.Parse("""<EmployeeRet><ListID>90-1</ListID><Name>Ann Lee</Name><SSN>123-45-6789</SSN><BirthDate>1990-01-02</BirthDate></EmployeeRet>""");
+        var e = QbXmlConverter.ToObject(emp).ToJsonString();
+        Assert.DoesNotContain("123-45-6789", e);
+        Assert.DoesNotContain("1990-01-02", e);
+
+        var cust = XElement.Parse("""<CustomerRet><ListID>70-1</ListID><CreditCardInfo><CreditCardNumber>4111111111111111</CreditCardNumber></CreditCardInfo></CustomerRet>""");
+        Assert.DoesNotContain("4111", QbXmlConverter.ToObject(cust).ToJsonString());
+    }
+
+    [Fact]
     public void Keeps_report_attributes()
     {
         var row = XElement.Parse("""<DataRow rowNumber="1"><RowData rowType="account" value="Utilities:Gas" /><ColData colID="1" value="Gas" /><ColData colID="2" value="120.00" /></DataRow>""");

@@ -33,9 +33,14 @@ A single package: `pnpm --filter @acct/api test`, `pnpm --filter @acct/db test`,
   orders, 1099 in `vendor-1099.ts`), banking (transfers, registers, reconciliation, bank feed
   For Review/rules/import, connections through `BankDataProvider` with Plaid and a mock in
   `banking/providers/`), documents (library, versions, links, receipts inbox and reading,
-  email-in; storage, scanning and extraction behind interfaces in `documents/`), reports (A/R
-  and A/P reports; cash basis in `cash-basis.ts`).
+  email-in; storage, scanning and extraction behind interfaces in `documents/`), migration
+  (QuickBooks import: sources in `migration/sources/` map to canonical records, `import-engine.ts`
+  creates them through the normal services, `tie-out.ts` is the Migration Report; QuickBooks
+  Online behind `QboApi` with a mock), reports (A/R and A/P reports; cash basis in
+  `cash-basis.ts`).
   The A/R and A/P subledgers share one engine: `ledger/subledger.ts`.
+- `apps/desktop-agent`: QuickBooks Desktop migration agent (C#/.NET 8; `Core` is portable and
+  tested on Linux with `dotnet test`, `Windows` is the WinForms wizard and QBXMLRP2 session).
 - `apps/web`: Next.js 16 (App Router) + TanStack Query + Tailwind 4. Calls the API only via `/api/*`.
 - `packages/db`: plain-SQL migrations, migrator, Kysely types, `withTenant()`, `createTestDatabase()`.
 - `packages/crypto`: server-only: argon2id, TOTP, AES-256-GCM field encryption, tokens.
@@ -96,6 +101,13 @@ A single package: `pnpm --filter @acct/api test`, `pnpm --filter @acct/db test`,
   are usable, and are downloaded only through `DocumentsService.url()` (permission check, 5-minute
   link). Receipt reading goes through `ReceiptExtractor`; tests use fakes, never the network
   (ADR 0012).
+- QuickBooks import (ADR 0013): every source maps to the canonical schemas in
+  `packages/shared/src/migration.ts`; never write a source-specific path into the engine.
+  Imported records go through the services' `*InTx` methods (never direct inserts) and are keyed
+  in `migration_map` so reruns update rather than duplicate. Each transaction must post what
+  QuickBooks posted (true-up or journal entry fallback), and the tie-out must reach zero in
+  tests. Tax ids, SSNs and bank/card numbers from QuickBooks are dropped before staging
+  (`withoutSensitive`).
 - Database errors map to HTTP in `common/pg-error.filter.ts`; add friendly messages for new unique
   indexes there.
 
@@ -107,7 +119,7 @@ A single package: `pnpm --filter @acct/api test`, `pnpm --filter @acct/db test`,
 - [x] Phase 3: Purchases & A/P (bills, pay bills, checks + printing, expenses, POs, vendor credits, 1099, A/P reports)
 - [x] Phase 4: Banking (registers, transfers, reconciliation, file imports, bank rules, Plaid feeds)
 - [x] Phase 5: Documents (library, attachments, versions, scanning, encrypted storage, receipt capture, email-in, retention)
-- [ ] Phase 6: QuickBooks migration
+- [x] Phase 6: QuickBooks migration (QBO connector + attachments, Desktop agent, IIF/CSV, Migration Report, Match attachments)
 - [ ] Phase 7: Reports suite, sales tax, budgets
 - [ ] Phase 8: Payroll core
 - [ ] Phase 9: Payroll and 1099 tax forms

@@ -171,6 +171,41 @@ export function validEmail(v: string | null | undefined): string | null {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(first) && first.length <= 254 ? first : null;
 }
 
+/**
+ * Fields QuickBooks sends that the import never uses and that must not sit unencrypted in
+ * staging: tax ids, SSNs, birth dates, pay details, bank and card numbers. Dropped before a raw
+ * record is stored (the Desktop agent drops them before upload too).
+ */
+export const SENSITIVE_SOURCE_FIELDS: ReadonlySet<string> = new Set([
+  'SSN',
+  'BirthDate',
+  'TaxIdentifier',
+  'PrimaryTaxIdentifier',
+  'SecondaryTaxIdentifier',
+  'VendorTaxIdent',
+  'EmployeePayrollInfo',
+  'BankNumber',
+  'BankNum',
+  'BankAccountNumber',
+  'RoutingNumber',
+  'CreditCardInfo',
+  'CreditCardNumber',
+  'CreditCardTxnInfo',
+]);
+
+/** A copy of a source record without its sensitive fields, at any depth. */
+export function withoutSensitive<T>(v: T): T {
+  if (Array.isArray(v)) return v.map(withoutSensitive) as T;
+  if (v && typeof v === 'object') {
+    const out: Record<string, unknown> = {};
+    for (const [k, x] of Object.entries(v as Record<string, unknown>)) {
+      if (!SENSITIVE_SOURCE_FIELDS.has(k)) out[k] = withoutSensitive(x);
+    }
+    return out as T;
+  }
+  return v;
+}
+
 /** Upserts canonical records into a migration's staging table (unchanged payloads keep their status). */
 export async function stageRecords(
   tx: Tx,

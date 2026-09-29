@@ -160,9 +160,19 @@ public sealed class QuickBooksException(int code, string message) : Exception(me
 /// </summary>
 public static class QbXmlConverter
 {
+    /// <summary>
+    /// Elements never uploaded: tax ids, SSNs, birth dates, pay details, bank and card numbers.
+    /// The import doesn't use them, and the server drops them too.
+    /// </summary>
+    public static readonly IReadOnlySet<string> SensitiveElements = new HashSet<string>
+    {
+        "SSN", "BirthDate", "VendorTaxIdent", "EmployeePayrollInfo", "BankNumber",
+        "CreditCardInfo", "CreditCardNumber", "CreditCardTxnInfo",
+    };
+
     public static JsonNode? ToJson(XElement e)
     {
-        var children = e.Elements().ToList();
+        var children = e.Elements().Where(c => !SensitiveElements.Contains(c.Name.LocalName)).ToList();
         if (children.Count == 0 && !e.HasAttributes) return JsonValue.Create(e.Value);
         var o = new JsonObject();
         foreach (var a in e.Attributes()) o[a.Name.LocalName] = a.Value;

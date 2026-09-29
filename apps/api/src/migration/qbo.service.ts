@@ -15,7 +15,13 @@ import { AuditService } from '../audit/audit.service';
 import { APP_CONFIG, type AppConfig } from '../config';
 import type { AuthContext, CompanyContext, RequestMeta } from '../common/request';
 import { DB, FIELD_ENCRYPTOR } from '../db/db.module';
-import { describeError, recordLabel, stageRecords, stageReports } from './migration-common';
+import {
+  describeError,
+  recordLabel,
+  stageRecords,
+  stageReports,
+  withoutSensitive,
+} from './migration-common';
 import {
   QBO_API,
   QBO_CDC_ENTITIES,
@@ -387,7 +393,7 @@ export class QboService implements BeforeApplicationShutdown {
                 migration_id: migrationId,
                 source_entity: entity,
                 source_id: String(x.Id),
-                data: JSON.stringify(x),
+                data: JSON.stringify(withoutSensitive(x)),
                 deleted: x.status === 'Deleted',
               })),
             )
