@@ -1,10 +1,18 @@
-import { SALES_DOC_SLUGS, type SalesDocType } from '@acct/shared';
+import {
+  PURCHASE_DOC_SLUGS,
+  SALES_DOC_SLUGS,
+  type PurchaseDocType,
+  type SalesDocType,
+} from '@acct/shared';
 
 /** Where a transaction opens, by type (used by lists, reports and drill-downs). */
 export function txnHref(companyId: string, txnType: string, id: string): string {
   const base = `/c/${companyId}`;
   if (txnType in SALES_DOC_SLUGS) {
     return `${base}/sales/${SALES_DOC_SLUGS[txnType as SalesDocType]}/${id}`;
+  }
+  if (txnType in PURCHASE_DOC_SLUGS) {
+    return `${base}/expenses/${PURCHASE_DOC_SLUGS[txnType as PurchaseDocType]}/${id}`;
   }
   switch (txnType) {
     case 'payment':
@@ -13,6 +21,10 @@ export function txnHref(companyId: string, txnType: string, id: string): string 
       return `${base}/sales/deposits/${id}`;
     case 'estimate':
       return `${base}/sales/estimates/${id}`;
+    case 'bill_payment':
+      return `${base}/expenses/bill-payments/${id}`;
+    case 'purchase_order':
+      return `${base}/expenses/purchase-orders/${id}`;
     default:
       return `${base}/accounting/journal-entries/${id}`;
   }
@@ -20,4 +32,8 @@ export function txnHref(companyId: string, txnType: string, id: string): string 
 
 export function customerHref(companyId: string, customerId: string): string {
   return `/c/${companyId}/sales/customers/${customerId}`;
+}
+
+export function vendorHref(companyId: string, vendorId: string): string {
+  return `/c/${companyId}/expenses/vendors/${vendorId}`;
 }
