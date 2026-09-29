@@ -68,6 +68,15 @@ const ACCOUNT_TYPES: Partial<Record<PurchaseDocType, AccountType[]>> = {
 
 const inputClass = 'block w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm';
 
+export interface PurchasePrefill {
+  vendorId: string | null;
+  txnDate: string;
+  dueDate: string | null;
+  number: string | null;
+  memo: string | null;
+  lines: Array<{ accountId: string | null; description: string | null; amount: string }>;
+}
+
 function Labeled({
   label,
   children,
@@ -95,31 +104,39 @@ export function PurchaseDocumentForm({
   initial,
   lookups,
   defaultVendorId,
+  prefill,
   readOnly,
   onSave,
   footer,
+  submitLabel,
 }: {
   companyId: string;
   type: PurchaseDocType;
   initial?: PurchaseDocumentDto;
   lookups: SalesLookups;
   defaultVendorId?: string;
+  /** Values for a new document, e.g. read from a receipt. */
+  prefill?: PurchasePrefill;
   readOnly?: boolean;
+  /** Replaces the save buttons with one button (used when saving from a document). */
+  submitLabel?: string;
   onSave: (input: PurchaseDocumentInput, andNew: boolean) => Promise<void>;
   footer?: ReactNode;
 }) {
   const labels = PURCHASE_LABELS[type];
   const cash = type === 'check' || type === 'expense' || type === 'cc_credit';
-  const defaultVendor = lookups.vendors.find((v) => v.id === defaultVendorId);
+  const defaultVendor = lookups.vendors.find(
+    (v) => v.id === (prefill?.vendorId ?? defaultVendorId),
+  );
   const firstAccount = lookups.accounts.find(
     (a) => a.isActive && (ACCOUNT_TYPES[type] ?? []).includes(a.accountType),
   );
 
   const [vendorId, setVendorId] = useState(initial?.vendorId ?? defaultVendor?.id ?? '');
   const [termsId, setTermsId] = useState(initial?.termsId ?? defaultVendor?.termsId ?? '');
-  const [txnDate, setTxnDate] = useState(initial?.txnDate ?? todayIso());
-  const [dueDate, setDueDate] = useState(initial?.dueDate ?? '');
-  const [number, setNumber] = useState(initial?.number ?? '');
+  const [txnDate, setTxnDate] = useState(initial?.txnDate ?? prefill?.txnDate ?? todayIso());
+  const [dueDate, setDueDate] = useState(initial?.dueDate ?? prefill?.dueDate ?? '');
+  const [number, setNumber] = useState(initial?.number ?? prefill?.number ?? '');
   const [paymentAccountId, setPaymentAccountId] = useState(
     initial?.paymentAccountId ?? firstAccount?.id ?? '',
   );
@@ -128,17 +145,31 @@ export function PurchaseDocumentForm({
   const [mailingAddress, setMailingAddress] = useState(
     initial?.mailingAddress ?? billToOf(defaultVendor),
   );
-  const [memo, setMemo] = useState(initial?.memo ?? '');
+  const [memo, setMemo] = useState(initial?.memo ?? prefill?.memo ?? '');
   const [lines, setLines] = useState<LineState[]>(() => {
-    const base = initial ? linesFrom(initial.lines) : [];
+    const base = initial
+      ? linesFrom(initial.lines)
+      : prefill
+        ? linesFrom(
+            prefill.lines.map((l) => ({
+              itemId: null,
+              accountId: l.accountId,
+              description: l.description,
+              quantity: null,
+              rate: null,
+              amount: l.amount,
+              classId: null,
+            })),
+          )
+        : [];
     while (base.length < 2) base.push(emptyLine());
     if (!readOnly) base.push(emptyLine());
     return base;
   });
   const [error, setError] = useState<ApiError | string | null>(null);
   const [pending, setPending] = useState<'close' | 'new' | null>(null);
-  const dueTouched = useRef(!!initial?.dueDate);
-  const numberTouched = useRef(!!initial);
+  const dueTouched = useRef(!!(initial?.dueDate ?? prefill?.dueDate));
+  const numberTouched = useRef(!!initial || !!prefill?.number);
 
   // Suggested check number for the chosen bank account.
   const nextCheck = useQuery({
@@ -399,16 +430,18 @@ export function PurchaseDocumentForm({
         <div>{footer}</div>
         {!readOnly && (
           <div className="flex gap-2">
-            <Button
-              type="button"
-              variant="secondary"
-              loading={pending === 'new'}
-              onClick={() => save(true)}
-            >
-              Save and new
-            </Button>
+            {!submitLabel && (
+              <Button
+                type="button"
+                variant="secondary"
+                loading={pending === 'new'}
+                onClick={() => save(true)}
+              >
+                Save and new
+              </Button>
+            )}
             <Button type="submit" loading={pending === 'close'}>
-              Save and close
+              {submitLabel ?? 'Save and close'}
             </Button>
           </div>
         )}

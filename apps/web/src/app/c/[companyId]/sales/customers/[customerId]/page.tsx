@@ -16,6 +16,7 @@ import { billToOf } from '@/components/sales/use-sales-lookups';
 import { Alert, Button, buttonClass, Card, Dialog, Spinner, TextInput } from '@/components/ui';
 import { api, errorMessage } from '@/lib/api';
 import { keys, useAccess } from '@/lib/queries';
+import { Attachments } from '@/components/documents/attachments';
 
 export default function CustomerPage() {
   const { companyId, customerId } = useParams<{ companyId: string; customerId: string }>();
@@ -119,6 +120,7 @@ export default function CustomerPage() {
         </Card>
       </div>
       <SalesTransactionsTable companyId={companyId} customerId={customerId} />
+      <Attachments companyId={companyId} entityType="customer" entityId={customerId} />
       <Dialog open={statement} onClose={() => setStatement(false)} title="Customer statement">
         <form onSubmit={openStatement} className="space-y-4">
           <div className="grid grid-cols-2 gap-4">

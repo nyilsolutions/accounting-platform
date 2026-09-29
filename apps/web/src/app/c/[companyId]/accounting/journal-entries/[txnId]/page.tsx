@@ -11,6 +11,7 @@ import { useJournalLookups } from '@/components/ledger/use-journal-lookups';
 import { Alert, Badge, Button, Dialog, Spinner, TextInput } from '@/components/ui';
 import { api, errorMessage } from '@/lib/api';
 import { keys, ledgerKeys, useAccess } from '@/lib/queries';
+import { Attachments } from '@/components/documents/attachments';
 
 export default function JournalEntryPage() {
   const { companyId, txnId } = useParams<{ companyId: string; txnId: string }>();
@@ -193,6 +194,7 @@ export default function JournalEntryPage() {
           </div>
         </form>
       </Dialog>
+      <Attachments companyId={companyId} entityType="transaction" entityId={txnId} />
       {closing.dialog}
     </>
   );

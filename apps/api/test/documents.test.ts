@@ -146,7 +146,7 @@ describe('downloading', () => {
     const link = (
       await owner.agent.get(`${base()}/documents/${doc.id}/url?disposition=inline`).expect(200)
     ).body;
-    expect(link.url).toMatch(/^\/api\/files\//);
+    expect(link.url).toMatch(/^\/api\/files\/[^/]+\/R%C3%A9ceipt%20May\.pdf$/);
     const res = await request(server())
       .get(apiPath(link.url))
       .buffer(true)
@@ -167,9 +167,12 @@ describe('downloading', () => {
 
   it('rejects forged links and other companies', async () => {
     const link = (await owner.agent.get(`${base()}/documents/${doc.id}/url`).expect(200)).body;
+    const forged = apiPath(link.url).replace(/\/files\/([^/]+)/, (_m, t: string) => `/files/${t}x`);
+    await request(server()).get(forged).expect(404);
+    // The trailing file name is only a label: the token alone decides what is served.
     await request(server())
-      .get(`${apiPath(link.url)}x`)
-      .expect(404);
+      .get(apiPath(link.url).replace(/[^/]+$/, 'other.pdf'))
+      .expect(200);
     const stranger = await signUp(ctx.app, 'stranger-docs@example.com');
     await stranger.agent.get(`${base()}/documents/${doc.id}`).expect(404);
     await stranger.agent.get(`${base()}/documents/${doc.id}/url`).expect(404);

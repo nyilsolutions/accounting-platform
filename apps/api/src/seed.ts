@@ -20,6 +20,11 @@ import { DepositsService } from './sales/deposits.service';
 import { BankFeedService } from './banking/bank-feed.service';
 import { BankRulesService } from './banking/bank-rules.service';
 import { TransfersService } from './banking/transfers.service';
+import { createObjectStore, createVirusScanner } from './documents/documents.module';
+import { DocumentsService } from './documents/documents.service';
+import { HeuristicReceiptExtractor } from './documents/extraction/receipt-extractor';
+import { makePdf } from './documents/pdf-fixture';
+import { ReceiptsService } from './documents/receipts.service';
 import { EstimatesService } from './sales/estimates.service';
 import { PaymentsService } from './sales/payments.service';
 import { SalesDocumentsService } from './sales/sales-documents.service';
@@ -146,6 +151,14 @@ async function main(): Promise<void> {
         .executeTakeFirst(),
     );
     if (!hasBanking) await seedBanking(db, userId, companyId!);
+    const hasDocuments = await withTenant(db, { userId, companyId }, (tx) =>
+      tx
+        .selectFrom('documents')
+        .select('id')
+        .where('company_id', '=', companyId!)
+        .executeTakeFirst(),
+    );
+    if (!hasDocuments) await seedDocuments(db, config, enc, userId, companyId!);
 
     console.log(
       [
@@ -700,6 +713,134 @@ async function seedBanking(db: Db, userId: string, companyId: string): Promise<v
     { fileName: 'May statement.qbo', content: ofx },
     meta,
   );
+}
+
+/**
+ * A contract in a folder, a W-9 on a vendor, a receipt on the card expense, and two documents
+ * waiting in the receipts inbox (read with the text heuristics).
+ */
+async function seedDocuments(
+  db: Db,
+  config: AppConfig,
+  enc: LocalAesGcmEncryptor,
+  userId: string,
+  companyId: string,
+): Promise<void> {
+  const audit = new AuditService(db);
+  const posting = new PostingService();
+  const documents = new DocumentsService(
+    db,
+    config,
+    createObjectStore(config, enc),
+    createVirusScanner(config),
+    audit,
+  );
+  const receipts = new ReceiptsService(
+    db,
+    new HeuristicReceiptExtractor(),
+    documents,
+    new PurchaseDocumentsService(db, posting, audit),
+    audit,
+  );
+  const auth = {
+    userId,
+    sessionId: 'seed',
+    email: DEMO_EMAIL,
+    fullName: 'Demo Owner',
+    mfaEnrolled: true,
+    mfaVerified: true,
+  } as AuthContext;
+  const ctx = { companyId, role: 'owner', permissions: [] } as unknown as CompanyContext;
+  const meta = { ip: null, userAgent: 'seed', requestId: null };
+  const actor = { userId, companyId };
+  const year = new Date().getFullYear();
+  const { vendor, expense } = await withTenant(db, actor, async (tx) => ({
+    vendor: await tx
+      .selectFrom('vendors')
+      .select('id')
+      .where('company_id', '=', companyId)
+      .where('display_name', '=', 'Green Supply Co.')
+      .executeTakeFirst(),
+    expense: await tx
+      .selectFrom('transactions')
+      .select('id')
+      .where('company_id', '=', companyId)
+      .where('txn_type', '=', 'expense')
+      .where('status', '=', 'posted')
+      .executeTakeFirst(),
+  }));
+
+  const contracts = await documents.saveFolder(auth, ctx, null, { name: 'Contracts' }, meta);
+  await documents.saveFolder(auth, ctx, null, { name: 'Tax records' }, meta);
+  const lease = await documents.ingest(
+    actor,
+    makePdf([
+      'Commercial lease',
+      'Sample Landscaping Co.',
+      `Term: January 1, ${year} to December 31, ${year}`,
+      'Rent $2,400.00 per month',
+    ]),
+    { fileName: 'Yard lease.pdf', folderId: contracts.id, source: 'upload' },
+    meta,
+  );
+  await documents.update(auth, ctx, lease.id, { tags: ['lease', 'contracts'] }, meta);
+  if (vendor) {
+    await documents.ingest(
+      actor,
+      makePdf(['Form W-9', 'Green Supply Co.', 'EIN on file']),
+      {
+        fileName: 'W-9 Green Supply.pdf',
+        link: { entityType: 'vendor', entityId: vendor.id },
+        source: 'upload',
+      },
+      meta,
+    );
+  }
+  if (expense) {
+    await documents.ingest(
+      actor,
+      makePdf(['Shell', 'Fuel', 'Total $64.12']),
+      {
+        fileName: 'Fuel receipt.pdf',
+        link: { entityType: 'transaction', entityId: expense.id },
+        source: 'camera',
+      },
+      meta,
+    );
+  }
+  for (const [name, lines] of [
+    [
+      'Home Depot receipt.pdf',
+      [
+        'The Home Depot #4410',
+        `05/18/${year} 14:02`,
+        'Mulch 10 bags $49.90',
+        'Sales Tax $4.12',
+        'TOTAL $54.02',
+        'VISA ****1234',
+      ],
+    ],
+    [
+      'Green Supply invoice GS-5520.pdf',
+      [
+        'Green Supply Co.',
+        'INVOICE',
+        'Invoice No: GS-5520',
+        `Invoice date: 06/01/${year}`,
+        `Due date: 07/01/${year}`,
+        'Perennials $640.00',
+        'Amount due $640.00',
+      ],
+    ],
+  ] as const) {
+    const doc = await documents.ingest(
+      actor,
+      makePdf([...lines]),
+      { fileName: name, inbox: true, source: 'upload' },
+      meta,
+    );
+    await receipts.read(userId, companyId, doc.id, meta);
+  }
 }
 
 main().catch((err) => {

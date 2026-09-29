@@ -24,9 +24,12 @@ export class FilesController {
     private readonly inbound: InboundEmailService,
   ) {}
 
-  /** The token was issued after a permission check and expires in minutes. */
+  /**
+   * The token was issued after a permission check and expires in minutes. A trailing file name
+   * is ignored; it only gives the browser's PDF viewer and downloads a readable title.
+   */
   @Public()
-  @Get('files/:token')
+  @Get(['files/:token', 'files/:token/:name'])
   async file(@Param('token') token: string, @Res() res: Response): Promise<void> {
     const { data, headers } = await this.documents.serve(token);
     res.set(headers).status(200).end(data);

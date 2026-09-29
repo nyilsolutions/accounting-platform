@@ -17,6 +17,7 @@ import { useSalesLookups } from '@/components/sales/use-sales-lookups';
 import { Alert, Badge, Button, Card, Spinner } from '@/components/ui';
 import { api, ApiError, errorMessage } from '@/lib/api';
 import { keys, ledgerKeys, useAccess } from '@/lib/queries';
+import { Attachments } from '@/components/documents/attachments';
 
 const inputClass = 'block w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm';
 
@@ -201,6 +202,7 @@ export default function BillPaymentPage() {
           {!readOnly && <Button onClick={save}>Save and close</Button>}
         </div>
       </div>
+      <Attachments companyId={companyId} entityType="transaction" entityId={id} />
       {closing.dialog}
     </>
   );

@@ -901,7 +901,7 @@ export class DocumentsService {
       return {
         url:
           direct ??
-          `/api/files/${this.tokens.sign({ companyId: ctx.companyId, versionId: v.id, disposition: inline, exp })}`,
+          `/api/files/${this.tokens.sign({ companyId: ctx.companyId, versionId: v.id, disposition: inline, exp })}/${encodeURIComponent(v.file_name)}`,
         expiresAt: new Date(exp * 1000).toISOString(),
       };
     });

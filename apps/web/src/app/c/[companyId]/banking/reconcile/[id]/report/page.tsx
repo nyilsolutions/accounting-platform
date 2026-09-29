@@ -14,6 +14,7 @@ import {
 import { Alert, Button, Card, Spinner } from '@/components/ui';
 import { api, errorMessage } from '@/lib/api';
 import { keys, useCompany } from '@/lib/queries';
+import { Attachments } from '@/components/documents/attachments';
 
 function Section({ s }: { s: ReconciliationReportSection }) {
   return (
@@ -109,6 +110,9 @@ export default function ReconciliationReportPage() {
           <Section key={s.label} s={s} />
         ))}
       </Card>
+      <div className="mx-auto max-w-4xl">
+        <Attachments companyId={companyId} entityType="reconciliation" entityId={id} />
+      </div>
     </>
   );
 }
