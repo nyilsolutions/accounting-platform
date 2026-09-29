@@ -30,7 +30,9 @@ A single package: `pnpm --filter @acct/api test`, `pnpm --filter @acct/db test`,
   ledger (accounts, journal entries, posting engine, ledger settings), lists, sales (invoices,
   receipts, credit memos, refunds, payments, deposits, estimates), purchases (bills, vendor credits,
   bill payments/pay bills, checks and check printing, expenses, credit card credits, purchase
-  orders, 1099 in `vendor-1099.ts`), reports (A/R and A/P reports; cash basis in `cash-basis.ts`).
+  orders, 1099 in `vendor-1099.ts`), banking (transfers, registers, reconciliation, bank feed
+  For Review/rules/import, connections through `BankDataProvider` with Plaid and a mock in
+  `banking/providers/`), reports (A/R and A/P reports; cash basis in `cash-basis.ts`).
   The A/R and A/P subledgers share one engine: `ledger/subledger.ts`.
 - `apps/web`: Next.js 16 (App Router) + TanStack Query + Tailwind 4. Calls the API only via `/api/*`.
 - `packages/db`: plain-SQL migrations, migrator, Kysely types, `withTenant()`, `createTestDatabase()`.
@@ -80,6 +82,12 @@ A single package: `pnpm --filter @acct/api test`, `pnpm --filter @acct/db test`,
   are versioned (ADR 0009, 0010). Keep the A/R and A/P subledgers tied to the GL: open items must
   sum to the control account balance (property tests check this).
 - A journal line names one party (`customer_id` or `vendor_id`, never both).
+- Banking uses the account's natural sign (bank: debits raise the balance; card/loan: credits
+  raise what's owed). Bank amounts are "money in" positive = debit − credit on the account.
+  Cleared/reconciled marks live in `bank_clearings`, never on journal lines (ADR 0011).
+- Bank statement parsers (`packages/shared/src/bank-files.ts`) are pure and shared: the web
+  previews, the API re-parses. External calls (Plaid) go through `BankDataProvider`; tests use the
+  mock or a fake `fetch`, never the network.
 - Transaction links in the web go through `apps/web/src/lib/links.ts` (`txnHref`).
 - Database errors map to HTTP in `common/pg-error.filter.ts`; add friendly messages for new unique
   indexes there.
@@ -90,7 +98,7 @@ A single package: `pnpm --filter @acct/api test`, `pnpm --filter @acct/db test`,
 - [x] Phase 1: Ledger core (chart of accounts, lists, journal entries, posting engine, TB/GL/P&L/BS)
 - [x] Phase 2: Sales & A/R (invoices, payments, deposits, estimates, statements, A/R reports, cash basis)
 - [x] Phase 3: Purchases & A/P (bills, pay bills, checks + printing, expenses, POs, vendor credits, 1099, A/P reports)
-- [ ] Phase 4: Banking (registers, reconciliation, file imports, Plaid)
+- [x] Phase 4: Banking (registers, transfers, reconciliation, file imports, bank rules, Plaid feeds)
 - [ ] Phase 5: Documents
 - [ ] Phase 6: QuickBooks migration
 - [ ] Phase 7: Reports suite, sales tax, budgets
