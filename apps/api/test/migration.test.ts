@@ -547,16 +547,14 @@ describe('CSV import', () => {
   ) {
     const content = csv(file);
     const headers = parseCsv(content)[0]!;
-    const res = await owner.agent
-      .post(`${base()}/csv`)
-      .send({
-        kind,
-        fileName: file,
-        content,
-        mapping: guessColumnMapping(kind, headers),
-        preview,
-        ...extra,
-      });
+    const res = await owner.agent.post(`${base()}/csv`).send({
+      kind,
+      fileName: file,
+      content,
+      mapping: guessColumnMapping(kind, headers),
+      preview,
+      ...extra,
+    });
     expect(res.status, JSON.stringify(res.body)).toBe(201);
     expect(res.body.errors).toEqual([]);
     return res.body;
@@ -611,14 +609,12 @@ describe('CSV import', () => {
     });
     await stage('ar_aging', 'ar-aging.csv', { date: '2025-03-31' });
     // A required column that isn't mapped is refused.
-    const bad = await owner.agent
-      .post(`${base()}/csv`)
-      .send({
-        kind: 'bills',
-        fileName: 'bills.csv',
-        content: csv('bills.csv'),
-        mapping: { vendor: 1 },
-      });
+    const bad = await owner.agent.post(`${base()}/csv`).send({
+      kind: 'bills',
+      fileName: 'bills.csv',
+      content: csv('bills.csv'),
+      mapping: { vendor: 1 },
+    });
     expect(bad.status).toBe(400);
   });
 
