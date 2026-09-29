@@ -41,7 +41,30 @@ export const TXN_TYPE_LABELS: Record<string, string> = {
   cc_credit: 'Credit Card Credit',
   purchase_order: 'Purchase Order',
   transfer: 'Transfer',
+  sales_tax_payment: 'Sales Tax Payment',
+  sales_tax_adjustment: 'Sales Tax Adjustment',
 };
+
+/** Every transaction type that posts to the ledger. */
+export const POSTING_TXN_TYPES = [
+  'journal_entry',
+  'invoice',
+  'sales_receipt',
+  'credit_memo',
+  'refund_receipt',
+  'payment',
+  'deposit',
+  'bill',
+  'vendor_credit',
+  'bill_payment',
+  'check',
+  'expense',
+  'cc_credit',
+  'transfer',
+  'sales_tax_payment',
+  'sales_tax_adjustment',
+] as const;
+export type PostingTxnType = (typeof POSTING_TXN_TYPES)[number];
 
 // ---------------------------------------------------------------------------------------------
 // Amount helpers shared by the web form and the API (the API recomputes; it never trusts totals)
@@ -60,6 +83,13 @@ export function lineAmount(quantity: string, rate: string): Money {
 // ---------------------------------------------------------------------------------------------
 // Sales documents (invoice, sales receipt, credit memo, refund receipt)
 // ---------------------------------------------------------------------------------------------
+const taxAmountOverride = z
+  .string()
+  .trim()
+  .regex(/^\d{1,15}(\.\d{1,2})?$/, 'Enter the tax in dollars and cents')
+  .nullable()
+  .optional();
+
 const salesLineBase = z.object({
   itemId: z.uuid().nullable().optional(),
   /** Income account; defaults to the item's income account. Required when no item is chosen. */
@@ -116,6 +146,10 @@ export const salesDocumentInputSchema = z
     paymentMethodId: z.uuid().nullable().optional(),
     reference: optText(50),
     depositAccountId: z.uuid().nullable().optional(),
+    /** Sales tax rate charged on the taxable lines; null or absent charges none. */
+    taxRateId: z.uuid().nullable().optional(),
+    /** Overrides the calculated tax (e.g. entering a paper invoice); split across the components. */
+    taxAmount: taxAmountOverride,
     lines: z.array(salesLineInputSchema).min(1, 'Add at least one line').max(1000),
     closingPassword: z.string().max(128).optional(),
     version: z.number().int().min(1).optional(),
@@ -154,6 +188,16 @@ export interface SalesLineDto {
   taxable: boolean;
 }
 
+export interface SalesTaxLineDto {
+  agencyId: string;
+  agencyName: string;
+  taxRateId: string | null;
+  rateName: string | null;
+  rate: string | null;
+  taxable: string;
+  amount: string;
+}
+
 export interface AppliedDto {
   /** The other side of the application: a payment (for an invoice/credit) or the invoice/credit (for a payment). */
   txnId: string;
@@ -185,6 +229,14 @@ export interface SalesDocumentDto {
   reference: string | null;
   depositAccountId: string | null;
   lines: SalesLineDto[];
+  /** Sum of the lines, before tax. */
+  subtotal: string;
+  taxRateId: string | null;
+  taxRateName: string | null;
+  /** Tax charged, per agency and rate. */
+  taxLines: SalesTaxLineDto[];
+  taxTotal: string;
+  /** Subtotal plus tax. */
   total: string;
   /** Amount still owed (invoice) or still available (credit memo); 0 for receipts. */
   balance: string;
@@ -369,6 +421,7 @@ export const estimateInputSchema = z
     customerMessage: optText(4000),
     memo: optText(4000),
     status: z.enum(ESTIMATE_STATUSES).optional(),
+    taxRateId: z.uuid().nullable().optional(),
     lines: z.array(salesLineBase).min(1).max(1000),
   })
   .superRefine((e, ctx) => {
@@ -403,6 +456,9 @@ export interface EstimateDto {
   emailTo: string | null;
   customerMessage: string | null;
   memo: string | null;
+  subtotal: string;
+  taxRateId: string | null;
+  taxTotal: string;
   total: string;
   invoiceId: string | null;
   sentAt: string | null;

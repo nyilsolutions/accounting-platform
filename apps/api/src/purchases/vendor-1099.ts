@@ -27,11 +27,25 @@ interface Form1099Data {
  * - anything paid by credit card (or other payment card) is left out: card payments are reported
  *   by the card processor on Form 1099-K.
  */
-export async function vendor1099Summary(
+export interface Vendor1099Entry {
+  vendorId: string;
+  vendorName: string;
+  /** The check, expense or bill payment that paid it. */
+  txnId: string;
+  txnType: string;
+  number: string | null;
+  date: string;
+  accountId: string;
+  box: Form1099Box;
+  amount: Money;
+}
+
+/** Every amount that counts toward a 1099 in a calendar year, by payment and account. */
+export async function vendor1099Entries(
   tx: Tx,
   companyId: string,
   year: number,
-): Promise<Vendor1099SummaryDto> {
+): Promise<Vendor1099Entry[]> {
   const from = `${year}-01-01`;
   const to = `${year}-12-31`;
   const mappings = new Map(
@@ -43,6 +57,103 @@ export async function vendor1099Summary(
         .execute()
     ).map((m) => [m.account_id, m.box as Form1099Box]),
   );
+  const vendors = new Map(
+    (
+      await tx
+        .selectFrom('vendors')
+        .select(['id', 'display_name'])
+        .where('company_id', '=', companyId)
+        .where('is_1099', '=', true)
+        .execute()
+    ).map((v) => [v.id, v.display_name]),
+  );
+  const entries = new Map<string, Vendor1099Entry>();
+  const add = (
+    vendorId: string | null,
+    accountId: string,
+    amount: Money,
+    txn: { id: string; txn_type: string; txn_number: string | null; txn_date: string },
+  ) => {
+    const box = mappings.get(accountId);
+    if (!vendorId || !box || amount === 0n || !vendors.has(vendorId)) return;
+    const key = `${vendorId}|${txn.id}|${accountId}`;
+    const e = entries.get(key);
+    if (e) e.amount += amount;
+    else
+      entries.set(key, {
+        vendorId,
+        vendorName: vendors.get(vendorId)!,
+        txnId: txn.id,
+        txnType: txn.txn_type,
+        number: txn.txn_number,
+        date: txn.txn_date,
+        accountId,
+        box,
+        amount,
+      });
+  };
+  if (!mappings.size || !vendors.size) return [];
+
+  // Checks and expenses paid from a bank (not a card).
+  const direct = await sql<{
+    id: string;
+    txn_type: string;
+    txn_number: string | null;
+    txn_date: string;
+    vendor_id: string;
+    account_id: string;
+    net: string;
+  }>`
+    select t.id, t.txn_type, t.txn_number, t.txn_date::text, t.vendor_id, l.account_id,
+           sum(l.debit - l.credit) as net
+    from journal_lines l
+    join transactions t on t.id = l.transaction_id and t.version = l.version
+    join accounts pa on pa.id = t.payment_account_id
+    where l.company_id = ${companyId} and t.status = 'posted'
+      and t.txn_type in ('check', 'expense') and pa.account_type <> 'credit_card'
+      and l.txn_date between ${from} and ${to}
+      and l.account_id <> t.payment_account_id and t.vendor_id is not null
+    group by t.id, t.txn_type, t.txn_number, t.txn_date, t.vendor_id, l.account_id`.execute(tx);
+  for (const r of direct.rows) add(r.vendor_id, r.account_id, parseMoney(r.net), r);
+
+  // Bills and vendor credits, as bill payments applied them.
+  const recs = await recognitions(
+    tx,
+    companyId,
+    { from, to },
+    { targetTypes: ['bill', 'vendor_credit'] },
+  );
+  if (recs.length) {
+    const ids = [...new Set(recs.flatMap((r) => [r.targetId, r.paymentId]))];
+    const info = new Map(
+      (
+        await tx
+          .selectFrom('transactions as t')
+          .leftJoin('accounts as a', 'a.id', 't.payment_account_id')
+          .select(['t.id', 't.vendor_id', 't.txn_type', 't.txn_number', 'a.account_type'])
+          .where('t.id', 'in', ids)
+          .execute()
+      ).map((r) => [r.id, r]),
+    );
+    for (const r of recs) {
+      const payment = info.get(r.paymentId);
+      if (payment?.account_type === 'credit_card') continue;
+      add(info.get(r.targetId)?.vendor_id ?? null, r.accountId, r.amount, {
+        id: r.paymentId,
+        txn_type: payment?.txn_type ?? 'bill_payment',
+        txn_number: payment?.txn_number ?? null,
+        txn_date: r.date,
+      });
+    }
+  }
+  return [...entries.values()];
+}
+
+export async function vendor1099Summary(
+  tx: Tx,
+  companyId: string,
+  year: number,
+): Promise<Vendor1099SummaryDto> {
   const vendors = await tx
     .selectFrom('vendors')
     .select([
@@ -60,52 +171,10 @@ export async function vendor1099Summary(
     .execute();
   const data = loadTaxData<Form1099Data>(year, 'form-1099');
   const totals = new Map<string, Map<Form1099Box, Money>>();
-  const add = (vendorId: string | null, accountId: string, amount: Money) => {
-    const box = mappings.get(accountId);
-    if (!vendorId || !box || amount === 0n) return;
-    const boxes = totals.get(vendorId) ?? new Map<Form1099Box, Money>();
-    boxes.set(box, (boxes.get(box) ?? 0n) + amount);
-    totals.set(vendorId, boxes);
-  };
-
-  if (mappings.size && vendors.length) {
-    // Checks and expenses paid from a bank (not a card).
-    const direct = await sql<{ vendor_id: string; account_id: string; net: string }>`
-      select t.vendor_id, l.account_id, sum(l.debit - l.credit) as net
-      from journal_lines l
-      join transactions t on t.id = l.transaction_id and t.version = l.version
-      join accounts pa on pa.id = t.payment_account_id
-      where l.company_id = ${companyId} and t.status = 'posted'
-        and t.txn_type in ('check', 'expense') and pa.account_type <> 'credit_card'
-        and l.txn_date between ${from} and ${to}
-        and l.account_id <> t.payment_account_id and t.vendor_id is not null
-      group by t.vendor_id, l.account_id`.execute(tx);
-    for (const r of direct.rows) add(r.vendor_id, r.account_id, parseMoney(r.net));
-
-    // Bills and vendor credits, as bill payments applied them.
-    const recs = await recognitions(
-      tx,
-      companyId,
-      { from, to },
-      { targetTypes: ['bill', 'vendor_credit'] },
-    );
-    if (recs.length) {
-      const ids = [...new Set(recs.flatMap((r) => [r.targetId, r.paymentId]))];
-      const info = new Map(
-        (
-          await tx
-            .selectFrom('transactions as t')
-            .leftJoin('accounts as a', 'a.id', 't.payment_account_id')
-            .select(['t.id', 't.vendor_id', 'a.account_type'])
-            .where('t.id', 'in', ids)
-            .execute()
-        ).map((r) => [r.id, r]),
-      );
-      for (const r of recs) {
-        if (info.get(r.paymentId)?.account_type === 'credit_card') continue;
-        add(info.get(r.targetId)?.vendor_id ?? null, r.accountId, r.amount);
-      }
-    }
+  for (const e of await vendor1099Entries(tx, companyId, year)) {
+    const boxes = totals.get(e.vendorId) ?? new Map<Form1099Box, Money>();
+    boxes.set(e.box, (boxes.get(e.box) ?? 0n) + e.amount);
+    totals.set(e.vendorId, boxes);
   }
 
   const thresholds = data?.thresholds ?? {};

@@ -2,21 +2,32 @@
 
 import Link from 'next/link';
 import { notFound, useParams, usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { Suspense, useMemo, type FormEvent } from 'react';
+import { Suspense, useMemo, useState, type FormEvent } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
   DATE_PRESET_LABELS,
   DATE_PRESETS,
   presetRange,
+  REPORT_COLUMN_MODE_LABELS,
+  REPORT_COMPARISON_LABELS,
+  REPORT_FORMAT_LABELS,
+  REPORT_FORMATS,
+  reportKeyFromSlug,
   todayIso,
+  type BudgetSummaryDto,
   type DatePreset,
   type GeneralLedgerDto,
+  type MemorizedParamsInput,
   type ReportDto,
+  type ReportFormat,
+  type ReportRow,
 } from '@acct/shared';
 import { OptionSelect } from '@/components/ledger/pickers';
-import { LedgerView, StatementView, toCsv } from '@/components/reports/report-view';
+import { REPORT_CONFIG } from '@/components/reports/catalog';
+import { MemorizeDialog } from '@/components/reports/memorize-dialog';
+import { LedgerView, StatementView } from '@/components/reports/report-view';
 import { Alert, Button, Card, Spinner } from '@/components/ui';
-import { api, errorMessage } from '@/lib/api';
+import { api, downloadFile, errorMessage } from '@/lib/api';
 import { customerHref, txnHref, vendorHref } from '@/lib/links';
 import {
   keys,
@@ -24,151 +35,146 @@ import {
   useCompany,
   useCustomers,
   useSimpleList,
+  useTaxAgencies,
   useVendors,
 } from '@/lib/queries';
 
-interface ReportConfig {
-  pointInTime: boolean;
-  /** Class and location filters. */
-  filters: boolean;
-  defaultPreset: DatePreset;
-  /** Accrual / cash toggle. */
-  basis?: boolean;
-  /** Customer filter. */
-  customer?: boolean;
-  /** Vendor filter. */
-  vendor?: boolean;
+const FILTER_KEYS = [
+  'classId',
+  'locationId',
+  'accountId',
+  'customerId',
+  'vendorId',
+  'basis',
+  'columns',
+  'compare',
+  'budgetId',
+  'agencyId',
+] as const;
+const DRILL_KEYS = ['classId', 'locationId', 'customerId', 'vendorId'] as const;
+const selectClass = 'rounded-md border border-gray-300 px-2 py-1.5';
+
+function Labeled({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <label>
+      <span className="mb-1 block font-medium text-gray-700">{label}</span>
+      {children}
+    </label>
+  );
 }
-
-const REPORTS: Record<string, ReportConfig> = {
-  'profit-and-loss': {
-    pointInTime: false,
-    filters: true,
-    defaultPreset: 'this_fiscal_year_to_date',
-    basis: true,
-  },
-  'balance-sheet': {
-    pointInTime: true,
-    filters: false,
-    defaultPreset: 'this_fiscal_year_to_date',
-    basis: true,
-  },
-  'trial-balance': {
-    pointInTime: true,
-    filters: false,
-    defaultPreset: 'this_fiscal_year_to_date',
-    basis: true,
-  },
-  'general-ledger': { pointInTime: false, filters: true, defaultPreset: 'this_month' },
-  'ar-aging-summary': { pointInTime: true, filters: false, defaultPreset: 'today', customer: true },
-  'ar-aging-detail': { pointInTime: true, filters: false, defaultPreset: 'today', customer: true },
-  'open-invoices': { pointInTime: true, filters: false, defaultPreset: 'today', customer: true },
-  'customer-balance-summary': {
-    pointInTime: true,
-    filters: false,
-    defaultPreset: 'today',
-    customer: true,
-  },
-  'sales-by-customer': {
-    pointInTime: false,
-    filters: true,
-    defaultPreset: 'this_fiscal_year_to_date',
-    customer: true,
-  },
-  'sales-by-item': {
-    pointInTime: false,
-    filters: true,
-    defaultPreset: 'this_fiscal_year_to_date',
-    customer: true,
-  },
-  'ap-aging-summary': { pointInTime: true, filters: false, defaultPreset: 'today', vendor: true },
-  'ap-aging-detail': { pointInTime: true, filters: false, defaultPreset: 'today', vendor: true },
-  'unpaid-bills': { pointInTime: true, filters: false, defaultPreset: 'today', vendor: true },
-  'vendor-balance-summary': {
-    pointInTime: true,
-    filters: false,
-    defaultPreset: 'today',
-    vendor: true,
-  },
-  'expenses-by-vendor': {
-    pointInTime: false,
-    filters: true,
-    defaultPreset: 'this_fiscal_year_to_date',
-    vendor: true,
-  },
-  // The calendar year of "As of" (1099s are per calendar year).
-  'vendor-1099-summary': { pointInTime: true, filters: false, defaultPreset: 'today' },
-};
-
-const FILTER_KEYS = ['classId', 'locationId', 'accountId', 'customerId', 'vendorId', 'basis'];
 
 function ReportPage() {
   const { companyId, key } = useParams<{ companyId: string; key: string }>();
   const params = useSearchParams();
   const router = useRouter();
   const pathname = usePathname();
-  const cfg = REPORTS[key];
+  const cfg = REPORT_CONFIG[key];
+  const reportKey = reportKeyFromSlug(key);
   const company = useCompany(companyId);
   const classes = useSimpleList(companyId, 'classes');
   const locations = useSimpleList(companyId, 'locations');
   const accounts = useAccounts(companyId, true);
   const customers = useCustomers(companyId, true, !!cfg?.customer);
   const vendors = useVendors(companyId, true, !!cfg?.vendor);
-  if (!cfg) notFound();
+  const agencies = useTaxAgencies(companyId, !!cfg?.agency);
+  const budgets = useQuery({
+    queryKey: [...keys.budgets(companyId), 'list'],
+    queryFn: () => api<BudgetSummaryDto[]>(`/companies/${companyId}/budgets`),
+    enabled: !!cfg?.budget,
+  });
+  const [memorizing, setMemorizing] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
+  if (!cfg || !reportKey) notFound();
 
   const fyStart = company.data?.fiscalYearStartMonth ?? 1;
-  const defaults = presetRange(cfg.defaultPreset, todayIso(), fyStart);
+  const preset = (params.get('preset') ?? '') as DatePreset | '';
+  const defaults = presetRange(preset || cfg.defaultPreset, todayIso(), fyStart);
+  const budgetId = params.get('budgetId') ?? budgets.data?.[0]?.id ?? '';
+  const columns = params.get('columns') ?? '';
+  const showFrom = !cfg.pointInTime || (!!columns && columns !== 'total');
   const query = useMemo(() => {
     const q: Record<string, string> = { to: params.get('to') ?? defaults.to };
-    if (!cfg.pointInTime) q.from = params.get('from') ?? defaults.from;
+    if (showFrom) q.from = params.get('from') ?? defaults.from;
     for (const k of FILTER_KEYS) {
       const v = params.get(k);
       if (v) q[k] = v;
     }
+    if (cfg.budget && budgetId) q.budgetId = budgetId;
+    if (cfg.datesFromBudget) {
+      q.to = todayIso();
+      delete q.from;
+    }
     return q;
-  }, [params, defaults.from, defaults.to, cfg.pointInTime]);
+  }, [params, defaults.from, defaults.to, showFrom, cfg.budget, cfg.datesFromBudget, budgetId]);
 
+  const needsBudget = cfg.budget && !budgetId;
   const report = useQuery({
     queryKey: keys.report(companyId, key, query),
     queryFn: () =>
       api<ReportDto | GeneralLedgerDto>(
         `/companies/${companyId}/reports/${key}?${new URLSearchParams(query)}`,
       ),
-    enabled: company.isSuccess,
+    enabled: company.isSuccess && !needsBudget && (!cfg.budget || budgets.isSuccess),
   });
 
   function apply(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const f = new FormData(e.currentTarget);
     const next = new URLSearchParams();
-    for (const k of ['from', 'to', ...FILTER_KEYS]) {
+    for (const k of ['preset', 'from', 'to', ...FILTER_KEYS]) {
       const v = String(f.get(k) ?? '');
       if (v) next.set(k, v);
     }
     router.push(`${pathname}?${next}`);
   }
 
-  function onPreset(preset: string, form: HTMLFormElement) {
-    if (!preset) return;
-    const r = presetRange(preset as DatePreset, todayIso(), fyStart);
+  function onPreset(value: string, form: HTMLFormElement) {
+    if (!value) return;
+    const r = presetRange(value as DatePreset, todayIso(), fyStart);
     (form.elements.namedItem('to') as HTMLInputElement).value = r.to;
     const from = form.elements.namedItem('from') as HTMLInputElement | null;
     if (from) from.value = r.from;
   }
 
-  function download() {
-    if (!report.data) return;
-    const blob = new Blob([toCsv(report.data)], { type: 'text/csv;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${report.data.title.replace(/\s+/g, '-')}-${report.data.to}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+  async function exportAs(format: ReportFormat) {
+    setExportError(null);
+    try {
+      await downloadFile(
+        `/companies/${companyId}/reports/${key}/export?${new URLSearchParams({ ...query, format })}`,
+      );
+    } catch (err) {
+      setExportError(errorMessage(err));
+    }
   }
 
-  const glHref = (accountId: string, from: string | null, to: string) =>
-    `/c/${companyId}/reports/general-ledger?${new URLSearchParams({ accountId, ...(from ? { from } : {}), to, ...(query.classId ? { classId: query.classId } : {}), ...(query.locationId ? { locationId: query.locationId } : {}) })}`;
+  const memorizeParams: MemorizedParamsInput = {
+    datePreset: preset || 'custom',
+    ...(preset ? {} : { from: query.from, to: query.to }),
+    ...Object.fromEntries(FILTER_KEYS.filter((k) => query[k]).map((k) => [k, query[k]])),
+  };
+
+  const glHref = (accountId: string, drill: Record<string, string | null | undefined>) =>
+    `/c/${companyId}/reports/general-ledger?${new URLSearchParams(
+      Object.entries({ accountId, ...drill }).filter((e): e is [string, string] => !!e[1]),
+    )}`;
+  function drillHref(row: ReportRow, col: number): string | null {
+    if (row.txnId && row.txnType) return txnHref(companyId, row.txnType, row.txnId);
+    if (row.customerId) return customerHref(companyId, row.customerId);
+    if (row.vendorId) return vendorHref(companyId, row.vendorId);
+    if (!row.accountId) return null;
+    const r = report.data as ReportDto;
+    if (r.columnDrill) {
+      const d = r.columnDrill[col];
+      return d ? glHref(row.accountId, { ...d, from: d.from ?? undefined }) : null;
+    }
+    const filters = Object.fromEntries(DRILL_KEYS.map((k) => [k, query[k]]));
+    return glHref(row.accountId, { from: r.drillFrom, to: query.to, ...filters });
+  }
+
+  const dimOptions = (list: typeof classes.data) => [
+    { id: 'none', label: 'Not specified' },
+    ...(list ?? []).map((c) => ({ id: c.id, label: c.name, depth: c.depth })),
+  ];
 
   return (
     <>
@@ -182,80 +188,120 @@ function ReportPage() {
           key={JSON.stringify(query)}
           onSubmit={apply}
           className="flex flex-wrap items-end gap-3 text-sm"
+          data-testid="report-settings"
         >
-          <label>
-            <span className="mb-1 block font-medium text-gray-700">Report period</span>
-            <select
-              aria-label="Report period"
-              defaultValue=""
-              onChange={(e) => onPreset(e.target.value, e.currentTarget.form!)}
-              className="rounded-md border border-gray-300 px-2 py-1.5"
-            >
-              <option value="">Custom</option>
-              {DATE_PRESETS.map((p) => (
-                <option key={p} value={p}>
-                  {DATE_PRESET_LABELS[p]}
-                </option>
-              ))}
-            </select>
-          </label>
-          {!cfg.pointInTime && (
-            <label>
-              <span className="mb-1 block font-medium text-gray-700">From</span>
-              <input
-                type="date"
-                name="from"
-                defaultValue={query.from}
-                required
-                className="rounded-md border border-gray-300 px-2 py-1.5"
-              />
-            </label>
+          {!cfg.datesFromBudget && (
+            <>
+              <Labeled label="Report period">
+                <select
+                  name="preset"
+                  aria-label="Report period"
+                  defaultValue={preset}
+                  onChange={(e) => onPreset(e.target.value, e.currentTarget.form!)}
+                  className={selectClass}
+                >
+                  <option value="">Custom</option>
+                  {DATE_PRESETS.map((p) => (
+                    <option key={p} value={p}>
+                      {DATE_PRESET_LABELS[p]}
+                    </option>
+                  ))}
+                </select>
+              </Labeled>
+              {showFrom && (
+                <Labeled label="From">
+                  <input
+                    type="date"
+                    name="from"
+                    defaultValue={query.from}
+                    required
+                    className={selectClass}
+                  />
+                </Labeled>
+              )}
+              <Labeled label={cfg.pointInTime && !showFrom ? 'As of' : 'To'}>
+                <input
+                  type="date"
+                  name="to"
+                  defaultValue={query.to}
+                  required
+                  className={selectClass}
+                />
+              </Labeled>
+            </>
           )}
-          <label>
-            <span className="mb-1 block font-medium text-gray-700">
-              {cfg.pointInTime ? 'As of' : 'To'}
-            </span>
-            <input
-              type="date"
-              name="to"
-              defaultValue={query.to}
-              required
-              className="rounded-md border border-gray-300 px-2 py-1.5"
-            />
-          </label>
-          {cfg.filters && (classes.data?.length ?? 0) > 0 && (
-            <label>
-              <span className="mb-1 block font-medium text-gray-700">Class</span>
+          {cfg.columns && (
+            <Labeled label="Display columns by">
+              <select
+                name="columns"
+                aria-label="Display columns by"
+                defaultValue={columns}
+                className={selectClass}
+              >
+                <option value="">Total only</option>
+                {cfg.columns.map((c) => (
+                  <option key={c} value={c}>
+                    {REPORT_COLUMN_MODE_LABELS[c]}
+                  </option>
+                ))}
+              </select>
+            </Labeled>
+          )}
+          {cfg.compare && (
+            <Labeled label="Compare with">
+              <select
+                name="compare"
+                aria-label="Compare with"
+                defaultValue={query.compare ?? ''}
+                className={selectClass}
+              >
+                <option value="">Nothing</option>
+                {(['prior_year', 'prior_period'] as const).map((c) => (
+                  <option key={c} value={c}>
+                    {REPORT_COMPARISON_LABELS[c]}
+                  </option>
+                ))}
+              </select>
+            </Labeled>
+          )}
+          {cfg.budget && (
+            <Labeled label="Budget">
+              <select
+                name="budgetId"
+                aria-label="Budget"
+                defaultValue={budgetId}
+                className={selectClass}
+              >
+                {(budgets.data ?? []).map((b) => (
+                  <option key={b.id} value={b.id}>
+                    {b.name}
+                  </option>
+                ))}
+              </select>
+            </Labeled>
+          )}
+          {cfg.classes && (classes.data?.length ?? 0) > 0 && (
+            <Labeled label="Class">
               <OptionSelect
                 name="classId"
                 defaultValue={query.classId ?? ''}
                 placeholder="All"
-                options={(classes.data ?? []).map((c) => ({
-                  id: c.id,
-                  label: c.name,
-                  depth: c.depth,
-                }))}
+                options={dimOptions(classes.data)}
               />
-            </label>
+            </Labeled>
           )}
-          {cfg.filters && (locations.data?.length ?? 0) > 0 && (
-            <label>
-              <span className="mb-1 block font-medium text-gray-700">Location</span>
+          {cfg.classes && (locations.data?.length ?? 0) > 0 && (
+            <Labeled label="Location">
               <OptionSelect
                 name="locationId"
                 defaultValue={query.locationId ?? ''}
                 placeholder="All"
-                options={(locations.data ?? []).map((c) => ({
-                  id: c.id,
-                  label: c.name,
-                  depth: c.depth,
-                }))}
+                options={dimOptions(locations.data)}
               />
-            </label>
+            </Labeled>
           )}
           {cfg.customer && (
-            <label>
-              <span className="mb-1 block font-medium text-gray-700">Customer</span>
+            <Labeled label="Customer">
               <OptionSelect
                 name="customerId"
                 defaultValue={query.customerId ?? ''}
@@ -267,11 +313,10 @@ function ReportPage() {
                 }))}
                 className="w-56"
               />
-            </label>
+            </Labeled>
           )}
           {cfg.vendor && (
-            <label>
-              <span className="mb-1 block font-medium text-gray-700">Vendor</span>
+            <Labeled label="Vendor">
               <OptionSelect
                 name="vendorId"
                 defaultValue={query.vendorId ?? ''}
@@ -279,16 +324,25 @@ function ReportPage() {
                 options={(vendors.data ?? []).map((v) => ({ id: v.id, label: v.displayName }))}
                 className="w-56"
               />
-            </label>
+            </Labeled>
+          )}
+          {cfg.agency && (
+            <Labeled label="Agency">
+              <OptionSelect
+                name="agencyId"
+                defaultValue={query.agencyId ?? ''}
+                placeholder="All agencies"
+                options={(agencies.data ?? []).map((a) => ({ id: a.id, label: a.name }))}
+              />
+            </Labeled>
           )}
           {cfg.basis && (
-            <label>
-              <span className="mb-1 block font-medium text-gray-700">Accounting method</span>
+            <Labeled label="Accounting method">
               <select
                 name="basis"
                 aria-label="Accounting method"
                 defaultValue={query.basis ?? ''}
-                className="rounded-md border border-gray-300 px-2 py-1.5"
+                className={selectClass}
               >
                 <option value="">
                   Company default ({company.data?.accountingBasis === 'cash' ? 'cash' : 'accrual'})
@@ -296,59 +350,92 @@ function ReportPage() {
                 <option value="accrual">Accrual</option>
                 <option value="cash">Cash</option>
               </select>
-            </label>
+            </Labeled>
           )}
-          {key === 'general-ledger' && (
-            <label>
-              <span className="mb-1 block font-medium text-gray-700">Account</span>
+          {cfg.account && (
+            <Labeled label={cfg.account === 'bank' ? 'Bank account' : 'Account'}>
               <OptionSelect
                 name="accountId"
                 defaultValue={query.accountId ?? ''}
-                placeholder="All accounts"
-                options={(accounts.data ?? []).map((a) => ({
-                  id: a.id,
-                  label: a.name,
-                  depth: a.depth,
-                }))}
+                placeholder={cfg.account === 'bank' ? 'All bank accounts' : 'All accounts'}
+                options={(accounts.data ?? [])
+                  .filter((a) => cfg.account !== 'bank' || a.accountType === 'bank')
+                  .map((a) => ({ id: a.id, label: a.name, depth: a.depth }))}
                 className="w-56"
               />
-            </label>
+            </Labeled>
           )}
           <Button type="submit">Run report</Button>
-          <div className="ml-auto flex gap-2">
-            <Button type="button" variant="secondary" onClick={download} disabled={!report.data}>
-              Export CSV
-            </Button>
+          <div className="ml-auto flex flex-wrap gap-2">
+            <details className="relative">
+              <summary
+                className="cursor-pointer list-none rounded-md border border-gray-300 bg-white px-3 py-1.5 font-medium text-gray-700 hover:bg-gray-50"
+                aria-label="Export"
+              >
+                Export ▾
+              </summary>
+              <div className="absolute right-0 z-10 mt-1 w-40 rounded-md border border-gray-200 bg-white py-1 shadow-lg">
+                {REPORT_FORMATS.map((f) => (
+                  <button
+                    key={f}
+                    type="button"
+                    className="block w-full px-3 py-1.5 text-left hover:bg-gray-50"
+                    disabled={!report.data}
+                    onClick={() => exportAs(f)}
+                  >
+                    {REPORT_FORMAT_LABELS[f]}
+                  </button>
+                ))}
+              </div>
+            </details>
             <Button type="button" variant="secondary" onClick={() => window.print()}>
               Print
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => setMemorizing(true)}
+              disabled={!report.data}
+            >
+              Memorize
             </Button>
           </div>
         </form>
       </Card>
+      {exportError && (
+        <div className="mb-4">
+          <Alert>{exportError}</Alert>
+        </div>
+      )}
       <Card className="p-6 print:border-0 print:shadow-none">
-        {report.isError ? (
+        {needsBudget && budgets.isSuccess ? (
+          <p className="text-sm text-gray-600">
+            There are no budgets yet.{' '}
+            <Link href={`/c/${companyId}/reports/budgets`} className="text-brand-700 underline">
+              Create one
+            </Link>
+            .
+          </p>
+        ) : report.isError ? (
           <Alert>{errorMessage(report.error)}</Alert>
         ) : !report.data ? (
           <Spinner />
-        ) : report.data.key === 'general_ledger' ? (
+        ) : 'accounts' in report.data ? (
           <LedgerView report={report.data} txnHref={(type, id) => txnHref(companyId, type, id)} />
         ) : (
-          <StatementView
-            report={report.data}
-            drillHref={(row) =>
-              row.txnId && row.txnType
-                ? txnHref(companyId, row.txnType, row.txnId)
-                : row.customerId
-                  ? customerHref(companyId, row.customerId)
-                  : row.vendorId
-                    ? vendorHref(companyId, row.vendorId)
-                    : row.accountId
-                      ? glHref(row.accountId, (report.data as ReportDto).drillFrom, query.to!)
-                      : null
-            }
-          />
+          <StatementView report={report.data} drillHref={drillHref} />
         )}
       </Card>
+      {memorizing && report.data && (
+        <MemorizeDialog
+          open
+          onClose={() => setMemorizing(false)}
+          companyId={companyId}
+          reportKey={reportKey!}
+          defaultName={report.data.title}
+          params={memorizeParams}
+        />
+      )}
     </>
   );
 }

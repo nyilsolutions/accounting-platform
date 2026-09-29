@@ -43,6 +43,31 @@ function monthEnd(y: number, m: number): IsoDate {
   return fmt(new Date(Date.UTC(y, m, 0)));
 }
 
+/** First day of the month containing `date`. */
+export function monthStartOf(date: IsoDate): IsoDate {
+  const [y, m] = parts(date);
+  return monthStart(y, m);
+}
+
+/** Last day of the month containing `date`. */
+export function monthEndOf(date: IsoDate): IsoDate {
+  const [y, m] = parts(date);
+  return monthEnd(y, m);
+}
+
+/** The same day `n` months later (or earlier), clamped to the month's last day. */
+export function addMonths(date: IsoDate, n: number): IsoDate {
+  const [y, m, d] = parts(date);
+  const last = new Date(Date.UTC(y, m - 1 + n + 1, 0)).getUTCDate();
+  return fmt(new Date(Date.UTC(y, m - 1 + n, Math.min(d, last))));
+}
+
+/** Day of the week, 0 = Sunday. */
+export function weekday(date: IsoDate): number {
+  const [y, m, d] = parts(date);
+  return new Date(Date.UTC(y, m - 1, d)).getUTCDay();
+}
+
 /** First day of the fiscal year containing `date` (fiscal year starts on the 1st of `startMonth`). */
 export function fiscalYearStart(date: IsoDate, startMonth: number): IsoDate {
   const [y, m] = parts(date);
@@ -57,6 +82,9 @@ export function fiscalYearEnd(date: IsoDate, startMonth: number): IsoDate {
 
 export const DATE_PRESETS = [
   'today',
+  'this_week',
+  'last_week',
+  'last_30_days',
   'this_month',
   'last_month',
   'this_fiscal_quarter',
@@ -69,6 +97,9 @@ export type DatePreset = (typeof DATE_PRESETS)[number];
 
 export const DATE_PRESET_LABELS: Record<DatePreset, string> = {
   today: 'Today',
+  this_week: 'This week',
+  last_week: 'Last week',
+  last_30_days: 'Last 30 days',
   this_month: 'This month',
   last_month: 'Last month',
   this_fiscal_quarter: 'This fiscal quarter',
@@ -87,6 +118,16 @@ export function presetRange(
   switch (preset) {
     case 'today':
       return { from: today, to: today };
+    case 'this_week': {
+      const start = addDays(today, -weekday(today));
+      return { from: start, to: addDays(start, 6) };
+    }
+    case 'last_week': {
+      const start = addDays(today, -weekday(today) - 7);
+      return { from: start, to: addDays(start, 6) };
+    }
+    case 'last_30_days':
+      return { from: addDays(today, -29), to: today };
     case 'this_month':
       return { from: monthStart(y, m), to: monthEnd(y, m) };
     case 'last_month': {

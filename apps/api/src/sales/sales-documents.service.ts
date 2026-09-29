@@ -27,6 +27,12 @@ import type { AuthContext, CompanyContext, RequestMeta } from '../common/request
 import { DB } from '../db/db.module';
 import { PostingService, type PostingLine } from '../ledger/posting.service';
 import { MAILER, type Mailer } from '../mail/mailer';
+import { replaceSalesTaxLines } from '../sales-tax/sales-tax-ledger';
+import {
+  SALES_TAX_CALCULATOR,
+  type SalesTaxCalculation,
+  type SalesTaxCalculator,
+} from '../sales-tax/tax-calculator';
 import { depositsOf, nextDocumentNumber, systemAccount, validationError } from './sales-common';
 
 type SalesDocumentInput = z.output<typeof salesDocumentInputSchema>;
@@ -67,7 +73,9 @@ export const FORBIDDEN_LINE_ACCOUNTS = [
  *   credit memo     Dr income lines   Cr A/R
  *   refund receipt  Dr income lines   Cr bank/credit card
  *
- * Negative (discount) lines flip sides. A/R lines always carry the customer.
+ * Negative (discount) lines flip sides. A/R lines always carry the customer. Sales tax on the
+ * taxable lines (the document's rate, per agency) goes to Sales Tax Payable on the income side,
+ * and is recorded per agency in sales_tax_lines (ADR 0014).
  */
 @Injectable()
 export class SalesDocumentsService {
@@ -75,6 +83,7 @@ export class SalesDocumentsService {
     @Inject(DB) private readonly db: Db,
     @Inject(APP_CONFIG) private readonly config: AppConfig,
     @Inject(MAILER) private readonly mailer: Mailer,
+    @Inject(SALES_TAX_CALCULATOR) private readonly taxCalculator: SalesTaxCalculator,
     private readonly posting: PostingService,
     private readonly audit: AuditService,
   ) {}
@@ -135,11 +144,12 @@ export class SalesDocumentsService {
         validationError([{ path: 'customerId', message: 'Choose a customer' }]),
       );
     }
-    let customer: { id: string; is_active: boolean; terms_id: string | null } | undefined;
+    let customer:
+      { id: string; is_active: boolean; terms_id: string | null; tax_exempt: boolean } | undefined;
     if (input.customerId) {
       customer = await tx
         .selectFrom('customers')
-        .select(['id', 'is_active', 'terms_id'])
+        .select(['id', 'is_active', 'terms_id', 'tax_exempt'])
         .where('id', '=', input.customerId)
         .where('company_id', '=', companyId)
         .executeTakeFirst();
@@ -152,12 +162,51 @@ export class SalesDocumentsService {
 
     // --- Lines -----------------------------------------------------------------------------
     const lines = await this.resolveLines(tx, companyId, input);
-    const total = lines.reduce((s, l) => s + l.amount, 0n);
-    if (total <= 0n) {
+    const subtotal = lines.reduce((s, l) => s + l.amount, 0n);
+    if (subtotal <= 0n) {
       throw new BadRequestException(
         validationError([{ path: 'lines', message: 'The total must be greater than zero' }]),
       );
     }
+
+    // --- Sales tax ---------------------------------------------------------------------------
+    // An edit that doesn't mention the rate keeps the one the document has.
+    const taxRateId = input.taxRateId === undefined ? (before?.taxRateId ?? null) : input.taxRateId;
+    let tax: SalesTaxCalculation | null = null;
+    if (taxRateId) {
+      const rate = await tx
+        .selectFrom('tax_rates')
+        .select('is_active')
+        .where('id', '=', taxRateId)
+        .where('company_id', '=', companyId)
+        .executeTakeFirst();
+      if (!rate || (!rate.is_active && taxRateId !== before?.taxRateId)) {
+        throw new BadRequestException(
+          validationError([{ path: 'taxRateId', message: 'Sales tax rate not found or inactive' }]),
+        );
+      }
+      tax = await this.taxCalculator.calculate(tx, {
+        companyId,
+        txnDate: input.txnDate,
+        customerId: input.customerId ?? null,
+        exempt: customer?.tax_exempt ?? false,
+        rateId: taxRateId,
+        lines: lines.map((l) => ({ itemId: l.itemId, amount: l.amount, taxable: l.taxable })),
+        override: input.taxAmount != null ? parseMoney(input.taxAmount) : null,
+      });
+      if (tax.components.some((c) => c.amount < 0n)) {
+        throw new BadRequestException(
+          validationError([
+            { path: 'taxAmount', message: 'Sales tax cannot be negative. Check the discounts.' },
+          ]),
+        );
+      }
+    } else if (input.taxAmount != null && parseMoney(input.taxAmount) !== 0n) {
+      throw new BadRequestException(
+        validationError([{ path: 'taxRateId', message: 'Choose the sales tax rate' }]),
+      );
+    }
+    const total = subtotal + (tax?.total ?? 0n);
 
     // --- Rules that protect payments, credits and deposits ---------------------------------
     if (before) {
@@ -261,6 +310,15 @@ export class SalesDocumentsService {
         }),
       );
     }
+    if (tax) {
+      const stp = await systemAccount(tx, companyId, 'sales_tax_payable');
+      for (const c of tax.components) {
+        if (c.amount === 0n) continue;
+        journal.push(
+          line(stp, c.amount, totalIsDebit, { description: `${c.rateName} (${c.agencyName})` }),
+        );
+      }
+    }
 
     const header = {
       txnType: type,
@@ -283,6 +341,7 @@ export class SalesDocumentsService {
         billTo: input.billTo ?? null,
         emailTo: input.emailTo ?? null,
         total: moneyToString(total, 2),
+        taxRateId,
       },
     };
     const postingCtx = { companyId, userId: auth.userId, closingPassword: input.closingPassword };
@@ -310,6 +369,20 @@ export class SalesDocumentsService {
         })),
       )
       .execute();
+    // Tax charged raises what is owed to each agency; credits and refunds give it back.
+    const sign = type === 'invoice' || type === 'sales_receipt' ? 1n : -1n;
+    await replaceSalesTaxLines(
+      tx,
+      companyId,
+      txnId!,
+      (tax?.components ?? []).map((c) => ({
+        agencyId: c.agencyId,
+        taxRateId: c.rateId,
+        rate: c.rate,
+        taxable: sign * c.taxable,
+        amount: sign * c.amount,
+      })),
+    );
 
     const after = await this.load(tx, companyId, type, txnId!);
     await this.audit.record(
@@ -401,6 +474,12 @@ export class SalesDocumentsService {
           (l) => `  ${(l.itemName ?? l.description ?? '').padEnd(40)} ${l.amount.padStart(12)}`,
         ),
         '',
+        ...(doc.taxLines.length
+          ? [
+              `Subtotal: ${doc.subtotal}`,
+              ...doc.taxLines.map((t) => `${t.rateName ?? t.agencyName}: ${t.amount}`),
+            ]
+          : []),
         `Total: ${doc.total}`,
         ...(type === 'invoice' ? [`Balance due: ${doc.balance}`] : []),
         ...(doc.customerMessage ? ['', doc.customerMessage] : []),
@@ -466,7 +545,40 @@ export class SalesDocumentsService {
       .where('p.status', '=', 'posted')
       .orderBy('p.txn_date')
       .execute();
+    const taxLines = await tx
+      .selectFrom('sales_tax_lines as stl')
+      .innerJoin('tax_agencies as a', 'a.id', 'stl.agency_id')
+      .leftJoin('tax_rates as r', 'r.id', 'stl.tax_rate_id')
+      .select([
+        'stl.agency_id',
+        'a.name as agency_name',
+        'stl.tax_rate_id',
+        'r.name as rate_name',
+        'stl.rate',
+        'stl.taxable_amount',
+        'stl.amount',
+      ])
+      .where('stl.transaction_id', '=', id)
+      .orderBy('stl.line_no')
+      .execute();
+    const rateName = t.tax_rate_id
+      ? ((
+          await tx
+            .selectFrom('tax_rates')
+            .select('name')
+            .where('id', '=', t.tax_rate_id)
+            .executeTakeFirst()
+        )?.name ?? null)
+      : null;
     const total = parseMoney(t.total ?? '0');
+    const abs = (v: string) => {
+      const m = parseMoney(v);
+      return moneyToString(m < 0n ? -m : m);
+    };
+    const taxTotal = taxLines.reduce((s, l) => {
+      const m = parseMoney(l.amount);
+      return s + (m < 0n ? -m : m);
+    }, 0n);
     const appliedSum = applied.reduce((s, a) => s + parseMoney(a.amount), 0n);
     const depositId = (await depositsOf(tx, [id])).get(id) ?? null;
     const balance = type === 'invoice' || type === 'credit_memo' ? total - appliedSum : 0n;
@@ -499,6 +611,19 @@ export class SalesDocumentsService {
         serviceDate: l.service_date,
         taxable: l.taxable,
       })),
+      subtotal: moneyToString(total - taxTotal),
+      taxRateId: t.tax_rate_id,
+      taxRateName: rateName,
+      taxLines: taxLines.map((l) => ({
+        agencyId: l.agency_id,
+        agencyName: l.agency_name,
+        taxRateId: l.tax_rate_id,
+        rateName: l.rate_name,
+        rate: l.rate === null ? null : trimZeros(l.rate),
+        taxable: abs(l.taxable_amount),
+        amount: abs(l.amount),
+      })),
+      taxTotal: moneyToString(taxTotal),
       total: moneyToString(total),
       balance: moneyToString(balance),
       status: t.status === 'void' ? 'void' : 'posted',
@@ -655,6 +780,7 @@ function auditView(d: SalesDocumentDto): Record<string, unknown> {
     date: d.txnDate,
     dueDate: d.dueDate,
     customer: d.customerName,
+    tax: d.taxTotal !== '0.00' ? `${d.taxRateName ?? ''} ${d.taxTotal}` : undefined,
     total: d.total,
     memo: d.memo,
     lines: d.lines.map(

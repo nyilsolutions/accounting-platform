@@ -27,8 +27,10 @@ import { makePdf } from './documents/pdf-fixture';
 import { ReceiptsService } from './documents/receipts.service';
 import { EstimatesService } from './sales/estimates.service';
 import { PaymentsService } from './sales/payments.service';
+import { RateTableCalculator } from './sales-tax/tax-calculator';
 import { SalesDocumentsService } from './sales/sales-documents.service';
 import { IMPORTED_COMPANY, seedMigration } from './seed-migration';
+import { seedPhase7 } from './seed-phase7';
 
 const DEMO_EMAIL = 'demo@example.com';
 const DEMO_PASSWORD = 'demo-password-change-me';
@@ -160,6 +162,7 @@ async function main(): Promise<void> {
         .executeTakeFirst(),
     );
     if (!hasDocuments) await seedDocuments(db, config, enc, userId, companyId!);
+    await seedPhase7(db, config, userId, companyId!);
     await seedMigration(db, config, userId);
 
     console.log(
@@ -295,10 +298,17 @@ async function seedSales(
   const audit = new AuditService(db);
   const posting = new PostingService();
   const noMail: Mailer = { send: async () => undefined };
-  const documents = new SalesDocumentsService(db, config, noMail, posting, audit);
+  const documents = new SalesDocumentsService(
+    db,
+    config,
+    noMail,
+    new RateTableCalculator(),
+    posting,
+    audit,
+  );
   const payments = new PaymentsService(db, posting, audit);
   const deposits = new DepositsService(db, posting, audit);
-  const estimates = new EstimatesService(db, noMail, documents, audit);
+  const estimates = new EstimatesService(db, noMail, new RateTableCalculator(), documents, audit);
   const auth = {
     userId,
     sessionId: 'seed',
