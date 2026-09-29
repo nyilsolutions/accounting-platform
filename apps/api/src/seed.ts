@@ -13,6 +13,9 @@ import { loadConfig, type AppConfig } from './config';
 import { LedgerSetupService } from './ledger/ledger-setup.service';
 import { PostingService } from './ledger/posting.service';
 import type { Mailer } from './mail/mailer';
+import { BillPaymentsService } from './purchases/bill-payments.service';
+import { PurchaseDocumentsService } from './purchases/purchase-documents.service';
+import { PurchaseOrdersService } from './purchases/purchase-orders.service';
 import { DepositsService } from './sales/deposits.service';
 import { EstimatesService } from './sales/estimates.service';
 import { PaymentsService } from './sales/payments.service';
@@ -123,6 +126,15 @@ async function main(): Promise<void> {
         .executeTakeFirst(),
     );
     if (!hasSales) await seedSales(db, config, userId, companyId!);
+    const hasPurchases = await withTenant(db, { userId, companyId }, (tx) =>
+      tx
+        .selectFrom('transactions')
+        .select('id')
+        .where('company_id', '=', companyId!)
+        .where('txn_type', '=', 'bill')
+        .executeTakeFirst(),
+    );
+    if (!hasPurchases) await seedPurchases(db, userId, companyId!);
 
     console.log(
       [
@@ -393,6 +405,175 @@ async function seedSales(
           accountId: acct('Services'),
           description: 'Front bed redesign and planting',
           amount: '1850',
+        },
+      ],
+    },
+    meta,
+  );
+}
+
+/**
+ * Demo purchases: a paid and an unpaid bill, a check waiting to be printed, a credit card
+ * expense, an open purchase order and a 1099 contractor, created through the purchase services.
+ */
+async function seedPurchases(db: Db, userId: string, companyId: string): Promise<void> {
+  const audit = new AuditService(db);
+  const posting = new PostingService();
+  const documents = new PurchaseDocumentsService(db, posting, audit);
+  const payments = new BillPaymentsService(db, posting, audit);
+  const orders = new PurchaseOrdersService(db, documents, audit);
+  const auth = {
+    userId,
+    sessionId: 'seed',
+    email: DEMO_EMAIL,
+    fullName: 'Demo Owner',
+    mfaEnrolled: true,
+    mfaVerified: true,
+  } as AuthContext;
+  const ctx = { companyId, role: 'owner', permissions: [] } as unknown as CompanyContext;
+  const meta = { ip: null, userAgent: 'seed', requestId: null };
+
+  const { vendors, accounts } = await withTenant(db, { userId, companyId }, async (tx) => ({
+    vendors: await tx
+      .selectFrom('vendors')
+      .select(['id', 'display_name'])
+      .where('company_id', '=', companyId)
+      .execute(),
+    accounts: await tx
+      .selectFrom('accounts')
+      .select(['id', 'name'])
+      .where('company_id', '=', companyId)
+      .execute(),
+  }));
+  const acct = (name: string) => accounts.find((a) => a.name === name)!.id;
+  const supply = vendors.find((v) => v.display_name === 'Green Supply Co.')!.id;
+  const rivera = await withTenant(db, { userId, companyId }, async (tx) => {
+    const id = (
+      await tx
+        .insertInto('vendors')
+        .values({
+          company_id: companyId,
+          display_name: 'Rivera Tree Service',
+          is_1099: true,
+          address_line1: '41 Oak Ln',
+          city: 'Austin',
+          state: 'TX',
+          postal_code: '78704',
+          created_by: userId,
+          updated_by: userId,
+        })
+        .returning('id')
+        .executeTakeFirstOrThrow()
+    ).id;
+    await tx
+      .insertInto('vendor_1099_accounts')
+      .values({ company_id: companyId, account_id: acct('Contract Labor'), box: 'nec_1' })
+      .execute();
+    return id;
+  });
+
+  const year = new Date().getFullYear();
+  const paid = await documents.save(
+    auth,
+    ctx,
+    'bill',
+    null,
+    {
+      vendorId: supply,
+      txnDate: `${year}-01-20`,
+      dueDate: `${year}-02-19`,
+      number: 'GS-2041',
+      lines: [
+        {
+          accountId: acct('Cost of Goods Sold'),
+          description: 'Mulch and spring plants',
+          amount: '1250',
+        },
+      ],
+    },
+    meta,
+  );
+  await payments.save(
+    auth,
+    ctx,
+    null,
+    {
+      vendorId: supply,
+      txnDate: `${year}-02-10`,
+      paymentAccountId: acct('Checking'),
+      number: '1001',
+      applications: [{ targetId: paid.id, amount: '1250' }],
+    },
+    meta,
+  );
+  await documents.save(
+    auth,
+    ctx,
+    'bill',
+    null,
+    {
+      vendorId: supply,
+      txnDate: `${year}-03-18`,
+      dueDate: `${year}-04-17`,
+      number: 'GS-2107',
+      lines: [
+        {
+          accountId: acct('Repairs and Maintenance'),
+          description: 'Mower blades and belts',
+          amount: '380',
+        },
+      ],
+    },
+    meta,
+  );
+  await documents.save(
+    auth,
+    ctx,
+    'check',
+    null,
+    {
+      vendorId: rivera,
+      txnDate: `${year}-03-05`,
+      paymentAccountId: acct('Checking'),
+      printLater: true,
+      memo: 'Oak removal, Hillside HOA',
+      lines: [
+        { accountId: acct('Contract Labor'), description: 'Tree removal crew', amount: '1800' },
+      ],
+    },
+    meta,
+  );
+  await documents.save(
+    auth,
+    ctx,
+    'expense',
+    null,
+    {
+      txnDate: `${year}-03-12`,
+      paymentAccountId: acct('Credit Card'),
+      lines: [
+        {
+          accountId: acct('Office Supplies and Software'),
+          description: 'Scheduling software',
+          amount: '129.99',
+        },
+      ],
+    },
+    meta,
+  );
+  await orders.save(
+    auth,
+    ctx,
+    null,
+    {
+      vendorId: supply,
+      txnDate: `${year}-04-01`,
+      expectedDate: `${year}-04-15`,
+      lines: [
+        {
+          accountId: acct('Cost of Goods Sold'),
+          description: 'Perennials for spring installs',
+          amount: '900',
         },
       ],
     },
