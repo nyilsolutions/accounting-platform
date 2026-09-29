@@ -16,6 +16,20 @@ import {
 } from '@acct/shared';
 import type { AuthContext, CompanyContext } from '../common/request';
 import { DB } from '../db/db.module';
+import { arOpenItems } from '../sales/ar-ledger';
+import {
+  AGING_COLUMNS,
+  AR_DETAIL_TEXT_COLUMNS,
+  arAgingDetail,
+  arAgingSummary,
+  customerBalanceSummary,
+  OPEN_INVOICES_TEXT_COLUMNS,
+  openInvoices,
+  salesByCustomer,
+  salesByItem,
+  type SalesAggregate,
+} from './ar-report-builder';
+import { cashRecognition, type CashFilter } from './cash-basis';
 import {
   accountRowsFlat,
   balanceSheet,
@@ -31,21 +45,22 @@ interface CompanyInfo {
   legal_name: string;
   fiscal_year_start_month: number;
   use_account_numbers: boolean;
+  accounting_basis: string;
 }
 
-interface NetFilter {
-  from?: string | null;
-  to: string;
-  classId?: string;
-  locationId?: string;
+type Basis = 'accrual' | 'cash';
+
+interface NetFilter extends CashFilter {
+  basis?: Basis;
 }
 
 /**
  * Financial reports. All figures come from posted transactions' current-version journal lines,
  * so voided, deleted and superseded postings never appear.
  *
- * Phase 1 reports are accrual basis. Cash-basis conversion arrives with invoices and bills
- * (Phase 2/3), when there is something to convert.
+ * Profit and Loss, Balance Sheet and Trial Balance run on the accrual or cash basis (the
+ * company's preference unless the query says otherwise); see cash-basis.ts. The General Ledger is
+ * always accrual: it lists the postings as recorded.
  */
 @Injectable()
 export class ReportsService {
@@ -54,23 +69,26 @@ export class ReportsService {
   profitAndLoss(auth: AuthContext, ctx: CompanyContext, q: ReportQuery): Promise<ReportDto> {
     return this.run(auth, ctx, async (tx, company, accounts) => {
       const from = q.from ?? fiscalYearStart(q.to, company.fiscal_year_start_month);
+      const basis = basisOf(q, company);
       const net = await this.net(tx, ctx.companyId, {
         from,
         to: q.to,
         classId: q.classId,
         locationId: q.locationId,
+        basis,
       });
       const { rows } = profitAndLoss(accounts, net, { useNumbers: company.use_account_numbers });
-      return this.dto('profit_and_loss', company, from, q.to, ['Total'], rows, from);
+      return this.dto('profit_and_loss', company, basis, from, q.to, ['Total'], rows, from);
     });
   }
 
   balanceSheet(auth: AuthContext, ctx: CompanyContext, q: ReportQuery): Promise<ReportDto> {
     return this.run(auth, ctx, async (tx, company, accounts) => {
       const fys = fiscalYearStart(q.to, company.fiscal_year_start_month);
-      const net = await this.net(tx, ctx.companyId, { to: q.to });
-      const prior = await this.net(tx, ctx.companyId, { to: addDays(fys, -1) });
-      const current = await this.net(tx, ctx.companyId, { from: fys, to: q.to });
+      const basis = basisOf(q, company);
+      const net = await this.net(tx, ctx.companyId, { to: q.to, basis });
+      const prior = await this.net(tx, ctx.companyId, { to: addDays(fys, -1), basis });
+      const current = await this.net(tx, ctx.companyId, { from: fys, to: q.to, basis });
       const { rows } = balanceSheet(
         accounts,
         net,
@@ -80,16 +98,17 @@ export class ReportsService {
           useNumbers: company.use_account_numbers,
         },
       );
-      return this.dto('balance_sheet', company, null, q.to, ['Total'], rows, fys);
+      return this.dto('balance_sheet', company, basis, null, q.to, ['Total'], rows, fys);
     });
   }
 
   trialBalance(auth: AuthContext, ctx: CompanyContext, q: ReportQuery): Promise<ReportDto> {
     return this.run(auth, ctx, async (tx, company, accounts) => {
       const fys = fiscalYearStart(q.to, company.fiscal_year_start_month);
-      const bsNet = await this.net(tx, ctx.companyId, { to: q.to });
-      const plNet = await this.net(tx, ctx.companyId, { from: fys, to: q.to });
-      const prior = await this.net(tx, ctx.companyId, { to: addDays(fys, -1) });
+      const basis = basisOf(q, company);
+      const bsNet = await this.net(tx, ctx.companyId, { to: q.to, basis });
+      const plNet = await this.net(tx, ctx.companyId, { from: fys, to: q.to, basis });
+      const prior = await this.net(tx, ctx.companyId, { to: addDays(fys, -1), basis });
       const combined = new Map<string, Money>();
       for (const a of accounts) {
         const src =
@@ -102,7 +121,7 @@ export class ReportsService {
       const { rows } = trialBalance(accounts, combined, netIncomeOf(accounts, prior), {
         useNumbers: company.use_account_numbers,
       });
-      return this.dto('trial_balance', company, null, q.to, ['Debit', 'Credit'], rows, fys);
+      return this.dto('trial_balance', company, basis, null, q.to, ['Debit', 'Credit'], rows, fys);
     });
   }
 
@@ -244,8 +263,159 @@ export class ReportsService {
     });
   }
 
+  // ---- Accounts receivable ------------------------------------------------------------------
+  arAgingSummary(auth: AuthContext, ctx: CompanyContext, q: ReportQuery): Promise<ReportDto> {
+    return this.run(auth, ctx, async (tx, company) => {
+      const items = await arOpenItems(tx, ctx.companyId, q.to, q.customerId);
+      return this.dto(
+        'ar_aging_summary',
+        company,
+        'accrual',
+        null,
+        q.to,
+        AGING_COLUMNS,
+        arAgingSummary(items, q.to),
+        null,
+      );
+    });
+  }
+
+  arAgingDetail(auth: AuthContext, ctx: CompanyContext, q: ReportQuery): Promise<ReportDto> {
+    return this.run(auth, ctx, async (tx, company) => {
+      const items = await arOpenItems(tx, ctx.companyId, q.to, q.customerId);
+      return {
+        ...this.dto(
+          'ar_aging_detail',
+          company,
+          'accrual',
+          null,
+          q.to,
+          ['Amount', 'Open balance'],
+          arAgingDetail(items, q.to),
+          null,
+        ),
+        textColumns: AR_DETAIL_TEXT_COLUMNS,
+      };
+    });
+  }
+
+  openInvoices(auth: AuthContext, ctx: CompanyContext, q: ReportQuery): Promise<ReportDto> {
+    return this.run(auth, ctx, async (tx, company) => {
+      const items = await arOpenItems(tx, ctx.companyId, q.to, q.customerId);
+      return {
+        ...this.dto(
+          'open_invoices',
+          company,
+          'accrual',
+          null,
+          q.to,
+          ['Amount', 'Open balance'],
+          openInvoices(items, q.to),
+          null,
+        ),
+        textColumns: OPEN_INVOICES_TEXT_COLUMNS,
+      };
+    });
+  }
+
+  customerBalanceSummary(
+    auth: AuthContext,
+    ctx: CompanyContext,
+    q: ReportQuery,
+  ): Promise<ReportDto> {
+    return this.run(auth, ctx, async (tx, company) => {
+      const items = await arOpenItems(tx, ctx.companyId, q.to, q.customerId);
+      return this.dto(
+        'customer_balance_summary',
+        company,
+        'accrual',
+        null,
+        q.to,
+        ['Total'],
+        customerBalanceSummary(items),
+        null,
+      );
+    });
+  }
+
+  salesByCustomer(auth: AuthContext, ctx: CompanyContext, q: ReportQuery): Promise<ReportDto> {
+    return this.run(auth, ctx, async (tx, company) => {
+      const from = q.from ?? fiscalYearStart(q.to, company.fiscal_year_start_month);
+      const groups = await this.sales(tx, ctx.companyId, from, q, 'customer');
+      return this.dto(
+        'sales_by_customer',
+        company,
+        'accrual',
+        from,
+        q.to,
+        ['Total'],
+        salesByCustomer(groups),
+        from,
+      );
+    });
+  }
+
+  salesByItem(auth: AuthContext, ctx: CompanyContext, q: ReportQuery): Promise<ReportDto> {
+    return this.run(auth, ctx, async (tx, company) => {
+      const from = q.from ?? fiscalYearStart(q.to, company.fiscal_year_start_month);
+      const groups = await this.sales(tx, ctx.companyId, from, q, 'item');
+      return this.dto(
+        'sales_by_item',
+        company,
+        'accrual',
+        from,
+        q.to,
+        ['Quantity', 'Amount', '% of sales', 'Average price'],
+        salesByItem(groups),
+        from,
+      );
+    });
+  }
+
+  /**
+   * Net sales from sales-document lines on income accounts: invoices and sales receipts add,
+   * credit memos and refund receipts subtract. Accrual basis (by document date).
+   */
+  private async sales(
+    tx: Tx,
+    companyId: string,
+    from: string,
+    q: ReportQuery,
+    by: 'customer' | 'item',
+  ): Promise<SalesAggregate[]> {
+    const key = by === 'customer' ? sql.ref('t.customer_id') : sql.ref('sl.item_id');
+    const label = by === 'customer' ? sql.ref('c.display_name') : sql.ref('i.name');
+    const rows = await sql<{
+      key: string | null;
+      label: string | null;
+      quantity: string | null;
+      amount: string;
+    }>`
+      select ${key} as key, ${label} as label,
+             sum(case when t.txn_type in ('invoice', 'sales_receipt') then coalesce(sl.quantity, 0) else -coalesce(sl.quantity, 0) end) as quantity,
+             sum(case when t.txn_type in ('invoice', 'sales_receipt') then sl.amount else -sl.amount end) as amount
+      from sales_lines sl
+      join transactions t on t.id = sl.transaction_id
+      join accounts a on a.id = sl.account_id and a.account_type in ('income', 'other_income')
+      left join customers c on c.id = t.customer_id
+      left join items i on i.id = sl.item_id
+      where sl.company_id = ${companyId} and t.status = 'posted'
+        and t.txn_type in ('invoice', 'sales_receipt', 'credit_memo', 'refund_receipt')
+        and t.txn_date between ${from} and ${q.to}
+        ${q.customerId ? sql`and t.customer_id = ${q.customerId}` : sql``}
+        ${q.classId ? sql`and sl.class_id = ${q.classId}` : sql``}
+      group by 1, 2`.execute(tx);
+    return rows.rows.map((r) => ({
+      key: r.key,
+      label: r.label ?? 'Not specified',
+      quantity: parseMoney(r.quantity ?? '0'),
+      amount: parseMoney(r.amount),
+    }));
+  }
+
   /** Net debit − credit per account for posted, current lines in a date range. */
-  private async net(tx: Tx, companyId: string, f: NetFilter): Promise<Map<string, Money>> {
+  async net(tx: Tx, companyId: string, f: NetFilter): Promise<Map<string, Money>> {
+    const cash = f.basis === 'cash';
     const rows = await sql<{ account_id: string; net: string }>`
       select l.account_id, sum(l.debit - l.credit) as net
       from journal_lines l
@@ -255,8 +425,15 @@ export class ReportsService {
         ${f.from ? sql`and l.txn_date >= ${f.from}` : sql``}
         ${f.classId ? sql`and l.class_id = ${f.classId}` : sql``}
         ${f.locationId ? sql`and l.location_id = ${f.locationId}` : sql``}
+        ${cash ? sql`and t.txn_type not in ('invoice', 'credit_memo')` : sql``}
       group by l.account_id`.execute(tx);
-    return new Map(rows.rows.map((r) => [r.account_id, parseMoney(r.net)]));
+    const out = new Map(rows.rows.map((r) => [r.account_id, parseMoney(r.net)]));
+    if (cash) {
+      for (const [accountId, v] of await cashRecognition(tx, companyId, f)) {
+        out.set(accountId, (out.get(accountId) ?? 0n) + v);
+      }
+    }
+    return out;
   }
 
   private run<T>(
@@ -271,7 +448,12 @@ export class ReportsService {
       async (tx) => {
         const company = await tx
           .selectFrom('companies')
-          .select(['legal_name', 'fiscal_year_start_month', 'use_account_numbers'])
+          .select([
+            'legal_name',
+            'fiscal_year_start_month',
+            'use_account_numbers',
+            'accounting_basis',
+          ])
           .where('id', '=', ctx.companyId)
           .executeTakeFirstOrThrow();
         const accounts = await tx
@@ -288,6 +470,7 @@ export class ReportsService {
   private dto(
     key: ReportDto['key'],
     company: CompanyInfo,
+    basis: Basis,
     from: string | null,
     to: string,
     columns: string[],
@@ -298,7 +481,7 @@ export class ReportsService {
       key,
       title: REPORT_TITLES[key],
       companyName: company.legal_name,
-      basis: 'accrual',
+      basis,
       from,
       to,
       columns,
@@ -307,4 +490,8 @@ export class ReportsService {
       generatedAt: new Date().toISOString(),
     };
   }
+}
+
+function basisOf(q: ReportQuery, company: CompanyInfo): Basis {
+  return q.basis ?? (company.accounting_basis === 'cash' ? 'cash' : 'accrual');
 }
