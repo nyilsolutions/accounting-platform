@@ -108,7 +108,7 @@ expires in **5 minutes**:
 - **Claude** (`DOCUMENT_AI=anthropic`) reads photos and PDFs:
   - one Messages API call with the image or PDF;
   - structured output (a Zod schema, parsed by the SDK), `effort: low` and model
-    `DOCUMENT_AI_MODEL` (default `claude-opus-5-5`);
+    `DOCUMENT_AI_MODEL` (the default is set in `apps/api/src/config.ts`);
   - the server-side refusal fallback is enabled.
 - **Heuristics** (`heuristic`, the development default) read text-layer PDFs and text: labelled
   totals, tax, dates, "Invoice No." and due dates.

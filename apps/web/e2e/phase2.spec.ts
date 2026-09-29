@@ -127,6 +127,8 @@ test('sales: invoice, payment, receipt, deposit, estimate, statement and A/R rep
   // The invoice page has the same tabs; wait until the shortcut has landed on Sales.
   await expect(page).toHaveURL(/\/sales$/);
   await page.getByRole('link', { name: 'Customers', exact: true }).click();
+  // The sales list also links each row to its customer; wait for the customer list.
+  await expect(page).toHaveURL(/\/sales\/customers$/);
   await page.getByRole('link', { name: 'Green Acres HOA' }).click();
   await expect(page.getByTestId('customer-balances')).toContainText('$455.00');
   await shot(page, '24-customer');

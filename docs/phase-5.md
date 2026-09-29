@@ -52,17 +52,17 @@
 
 ## Configuration
 
-| Variable                                                             | Default      | Notes                                                                                    |
-| -------------------------------------------------------------------- | ------------ | ---------------------------------------------------------------------------------------- |
-| `DOCUMENT_STORAGE`                                                   | `local`      | `s3` is required in production                                                           |
-| `DOCUMENT_STORAGE_DIR`                                               | `.documents` | Local encrypted files                                                                    |
-| `S3_BUCKET`, `S3_REGION`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY` |              | Required with `s3`                                                                       |
-| `S3_ENDPOINT`, `S3_FORCE_PATH_STYLE`                                 |              | MinIO, R2 and other S3-compatible stores                                                 |
-| `S3_SSE`, `S3_KMS_KEY_ID`                                            | `AES256`     | `aws:kms` with a KMS key                                                                 |
-| `MAX_UPLOAD_MB`                                                      | `25`         |                                                                                          |
-| `VIRUS_SCANNER`                                                      | `dev`        | `clamd` is required in production (`CLAMD_HOST`, `CLAMD_PORT`)                           |
-| `DOCUMENT_AI`                                                        | `heuristic`  | `anthropic` needs `ANTHROPIC_API_KEY`; `DOCUMENT_AI_MODEL` defaults to `claude-opus-5-5` |
-| `INBOUND_EMAIL_DOMAIN`, `INBOUND_EMAIL_SECRET`                       |              | Email-in; the provider posts raw MIME to `/api/inbound/email` with an HMAC signature     |
+| Variable                                                             | Default      | Notes                                                                                               |
+| -------------------------------------------------------------------- | ------------ | --------------------------------------------------------------------------------------------------- |
+| `DOCUMENT_STORAGE`                                                   | `local`      | `s3` is required in production                                                                      |
+| `DOCUMENT_STORAGE_DIR`                                               | `.documents` | Local encrypted files                                                                               |
+| `S3_BUCKET`, `S3_REGION`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY` |              | Required with `s3`                                                                                  |
+| `S3_ENDPOINT`, `S3_FORCE_PATH_STYLE`                                 |              | MinIO, R2 and other S3-compatible stores                                                            |
+| `S3_SSE`, `S3_KMS_KEY_ID`                                            | `AES256`     | `aws:kms` with a KMS key                                                                            |
+| `MAX_UPLOAD_MB`                                                      | `25`         |                                                                                                     |
+| `VIRUS_SCANNER`                                                      | `dev`        | `clamd` is required in production (`CLAMD_HOST`, `CLAMD_PORT`)                                      |
+| `DOCUMENT_AI`                                                        | `heuristic`  | `anthropic` needs `ANTHROPIC_API_KEY`; `DOCUMENT_AI_MODEL` picks the model (default in `config.ts`) |
+| `INBOUND_EMAIL_DOMAIN`, `INBOUND_EMAIL_SECRET`                       |              | Email-in; the provider posts raw MIME to `/api/inbound/email` with an HMAC signature                |
 
 ## Demo script
 
