@@ -10,7 +10,9 @@ import { csrfMiddleware, requestIdMiddleware } from './common/security.middlewar
 import type { AppConfig } from './config';
 
 const SMALL_BODY_BYTES = 256 * 1024;
-const LARGE_BODY_ROUTE = /^\/companies\/[^/]+\/banking\/accounts\/[^/]+\/import$/;
+/** Statement imports (JSON) and file uploads (raw bytes) are the only large requests. */
+const LARGE_BODY_ROUTE =
+  /^\/(companies\/[^/]+\/(banking\/accounts\/[^/]+\/import|documents|documents\/[^/]+\/versions)|inbound\/email)$/;
 
 function bodySizeLimit(req: Request, res: Response, next: NextFunction): void {
   const length = Number(req.get('content-length') ?? 0);
@@ -37,6 +39,11 @@ export async function createApp(config: AppConfig): Promise<INestApplication> {
   app.use(bodySizeLimit);
   // Bank statement files are sent as JSON text; bodySizeLimit keeps every other route small.
   app.useBodyParser('json', { limit: '6mb' });
+  // Uploads are sent as the raw file; email-in as raw MIME.
+  app.useBodyParser('raw', {
+    type: ['application/octet-stream', 'message/rfc822'],
+    limit: `${config.MAX_UPLOAD_MB + 1}mb`,
+  });
   app.use(requestIdMiddleware);
   app.use(cookieParser());
   app.use(csrfMiddleware([config.WEB_ORIGIN]));

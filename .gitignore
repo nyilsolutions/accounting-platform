@@ -11,3 +11,6 @@ playwright-report/
 test-results/
 next-env.d.ts
 .outbox/
+
+# Local document storage (DOCUMENT_STORAGE=local)
+.documents/

@@ -492,6 +492,90 @@ export interface BankFeedTransactionsTable {
   updated_at: Generated<Date>;
 }
 
+export interface DocumentSettingsTable {
+  company_id: string;
+  retention_years: Generated<number>;
+  inbox_token: string;
+  inbox_enabled: Generated<boolean>;
+  updated_by: string | null;
+  updated_at: Generated<Date>;
+}
+
+export interface DocumentFoldersTable extends Audited {
+  id: Generated<string>;
+  company_id: string;
+  parent_id: string | null;
+  name: string;
+}
+
+export interface DocumentsTable extends Audited {
+  id: Generated<string>;
+  company_id: string;
+  folder_id: string | null;
+  name: string;
+  source: Generated<string>;
+  email_from: string | null;
+  email_subject: string | null;
+  tags: ColumnType<string[], string[] | undefined, string[]>;
+  note: string | null;
+  current_version: Generated<number>;
+  inbox_status: string | null;
+  status: Generated<string>;
+  deleted_at: Timestamp | null;
+  deleted_by: string | null;
+  search_vector: ColumnType<string | null, never, never>;
+}
+
+export interface DocumentVersionsTable {
+  id: Generated<string>;
+  company_id: string;
+  document_id: string;
+  version: number;
+  file_name: string;
+  content_type: string;
+  size_bytes: ColumnType<string, number | string, number | string>;
+  sha256: string;
+  storage_key: string;
+  key_enc: string | null;
+  scan_status: Generated<string>;
+  scan_detail: string | null;
+  extracted_text: string | null;
+  purged_at: Timestamp | null;
+  uploaded_by: string | null;
+  created_at: Generated<Date>;
+}
+
+export interface DocumentLinksTable {
+  company_id: string;
+  document_id: string;
+  entity_type: string;
+  entity_id: string;
+  created_by: string | null;
+  created_at: Generated<Date>;
+}
+
+export interface DocumentExtractionsTable {
+  id: Generated<string>;
+  company_id: string;
+  document_id: string;
+  version: number;
+  provider: string;
+  status: string;
+  result: Json;
+  error: string | null;
+  transaction_id: string | null;
+  created_by: string | null;
+  created_at: Generated<Date>;
+}
+
+export interface VendorAliasesTable {
+  company_id: string;
+  alias: string;
+  vendor_id: string;
+  account_id: string | null;
+  updated_at: Generated<Date>;
+}
+
 export interface Database {
   users: UsersTable;
   mfa_recovery_codes: MfaRecoveryCodesTable;
@@ -527,6 +611,13 @@ export interface Database {
   bank_rules: BankRulesTable;
   bank_import_batches: BankImportBatchesTable;
   bank_feed_transactions: BankFeedTransactionsTable;
+  document_settings: DocumentSettingsTable;
+  document_folders: DocumentFoldersTable;
+  documents: DocumentsTable;
+  document_versions: DocumentVersionsTable;
+  document_links: DocumentLinksTable;
+  document_extractions: DocumentExtractionsTable;
+  vendor_aliases: VendorAliasesTable;
 }
 
 export type User = Selectable<UsersTable>;
