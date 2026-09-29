@@ -29,3 +29,18 @@ Add new questions here instead of guessing.
 
 10. **Default chart of accounts** per tax form or industry. Do you have preferred templates?
 11. **Account numbering:** on or off by default?
+
+## Sales and receivables (Phase 2)
+
+12. **Unapplied payments as credits.** Today an overpayment stays a credit on that payment, and
+    only editing the payment applies it to a later invoice. QuickBooks also lets you pick it as a
+    credit when receiving the next payment. Should we build that in Phase 3?
+13. **Document numbers:** unique per type (invoice 1001 and sales receipt 1001 can coexist) and
+    editable. QuickBooks Online can warn instead of blocking duplicates. Is blocking acceptable?
+14. **Invoice PDFs and branding:** browser "Save as PDF" is used today. Do you need server-made
+    PDF attachments on emails, logos and custom templates before launch?
+15. **Customer-facing email:** which sender address and domain should invoices come from (this
+    also affects the email provider question, item 6)?
+16. **Cash-basis A/R:** on the cash Balance Sheet, an unapplied payment shows as a credit balance
+    in A/R (QuickBooks behavior). Would your CPAs prefer it reclassified as a customer deposit
+    liability?
