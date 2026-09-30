@@ -57,6 +57,53 @@
       "revision": "PFL-PayDeduction-notice-2026 9-25",
       "url": null,
       "urlNote": "The supplied copy does not show its own address; publisher site paidfamilyleave.ny.gov."
+    },
+    {
+      "id": "ny-labor-517",
+      "title": "New York Labor Law § 517, Remuneration (Unemployment Insurance)",
+      "revision": "page text captured and supplied 2026-09-30",
+      "url": "https://www.nysenate.gov/legislation/laws/LAB/517"
+    },
+    {
+      "id": "ia-318-15",
+      "title": "NYS Department of Labor, IA 318.15, Reporting Meals, Lodging, Tips and Other Forms of Remuneration",
+      "revision": "IA 318.15 (12/25)",
+      "url": null,
+      "urlNote": "The supplied copy does not show its own address; publisher site dol.ny.gov."
+    },
+    {
+      "id": "ny-wcl-201",
+      "title": "New York Workers' Compensation Law § 201, Definitions (Disability Benefits and Paid Family Leave), subdivisions 12 and 13",
+      "revision": "page text captured and supplied 2026-09-30",
+      "url": "https://www.nysenate.gov/legislation/laws/WKC/201"
+    },
+    {
+      "id": "wcb-db-pfl",
+      "title": "NYS Workers' Compensation Board, Disability Benefits and Paid Family Leave Insurance (employers)",
+      "revision": "page as supplied 2026-09-30 (no revision date shown)",
+      "url": null,
+      "urlNote": "The supplied copy is the saved page; publisher site wcb.ny.gov."
+    },
+    {
+      "id": "it-2104",
+      "title": "NYS Tax Department, Form IT-2104, Employee's Withholding Allowance Certificate (2026)",
+      "revision": "2026",
+      "url": null,
+      "urlNote": "The supplied form does not show its own address; it points to www.tax.ny.gov/r/it2104i-2026 for the instructions."
+    },
+    {
+      "id": "it-2104-i",
+      "title": "NYS Tax Department, Form IT-2104-I, Instructions for Form IT-2104 (2026)",
+      "revision": "2026",
+      "url": "https://www.tax.ny.gov/r/it2104i-2026",
+      "urlNote": "Address printed on Form IT-2104."
+    },
+    {
+      "id": "pub-420",
+      "title": "NYS Tax Department, Publication 420, Guide to the Metropolitan Commuter Transportation Mobility Tax",
+      "revision": "Pub 420 (8/15), with a cover note on changes for quarters from July 1, 2023",
+      "url": null,
+      "urlNote": "The supplied copy does not show its own address; publisher site tax.ny.gov."
     }
   ],
   "stateIncomeTaxWithholding": {
@@ -1288,6 +1335,11 @@
         "source": "nys-50",
         "page": "Part 3",
         "ref": "New York State, New York City, and Yonkers income tax withholding"
+      },
+      {
+        "source": "it-2104-i",
+        "page": 1,
+        "ref": "Tax years 2020 or later: \"If you submit a federal Form W-4 to your employer for tax year 2020 or later, and do not file New York State Form IT-2104, your employer may use zero as your number of allowances.\""
       }
     ]
   },
@@ -1914,7 +1966,14 @@
     },
     "rates": {
       "status": "pending",
-      "note": "Rates are in Publication 420, not supplied."
+      "note": "Publication 420 (8/15) was supplied, but its own cover note says its employer rates are obsolete for tax quarters beginning on or after July 1, 2023, and that the MCTD is now divided into two zones. Needs the Tax Department's current \"Employers: metropolitan commuter transportation mobility tax (MCTMT)\" page.",
+      "cite": [
+        {
+          "source": "pub-420",
+          "page": 1,
+          "ref": "\"MCTMT rates on pages 11 – 12 – For tax quarters beginning on or after July 1, 2023, the tax rates for employers are obsolete.\""
+        }
+      ]
     },
     "cite": [
       {
@@ -1928,7 +1987,7 @@
     "employeeRatePercent": "0.432",
     "annualMaxContribution": "411.91",
     "paidBy": "employee",
-    "note": "Employees contribute 0.432% of their wages each pay period until they reach $411.91 for the year with this employer. Wages here are pay for services; how pre-tax deductions, tips and other kinds count is not stated, so paychecks with them are refused for PFL until sourced.",
+    "note": "Employees contribute 0.432% of their wages each pay period until they reach $411.91 for the year with this employer. An employer may collect this from employees but doesn't have to (it can pay the cost itself); payroll deducts it. PFL wages are \"the money rate at which employment... is recompensed under the contract of hiring\" (commissions and bonuses included); how employee pre-tax deductions, tips and company contributions count is not stated, so paychecks with them are refused for PFL until sourced.",
     "cite": [
       {
         "source": "nys-pfl-2026",
@@ -1939,12 +1998,33 @@
         "source": "pfl-notice-2026",
         "page": 1,
         "ref": "\"The 2026 payroll contribution is 0.432% of an employee's wages each pay period and is capped at an annual maximum of $411.91.\""
+      },
+      {
+        "source": "wcb-db-pfl",
+        "page": null,
+        "ref": "Deduction and waiver: \"An employer is allowed, but not required, to collect contributions from its employees to offset the cost of providing disability and Paid Family Leave benefits.\""
       }
-    ]
+    ],
+    "optional": true
   },
   "disabilityBenefits": {
-    "status": "pending",
-    "note": "DBL employee contribution limit not supplied."
+    "employeeRatePercent": "0.5",
+    "weeklyMaxContribution": "0.60",
+    "optional": true,
+    "status": "not_deducted",
+    "note": "Employees may be charged 0.5% of wages, up to $0.60 a week, toward the employer's disability benefits (DBL) policy; the employer may collect it but doesn't have to. Payroll doesn't deduct DBL yet (docs/open-questions.md): how the weekly cap applies to semimonthly and monthly pay, and which wages count, are not stated in the supplied sources. Employees receiving social security old-age benefits are exempt once they file Form DB-130.",
+    "cite": [
+      {
+        "source": "wcb-db-pfl",
+        "page": null,
+        "ref": "Disability benefits: \"An employee's contribution is computed at the rate of one-half of one percent of their wages, but no more than sixty cents a week.\" \"An employer is allowed, but not required, to collect contributions from its employees\"; employees entitled to old age insurance benefits \"shall be exempt upon filing Form DB130 with the employer and the chair.\""
+      },
+      {
+        "source": "ny-wcl-201",
+        "page": null,
+        "ref": "§ 201(12), definition of wages (as for Paid Family Leave)"
+      }
+    ]
   },
   "workedExamples": [
     {
@@ -2377,10 +2457,11 @@
         "paid_tips": "taxable",
         "retirement_match": "exempt",
         "employer_health": "exempt",
-        "employer_hsa": "exempt"
+        "employer_hsa": "exempt",
+        "fringe_benefit": "taxable"
       },
       "otherKinds": "pending",
-      "note": "Employee pre-tax deductions (401(k), cafeteria plan, FSA, HSA) are not addressed in the supplied guide, so paychecks with them are refused for New York unemployment until sourced.",
+      "note": "Salaries, commissions, bonuses, certified tips and the reasonable value of noncash pay (taxable fringe benefits) are remuneration. Employer payments under a plan for retirement or for medical or hospitalization expenses, and payments to a 401(a) trust, are not. Employee pre-tax deductions (401(k), cafeteria plan, FSA, HSA) are not addressed by § 517 or the Department of Labor sources supplied, so paychecks with them are refused for New York unemployment until sourced. Dismissal (severance) payments are excluded by § 517(2)(h); payroll has no severance kind, so don't pay severance with an earnings kind until one is added.",
       "cite": [
         {
           "source": "nys-50",
@@ -2391,6 +2472,16 @@
           "source": "nys-50",
           "page": "Part 2",
           "ref": "Payments to employees not reportable: \"Any payment made under a plan or system providing for retirement, sickness, or accident disability, or medical or hospital expenses for an employee... including amounts paid for insurance\"; \"Payments from or to a trust described in IRC § 401(a)\""
+        },
+        {
+          "source": "ny-labor-517",
+          "page": null,
+          "ref": "§ 517(1): \"'Remuneration' means every form of compensation for employment paid by an employer to his employee... including salaries, commissions, bonuses, and the reasonable money value of board, rent, housing, lodging, or similar advantage received.\" § 517(2) exclusions include (a) plan payments \"on account of retirement, or sickness or accident disability, or medical or hospitalization expenses\", (e) payments \"from or to a trust described in section four hundred one (a)\" and (h) \"Dismissal payments.\""
+        },
+        {
+          "source": "ia-318-15",
+          "page": 1,
+          "ref": "Reporting Tips: \"The amount certified by employees must be included in the employer's quarterly contribution reports\"; page 2: \"The reasonable value of any noncash compensation provided by employers to their employees is remuneration which is reportable and subject to contribution on a quarterly basis.\""
         }
       ]
     },
@@ -2404,6 +2495,11 @@
           "source": "nys-pfl-2026",
           "page": null,
           "ref": "\"0.432% of their gross wages per pay period\""
+        },
+        {
+          "source": "ny-wcl-201",
+          "page": null,
+          "ref": "§ 201(12): \"'Wages' means the money rate at which employment with a covered employer is recompensed under the contract of hiring with the covered employer and shall include the reasonable value of board, rent, housing, lodging, or similar advantage received under the contract of hiring.\" Supplied with it, from paidfamilyleave.ny.gov/cost: \"Commissions and bonuses are considered wages for PFL purposes.\""
         }
       ]
     }
@@ -2414,5 +2510,22 @@
     "scope": "Figures checked as copied from the supplied documents, for building and testing the tax calculations. Not a professional review: reviewedBy stays null until a CPA or payroll specialist signs off, which is required before real paychecks."
   },
   "reviewedBy": null,
-  "note": "Approved by the product owner for building (see ownerApproval); awaiting professional review."
+  "note": "Approved by the product owner for building (see ownerApproval); awaiting professional review.",
+  "certificate": {
+    "form": "IT-2104",
+    "reportToStateAboveAllowances": 14,
+    "note": "When an employee claims more than 14 allowances for New York State, the employer must send a copy of the IT-2104 to the Tax Department (box A), which may adjust the allowances.",
+    "cite": [
+      {
+        "source": "it-2104-i",
+        "page": 2,
+        "ref": "Claiming more than 14 allowances: \"If you claim more than 14 allowances, your employer must send a copy of your Form IT-2104 to the New York State Tax Department.\""
+      },
+      {
+        "source": "it-2104",
+        "page": 1,
+        "ref": "Employer box A: \"Employee claimed more than 14 exemption allowances for New York State\""
+      }
+    ]
+  }
 }

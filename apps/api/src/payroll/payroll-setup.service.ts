@@ -420,6 +420,9 @@ export class PayrollSetupService {
         state: input.state,
         withholding_account_number: input.withholdingAccountNumber ?? null,
         unemployment_account_number: input.unemploymentAccountNumber ?? null,
+        ...(input.withholdingDepositSchedule !== undefined
+          ? { withholding_deposit_schedule: input.withholdingDepositSchedule }
+          : {}),
         ...(input.isActive !== undefined ? { is_active: input.isActive } : {}),
         updated_by: auth.userId,
       };
@@ -559,6 +562,7 @@ export class PayrollSetupService {
       state: r.state as PayrollState,
       withholdingAccountNumber: r.withholding_account_number,
       unemploymentAccountNumber: r.unemployment_account_number,
+      withholdingDepositSchedule: r.withholding_deposit_schedule,
       isActive: r.is_active,
       unemploymentRates: rates
         .filter((x) => x.registration_id === r.id)

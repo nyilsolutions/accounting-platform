@@ -61,11 +61,19 @@ export class PayrollLiabilitiesService {
       .where('status', '=', 'posted')
       .execute();
     const itemNames = await this.itemNames(tx, companyId);
+    const registrations = await tx
+      .selectFrom('payroll_state_registrations')
+      .select(['state', 'withholding_deposit_schedule'])
+      .where('company_id', '=', companyId)
+      .execute();
     const { rows, effectiveSchedule } = payrollLiabilities(
       {
         federal: (y) => loadTaxData<FederalTaxData>(y, 'federal') ?? undefined,
         states: (y, s) => loadTaxData<StateTaxData>(y, `states/${s.toLowerCase()}`) ?? undefined,
         depositSchedule: settings.deposit_schedule as 'monthly' | 'semiweekly',
+        stateDepositSchedules: Object.fromEntries(
+          registrations.map((r) => [r.state, r.withholding_deposit_schedule]),
+        ),
         lines,
         payments: payments.map((p) => ({
           agency: p.agency,

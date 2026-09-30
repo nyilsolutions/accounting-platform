@@ -41,6 +41,20 @@
       "revision": "Part IV pages dated (5/19); PDF modified 2025-10-16",
       "url": null,
       "urlNote": "The supplied copy does not show its own address; publisher site ides.illinois.gov."
+    },
+    {
+      "id": "il-pub-131",
+      "title": "Illinois Department of Revenue Publication 131, Withholding Income Tax Payment and Filing Requirements",
+      "revision": "PUB-131 (R-01/26), January 2026",
+      "url": null,
+      "urlNote": "The supplied copy does not show its own address; publisher site tax.illinois.gov."
+    },
+    {
+      "id": "il-w-4",
+      "title": "Illinois Department of Revenue, Form IL-W-4, Employee's and other Payee's Illinois Withholding Allowance Certificate and Instructions",
+      "revision": "IL-W-4 (R-07/23), the current revision as supplied for 2026",
+      "url": null,
+      "urlNote": "The supplied copy does not show its own address; publisher site tax.illinois.gov."
     }
   ],
   "incomeTaxWithholding": {
@@ -112,6 +126,11 @@
         "source": "il-pub-130",
         "page": 7,
         "ref": "\"If a completed Form IL-W-4 is not filed, or you are required to disregard Form IL-W-4, you must withhold Illinois Income Tax with no allowances.\" Form IL-W-4 is disregarded when \"An employee claims total exemption from Illinois Income Tax withholding, but has not filed a federal Form W-4... claiming total exemption.\""
+      },
+      {
+        "source": "il-w-4",
+        "page": 1,
+        "ref": "\"If you do not file a completed Form IL-W-4 with your employer, if you fail to sign the form or to include all necessary information, or if you alter the form, your employer must withhold Illinois Income Tax on the entire amount of your compensation, without allowing any exemptions.\""
       }
     ]
   },
@@ -221,5 +240,66 @@
     "scope": "Figures checked as copied from the supplied documents, for building and testing the tax calculations. Not a professional review: reviewedBy stays null until a CPA or payroll specialist signs off, which is required before real paychecks."
   },
   "reviewedBy": null,
-  "note": "Approved by the product owner for building (see ownerApproval); awaiting professional review."
+  "note": "Approved by the product owner for building (see ownerApproval); awaiting professional review.",
+  "withholdingDeposits": {
+    "schedules": ["monthly", "semiweekly"],
+    "newTaxpayerSchedule": "monthly",
+    "monthlyDueDayOfFollowingMonth": 15,
+    "semiweekly": {
+      "wednesday_to_friday": "following Wednesday",
+      "saturday_to_tuesday": "following Friday"
+    },
+    "lookbackThreshold": "12000.00",
+    "lookbackPeriod2026": {
+      "from": "2024-07-01",
+      "to": "2025-06-30"
+    },
+    "quarterThreshold": "12000.00",
+    "separatePaymentsByQuarter": true,
+    "returns": {
+      "form": "IL-941",
+      "due": "last day of the month after the quarter",
+      "dueDates": {
+        "Q1": "2026-04-30",
+        "Q2": "2026-07-31",
+        "Q3": "2026-11-02",
+        "Q4": "2027-02-01"
+      }
+    },
+    "rules": [
+      "IDOR assigns the schedule from the look-back period (July 1 through June 30 of the year before last): $12,000 or less is monthly, more is semiweekly. New taxpayers are monthly.",
+      "Monthly: due by the 15th of the month after the month the tax was withheld.",
+      "Semiweekly: withheld Wednesday to Friday is due the following Wednesday; Saturday to Tuesday the following Friday. Payments must be electronic.",
+      "More than $12,000 withheld in a quarter: semiweekly from the next quarter for the rest of the year and the next year.",
+      "A due date on a weekend or state-recognized holiday moves to the next business day (state holidays are not applied yet).",
+      "Withholding from two quarters is paid separately even when the due date is the same."
+    ],
+    "cite": [
+      {
+        "source": "il-pub-131",
+        "page": 3,
+        "ref": "When am I required to pay?: \"Monthly IL-501 payments are due by the 15th day of the month following the month in which the tax was withheld.\" \"Semi-weekly IL-501 payments are due by Wednesday for amounts withheld on the preceding Wednesday, Thursday, or Friday, and by Friday for amounts withheld on the preceding Saturday, Sunday, Monday, or Tuesday.\""
+      },
+      {
+        "source": "il-pub-131",
+        "page": 3,
+        "ref": "How is my payment frequency determined?: look-back period \"July 1, 2024, through June 30, 2025\" for 2026; \"First-time taxpayers and taxpayers who have reported $12,000 or less in withholding during the 'look-back' period, are assigned to the monthly payment\"; \"If you exceed $12,000 in withholding during a quarter, it is your responsibility to begin to pay your Illinois withholding income tax semi-weekly in the following quarter, the remainder of the year, and the subsequent year.\""
+      },
+      {
+        "source": "il-pub-131",
+        "page": 3,
+        "ref": "\"Any time a due date falls on a weekend or state recognized holiday, we adjust the due date to the next business day.\""
+      },
+      {
+        "source": "il-pub-131",
+        "page": 2,
+        "ref": "\"The Form IL-941 is due by the last day of the month that follows the end of the quarter\"; \"If the return due date falls on a weekend or holiday, Form IL-941 is due on the next business day.\""
+      },
+      {
+        "source": "il-pub-131",
+        "page": 4,
+        "ref": "\"Make separate payments if your liability is for two separate quarters.\""
+      }
+    ]
+  }
 }

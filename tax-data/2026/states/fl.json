@@ -21,6 +21,12 @@
       "revision": "PDF modified 2025-09-23",
       "url": null,
       "urlNote": "The supplied copy does not show its own address; publisher site floridarevenue.com."
+    },
+    {
+      "id": "fl-dor-rt-returns",
+      "title": "Florida Department of Revenue, Reemployment Tax Report and Payment Information",
+      "revision": "page as supplied 2026-09-30 (no revision date shown)",
+      "url": "https://floridarevenue.com/taxes/taxesfees/Pages/rt_return_pay.aspx"
     }
   ],
   "incomeTaxWithholding": {
@@ -58,7 +64,7 @@
         "retirement_match": "exempt"
       },
       "otherKinds": "pending",
-      "note": "Employee 401(k) deferrals stay pending: s. 443.1217(2)(f)1 exempts payments \"to a trust described in s. 401(a)\" without the salary-reduction exception it makes for 403(b) in (f)4, and the Employer Guide does not mention 401(k). Whether Florida counts employee 401(k) deferrals as wages needs a Florida Department of Revenue source. Company HSA contributions and reimbursements are also not addressed.",
+      "note": "Employee 401(k) deferrals stay pending: s. 443.1217(2)(f)1 exempts payments \"to a trust described in s. 401(a)\" without the salary-reduction exception it makes for 403(b) in (f)4, and neither the Employer Guide nor the Department's return page (which lists both plans as excluded without that exception) says how deferrals count. HSA contributions are excluded only through a cafeteria plan (the hsa kind); whether a company HSA contribution (employer_hsa) is excluded depends on whether it is made through the cafeteria plan, so it stays pending. Reimbursements are not addressed.",
       "cite": [
         {
           "source": "fs-443-1217",
@@ -84,6 +90,11 @@
           "source": "rt-800002",
           "page": 18,
           "ref": "Glossary, Cafeteria Plan Exemption: \"When the cash option is chosen, the payments are considered wages and are subject to reemployment tax.\""
+        },
+        {
+          "source": "fl-dor-rt-returns",
+          "page": null,
+          "ref": "Definition of Wages, excluded: \"Accident and health benefits (not including Archer MSA or Health Savings Accounts unless the Health Saving Account is included in a cafeteria plan). Section (s.) 443.1217(2)(b)\"; \"Cafeteria Plan pursuant to 26 United States Code Section 125... s. 443.1217(2)(f)7\"; tips are wages \"if received while performing services... and are included in a written statement furnished by the employee to the employer\""
         }
       ]
     }
@@ -94,5 +105,28 @@
     "scope": "Figures checked as copied from the supplied documents, for building and testing the tax calculations. Not a professional review: reviewedBy stays null until a CPA or payroll specialist signs off, which is required before real paychecks."
   },
   "reviewedBy": null,
-  "note": "The source is a web page without a revision date; the page's 2026 statement is cited."
+  "note": "The source is a web page without a revision date; the page's 2026 statement is cited.",
+  "quarterlyReturns": {
+    "form": "RT-6",
+    "dueDates": {
+      "Q1": "2026-04-30",
+      "Q2": "2026-07-31",
+      "Q3": "2026-11-02",
+      "Q4": "2027-02-01"
+    },
+    "dueNote": "Report and pay with Form RT-6 (Employer's Quarterly Report). Electronic payments must be initiated by 5:00 p.m. ET the business day before.",
+    "note": "The report is due the 1st of the month after the quarter and late after the last day of that month, moved to the next working day when that is a Saturday, Sunday or legal holiday (October 31, 2026 is a Saturday; January 31, 2027 is a Sunday). Employers with 10 or more employees in any quarter of the preceding state fiscal year must file and pay electronically. The installment option for the first three quarters is not supported.",
+    "cite": [
+      {
+        "source": "fl-dor-rt-returns",
+        "page": null,
+        "ref": "Due Dates: \"An Employer's Quarterly Report (Form RT-6) is due the 1st day of the month following the end of each calendar quarter and is late if not postmarked by the last day of the month.\" 1st quarter April 30, 2nd July 31, 3rd October 31, 4th January 31; \"if the last day of the month is a Saturday, Sunday, or legal holiday, the timely filing period is extended until the end of the next working day.\""
+      },
+      {
+        "source": "fl-dor-rt-returns",
+        "page": null,
+        "ref": "\"you must initiate your electronic payment and receive a confirmation number no later than 5:00 p.m. ET, on the business day prior to the due date for your payment to be considered timely.\""
+      }
+    ]
+  }
 }

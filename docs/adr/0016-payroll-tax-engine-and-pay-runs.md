@@ -36,7 +36,6 @@ payroll specialist's review (`reviewedBy`) is still required before real paychec
 - **Anything not sourced is refused with its reason, never guessed.** Examples:
   - California income tax, waiting on DE 44.
   - Florida employee 401(k) deferrals for unemployment.
-  - Roth deferrals.
 
   Refusals are collected, so a paycheck lists every problem at once.
 
@@ -118,8 +117,16 @@ payroll specialist's review (`reviewedBy`) is still required before real paychec
       the year and the next.
   - **FUTA:** quarterly. A quarter at $500 or less carries forward to the quarter that takes the
     undeposited total over $500, and is due by January 31 at the latest.
-  - **State taxes:** by quarter, with due dates only where the state file has them (California's DE
-    9 dates). Otherwise a note says the schedule isn't sourced.
+  - **State taxes:** by quarter, with due dates only where the state file has them. Otherwise a
+    note says the schedule isn't sourced.
+    - Unemployment: the quarterly return's date from `quarterlyReturns` (California DE 9,
+      Florida RT-6).
+    - Withholding with a `withholdingDeposits` schedule (Illinois, Pub. 131): monthly (the 15th)
+      or semiweekly (Wednesday/Friday) as the state assigned it. The schedule is stored on the
+      state registration (migration 0014); unset means the schedule for new taxpayers. More than
+      $12,000 withheld in a quarter switches to semiweekly from the next quarter through the next
+      year. A semiweekly period never spans two quarters, because each quarter is paid
+      separately.
   - **Deductions and contributions:** owed to the payee on the pay date.
   - Weekend due dates move to Monday. Federal holidays wait on open question 46.
 - **The lookback period** total from `federal.json` suggests the deposit schedule. The suggestion
@@ -160,5 +167,5 @@ payroll specialist's review (`reviewedBy`) is still required before real paychec
   - garnishment limits under the Consumer Credit Protection Act (52);
   - multi-state work and the Yonkers nonresident tax (53);
   - printing paper paychecks with check numbers (54);
-  - state deposit schedules (44);
+  - deposit schedules for the other states (44), and state holidays;
   - Phase 9's quarterly and annual forms (941, 940, W-2, state returns).

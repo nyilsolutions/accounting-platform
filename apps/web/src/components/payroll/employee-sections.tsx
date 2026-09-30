@@ -268,6 +268,7 @@ function certificateSummary(c: StateCertificateDto): string {
       return [
         DE4_STATUS_LABELS[c.fields.filingStatus],
         `${c.fields.regularAllowances} + ${c.fields.estimatedDeductionAllowances} allowances`,
+        c.fields.militarySpouseExempt && 'military spouse, not subject to withholding',
         extra(c.fields.additionalWithholding) && `extra ${extra(c.fields.additionalWithholding)}`,
       ]
         .filter(Boolean)
@@ -316,6 +317,7 @@ export function StateCertificateSection({ companyId, employee }: Props) {
               estimatedDeductionAllowances: n('estimatedDeductionAllowances'),
               additionalWithholding: formField(f, 'additionalWithholding'),
               exempt: on('exempt'),
+              militarySpouseExempt: on('militarySpouseExempt'),
             }
           : {
               filingStatus: formField(f, 'filingStatus'),
@@ -460,6 +462,10 @@ export function StateCertificateSection({ companyId, employee }: Props) {
                   name="additionalWithholding"
                   inputMode="decimal"
                   error={fe('additionalWithholding')}
+                />
+                <Checkbox
+                  label="Not subject to California withholding as a military spouse (line 4)"
+                  name="militarySpouseExempt"
                 />
               </>
             )}

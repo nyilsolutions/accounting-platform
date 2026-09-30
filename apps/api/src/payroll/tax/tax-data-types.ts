@@ -110,9 +110,29 @@ export interface TopRateRow {
 type NyPeriod = PayFrequency | 'daily' | 'annual';
 type NyStatus = 'single' | 'married';
 
+/** A state's withholding deposit schedule (Illinois: Publication 131). */
+export interface StateDepositRules {
+  schedules: ('monthly' | 'semiweekly')[];
+  newTaxpayerSchedule: 'monthly' | 'semiweekly';
+  monthlyDueDayOfFollowingMonth: number;
+  semiweekly: { wednesday_to_friday: string; saturday_to_tuesday: string };
+  /** Withholding in one quarter above this moves the company to semiweekly from the next quarter. */
+  quarterThreshold?: string;
+}
+
 export interface StateTaxData {
   year: number;
   state: PayrollState;
+  withholdingDeposits?: StateDepositRules;
+  /** Rules about the state's withholding certificate (New York: IT-2104 box A). */
+  certificate?: { form: string; reportToStateAboveAllowances?: number };
+  /** Quarterly unemployment return due dates (delinquentDates for California's DE 9). */
+  quarterlyReturns?: {
+    form: string;
+    dueDates?: Record<string, string>;
+    delinquentDates?: Record<string, string>;
+    dueNote?: string;
+  };
   incomeTaxWithholding?: { none?: true } | Pending | IlWithholding;
   unemployment?: { wageBase: string; reemploymentServiceFundRatePercent?: string };
   employmentTrainingTax?: { ratePercent: string; wageBase: string };

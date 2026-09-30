@@ -28,6 +28,14 @@
       "catalog": "29744N",
       "revision": "2025-12-23",
       "url": "https://www.irs.gov/pub/irs-pdf/p15b.pdf"
+    },
+    {
+      "id": "w2-instructions",
+      "title": "IRS, 2026 General Instructions for Forms W-2 and W-3",
+      "catalog": "25979S",
+      "revision": "2026-01-29",
+      "url": "https://www.irs.gov/FormW2",
+      "urlNote": "The instructions point to IRS.gov/FormW2 for updates; the supplied copy does not show the PDF address."
     }
   ],
   "socialSecurity": {
@@ -833,11 +841,39 @@
         "note": "Exempt up to $7,500 ($3,750 for a married employee filing a separate return); amounts above the limit are wages. Not for highly compensated employees under a plan that favors them."
       },
       "roth_401k": {
-        "status": "pending",
-        "note": "Designated Roth contributions are included in wages; Pub. 15 and Pub. 15-B don't state it. Needs the Form W-2 instructions or Pub. 525 as the citation."
+        "fit": "taxable",
+        "fica": "taxable",
+        "futa": "taxable",
+        "cite": [
+          {
+            "source": "w2-instructions",
+            "page": 10,
+            "ref": "Designated Roth contributions: \"Designated Roth contributions are subject to federal income tax withholding and social security and Medicare taxes... and must be reported in boxes 1, 3, and 5.\" Reported with code AA in box 12 (401(k))."
+          },
+          {
+            "source": "p15",
+            "page": 51,
+            "ref": "Section 15, Retirement and pension plans, item 2: elective employee contributions and deferrals to a 401(k) are taxable for FUTA"
+          }
+        ],
+        "note": "An after-tax deduction: it reduces no wages. Designated Roth contributions and elective deferrals share the section 402(g) limit. Designated Roth matching or nonelective contributions are reported on Form 1099-R, not here."
       },
       "roth_403b": {
-        "status": "pending",
+        "fit": "taxable",
+        "fica": "taxable",
+        "futa": "taxable",
+        "cite": [
+          {
+            "source": "w2-instructions",
+            "page": 10,
+            "ref": "Designated Roth contributions (as for roth_401k); reported with code BB in box 12 (403(b) salary reduction agreement)."
+          },
+          {
+            "source": "p15",
+            "page": 51,
+            "ref": "Section 15, Retirement and pension plans, item 4: 403(b) amounts contributed through a salary reduction agreement are taxable for FUTA"
+          }
+        ],
         "note": "As for roth_401k."
       },
       "employer_health": {

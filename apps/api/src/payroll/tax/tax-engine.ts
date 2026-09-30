@@ -564,7 +564,7 @@ export function calculatePaycheckTaxes(
         refuse,
         input.payDate,
       );
-      stateIncomeTax(sd, input, periods, stateIncomeWages, refuse, line);
+      stateIncomeTax(sd, input, periods, stateIncomeWages, refuse, notices, line);
     }
 
     // Unemployment.
@@ -674,6 +674,7 @@ function stateIncomeTax(
   periods: number,
   wages: Q,
   refuse: string[],
+  notices: string[],
   line: (
     code: TaxCode,
     payer: TaxLine['payer'],
@@ -744,6 +745,11 @@ function stateIncomeTax(
       line('state_income', 'employee', wages, Q0, state);
       return;
     }
+    const report = sd.certificate?.reportToStateAboveAllowances;
+    if (report !== undefined && f.stateAllowances > report)
+      notices.push(
+        `The IT-2104 claims more than ${report} allowances: send a copy to the New York State Tax Department (box A).`,
+      );
     const status = f.filingStatus;
     const t = sd.stateIncomeTaxWithholding!;
     const stateTax = input.supplemental

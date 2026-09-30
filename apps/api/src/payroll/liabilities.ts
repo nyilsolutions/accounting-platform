@@ -12,15 +12,21 @@ import {
   type PayrollLiabilityStatus,
   type PayrollTaxCode,
 } from '@acct/shared';
-import type { DepositRules, FederalTaxData, StateTaxData } from './tax/tax-data-types';
+import type {
+  DepositRules,
+  FederalTaxData,
+  StateDepositRules,
+  StateTaxData,
+} from './tax/tax-data-types';
 
 /**
  * Payroll liabilities by agency and deposit period, with due dates (ADR 0016). Pure: the service
  * loads posted paycheck lines and payments. Deposit rules come from tax-data (federal.json
- * `deposits` and `futa`); state due dates only where the state file has them.
+ * `deposits` and `futa`, a state's `withholdingDeposits` and `quarterlyReturns`); state due dates
+ * only where the state file has them.
  *
- * Due dates falling on a weekend move to the Monday after; federal holidays are not applied yet
- * (docs/open-questions.md, item 46).
+ * Due dates falling on a weekend move to the Monday after; federal and state holidays are not
+ * applied yet (docs/open-questions.md, item 46).
  */
 
 export interface LiabilityLine {
@@ -46,6 +52,8 @@ export interface LiabilityFacts {
   /** State files by year and state, for due dates (e.g. California's DE 9 dates). */
   states: (year: number, state: string) => StateTaxData | undefined;
   depositSchedule: 'monthly' | 'semiweekly';
+  /** The withholding deposit schedule each state assigned, by state (null: not set). */
+  stateDepositSchedules?: Partial<Record<string, 'monthly' | 'semiweekly' | null>>;
   lines: LiabilityLine[];
   payments: LiabilityPayment[];
   today: string;
@@ -125,7 +133,7 @@ function followingWeekday(d: string, target: number): string {
 }
 
 /** The semiweekly deposit period (Wednesday–Friday or Saturday–Tuesday) holding `d`, and its due date. */
-function semiweeklyPeriod(d: string, rules: DepositRules) {
+function semiweeklyPeriod(d: string, rules: Pick<DepositRules, 'semiweekly'>) {
   const w = weekday(d);
   if (w >= 3 && w <= 5) {
     const start = addDays(d, 3 - w);
@@ -154,6 +162,38 @@ function quarterOf(d: string) {
   const start = `${y}-${startMonth}-01`;
   const end = monthEndOf(`${y}-${String(q * 3).padStart(2, '0')}-01`);
   return { year: y, q, start, end };
+}
+
+/** A state withholding deposit period holding `d` and its due date; never spans two quarters. */
+function stateDepositGroup(
+  d: string,
+  schedule: 'monthly' | 'semiweekly',
+  rules: StateDepositRules,
+  quarter: ReturnType<typeof quarterOf>,
+) {
+  if (schedule === 'monthly') {
+    const next = addDays(monthEndOf(d), 1);
+    const due = `${next.slice(0, 7)}-${String(rules.monthlyDueDayOfFollowingMonth).padStart(2, '0')}`;
+    return { start: monthStartOf(d), end: monthEndOf(d), due: onBusinessDay(due) };
+  }
+  const p = semiweeklyPeriod(d, rules);
+  return {
+    start: p.start < quarter.start ? quarter.start : p.start,
+    end: p.end > quarter.end ? quarter.end : p.end,
+    due: onBusinessDay(p.due),
+  };
+}
+
+function ordinal(n: number): string {
+  const suffix =
+    n % 10 === 1 && n !== 11
+      ? 'st'
+      : n % 10 === 2 && n !== 12
+        ? 'nd'
+        : n % 10 === 3 && n !== 13
+          ? 'rd'
+          : 'th';
+  return `${n}${suffix}`;
 }
 
 interface Group {
@@ -314,10 +354,63 @@ export function payrollLiabilities(
     }
   }
 
+  // --- State withholding with a deposit schedule in tax-data (Illinois). -------------------------
+  const scheduled = new Set<string>();
+  const byState = new Map<string, LiabilityLine[]>();
+  for (const l of f.lines) {
+    const agency = agencyOf(l);
+    if (!agency.startsWith('state_withholding:')) continue;
+    const rules = f.states(Number(l.payDate.slice(0, 4)), l.state!)?.withholdingDeposits;
+    if (!rules) continue;
+    scheduled.add(`${agency}|${l.payDate}`);
+    byState.set(l.state!, [...(byState.get(l.state!) ?? []), l]);
+  }
+  for (const [state, lines] of byState) {
+    const assigned = f.stateDepositSchedules?.[state] ?? null;
+    // More than the threshold withheld in a quarter: semiweekly from the next quarter through
+    // the end of the following year.
+    let semiweeklyFrom: { from: string; until: string; note: string } | null = null;
+    const quarterTotals = new Map<string, Money>();
+    const payDates = [...new Set(lines.map((l) => l.payDate))].sort();
+    for (const d of payDates) {
+      const rules = f.states(Number(d.slice(0, 4)), state)!.withholdingDeposits!;
+      const quarter = quarterOf(d);
+      const base = assigned ?? rules.newTaxpayerSchedule;
+      const switched = semiweeklyFrom && d >= semiweeklyFrom.from && d <= semiweeklyFrom.until;
+      const schedule = switched ? 'semiweekly' : base;
+      const dayLines = lines.filter((l) => l.payDate === d);
+      const g = stateDepositGroup(d, schedule, rules, quarter);
+      const name = STATE_NAMES[state] ?? state;
+      const grp = group(`state_withholding:${state}`, g.start, g.end, {
+        dueDate: g.due,
+        dueNote: switched
+          ? semiweeklyFrom!.note
+          : schedule === 'monthly'
+            ? `${name} monthly schedule: due the ${ordinal(rules.monthlyDueDayOfFollowingMonth)} of the following month.`
+            : `${name} semiweekly schedule: pay electronically.`,
+      });
+      for (const l of dayLines) addPart(grp, partLabel(l), l.amount);
+      if (rules.quarterThreshold && schedule === 'monthly' && !switched) {
+        const key = `Q${quarter.q}-${quarter.year}`;
+        const total =
+          (quarterTotals.get(key) ?? ZERO) + dayLines.reduce((a, l) => a + l.amount, ZERO);
+        quarterTotals.set(key, total);
+        if (total > parseMoney(rules.quarterThreshold)) {
+          semiweeklyFrom = {
+            from: addDays(quarter.end, 1),
+            until: `${quarter.year + 1}-12-31`,
+            note: `More than $${moneyToString(parseMoney(rules.quarterThreshold))} was withheld in Q${quarter.q} ${quarter.year}: ${name} semiweekly schedule from the next quarter through ${quarter.year + 1}.`,
+          };
+        }
+      }
+    }
+  }
+
   // --- State and local: by quarter. --------------------------------------------------------------
   for (const l of f.lines) {
     const agency = agencyOf(l);
     if (agency.startsWith('federal_') || agency.startsWith('item:')) continue;
+    if (scheduled.has(`${agency}|${l.payDate}`)) continue;
     const { year, q, start, end } = quarterOf(l.payDate);
     const g = group(agency, start, end);
     addPart(g, partLabel(l), l.amount);
@@ -325,12 +418,11 @@ export function payrollLiabilities(
     const state = agency.includes(':') ? agency.split(':')[1]! : 'NY';
     const data = f.states(year, state);
     if (agency.startsWith('state_unemployment:')) {
-      const dates = (
-        data as { quarterlyReturns?: { delinquentDates?: Record<string, string> } } | undefined
-      )?.quarterlyReturns?.delinquentDates;
-      if (dates?.[`Q${q}`]) {
-        g.dueDate = dates[`Q${q}`]!;
-        g.dueNote = 'The quarterly return (DE 9) is delinquent after this date.';
+      const returns = data?.quarterlyReturns;
+      const due = (returns?.dueDates ?? returns?.delinquentDates)?.[`Q${q}`];
+      if (due) {
+        g.dueDate = due;
+        g.dueNote = returns!.dueNote ?? null;
       } else
         g.dueNote = `Due with ${STATE_NAMES[state] ?? state}'s quarterly unemployment return; its due date isn't in tax-data yet.`;
     } else if (agency === 'ny_pfl') {

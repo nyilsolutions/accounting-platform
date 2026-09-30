@@ -176,6 +176,66 @@ describe('state and payee liabilities', () => {
     );
   });
 
+  it('Florida unemployment is due with Form RT-6, moved off a weekend (DOR return page)', () => {
+    const { rows } = run(
+      facts({ lines: [tax('2026-08-14', 'state_unemployment', '54', 'FL')], today: '2026-09-30' }),
+    );
+    expect(rows.find((r) => r.agency === 'state_unemployment:FL')).toMatchObject({
+      periodStart: '2026-07-01',
+      periodEnd: '2026-09-30',
+      dueDate: '2026-11-02',
+      dueNote: expect.stringMatching(/Form RT-6.*5:00 p\.m\. ET the business day before/),
+    });
+  });
+
+  it('Illinois withholding: new taxpayers are monthly, due the 15th of the next month (Pub. 131)', () => {
+    const { rows } = run(facts({ lines: [tax('2026-02-13', 'state_income', '99', 'IL')] }));
+    expect(rows.find((r) => r.agency === 'state_withholding:IL')).toMatchObject({
+      periodStart: '2026-02-01',
+      periodEnd: '2026-02-28',
+      // March 15, 2026 is a Sunday.
+      dueDate: '2026-03-16',
+      dueNote: 'Illinois monthly schedule: due the 15th of the following month.',
+    });
+  });
+
+  it('Illinois semiweekly: paid separately by quarter even with one due date (Pub. 131 p.4 example)', () => {
+    const { rows } = run(
+      facts({
+        stateDepositSchedules: { IL: 'semiweekly' },
+        lines: [
+          tax('2026-09-30', 'state_income', '500', 'IL'),
+          tax('2026-10-01', 'state_income', '400', 'IL'),
+        ],
+        today: '2026-09-30',
+      }),
+    );
+    const il = rows.filter((r) => r.agency === 'state_withholding:IL');
+    expect(il.map((r) => [r.periodStart, r.periodEnd, r.dueDate, r.accrued])).toEqual([
+      ['2026-09-30', '2026-09-30', '2026-10-07', '500.00'],
+      ['2026-10-01', '2026-10-02', '2026-10-07', '400.00'],
+    ]);
+  });
+
+  it('Illinois: more than $12,000 withheld in a quarter makes the next quarter semiweekly', () => {
+    const { rows } = run(
+      facts({
+        lines: [
+          tax('2026-01-30', 'state_income', '6000', 'IL'),
+          tax('2026-02-27', 'state_income', '6000.01', 'IL'),
+          // Friday, April 10: the Wednesday–Friday period is due Wednesday, April 15.
+          tax('2026-04-10', 'state_income', '100', 'IL'),
+        ],
+        today: '2026-04-01',
+      }),
+    );
+    const april = rows.find(
+      (r) => r.agency === 'state_withholding:IL' && r.periodStart === '2026-04-08',
+    )!;
+    expect(april).toMatchObject({ periodEnd: '2026-04-10', dueDate: '2026-04-15' });
+    expect(april.dueNote).toMatch(/More than \$12000\.00 was withheld in Q1 2026/);
+  });
+
   it('deductions are owed to the payee on the pay date', () => {
     const { rows } = run(
       facts({

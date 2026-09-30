@@ -824,6 +824,7 @@ export interface PayrollStateRegistrationsTable extends Audited {
   state: string;
   withholding_account_number: string | null;
   unemployment_account_number: string | null;
+  withholding_deposit_schedule: 'monthly' | 'semiweekly' | null;
   is_active: Generated<boolean>;
 }
 

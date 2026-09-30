@@ -156,6 +156,7 @@ function Setup({ companyId, settings }: { companyId: string; settings: PayrollSe
             state: dialog.value?.state ?? t('state'),
             withholdingAccountNumber: t('withholdingAccountNumber'),
             unemploymentAccountNumber: t('unemploymentAccountNumber'),
+            withholdingDepositSchedule: t('withholdingDepositSchedule') || null,
           },
         );
         break;
@@ -403,6 +404,7 @@ function Setup({ companyId, settings }: { companyId: string; settings: PayrollSe
               'State',
               'Withholding account',
               'Unemployment account',
+              'Deposit schedule',
               'Unemployment rate',
               '',
             ]}
@@ -412,6 +414,13 @@ function Setup({ companyId, settings }: { companyId: string; settings: PayrollSe
                 <td className="px-2 py-2">{PAYROLL_STATE_LABELS[s.state]}</td>
                 <td className="px-2 py-2">{s.withholdingAccountNumber ?? '—'}</td>
                 <td className="px-2 py-2">{s.unemploymentAccountNumber ?? '—'}</td>
+                <td className="px-2 py-2">
+                  {s.withholdingDepositSchedule === 'semiweekly'
+                    ? 'Semiweekly'
+                    : s.withholdingDepositSchedule === 'monthly'
+                      ? 'Monthly'
+                      : '—'}
+                </td>
                 <td className="px-2 py-2">
                   {s.unemploymentRates.map((r) => `${r.year}: ${r.rate}%`).join(', ') || '—'}
                 </td>
@@ -637,6 +646,17 @@ function Setup({ companyId, settings }: { companyId: string; settings: PayrollSe
                   label="Unemployment account number"
                   name="unemploymentAccountNumber"
                   defaultValue={dialog.value?.unemploymentAccountNumber ?? ''}
+                />
+                <Select
+                  label="Withholding deposit schedule"
+                  name="withholdingDepositSchedule"
+                  defaultValue={dialog.value?.withholdingDepositSchedule ?? ''}
+                  options={[
+                    { value: '', label: 'Not set (the schedule for new employers)' },
+                    { value: 'monthly', label: 'Monthly' },
+                    { value: 'semiweekly', label: 'Semiweekly' },
+                  ]}
+                  hint="The payment schedule on your state notice. Illinois due dates follow it."
                 />
               </>
             )}

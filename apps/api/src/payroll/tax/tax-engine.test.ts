@@ -289,10 +289,31 @@ describe('a paycheck', () => {
     expect(refuse).toEqual([]);
   });
 
+  it('Roth deferrals are taxed like pay: income tax, FICA and FUTA (W-2 instructions p.10)', () => {
+    const pay = items(['salary', '2000'], ['roth_401k', '100'], ['roth_403b', '50']);
+    const refuse: string[] = [];
+    for (const tax of ['fit', 'fica', 'futa'] as const)
+      expect(str(toCents(federalWages(fed, pay, tax, refuse)))).toBe('2000.00');
+    expect(refuse).toEqual([]);
+    // After-tax deductions leave every state's wages alone too.
+    const r = calculatePaycheckTaxes(data, { ...baseInput('TX'), items: pay });
+    expect(str(line(r, 'state_unemployment').taxableWages)).toBe('2000.00');
+  });
+
   it('refuses kinds whose treatment is pending or unknown, and says why', () => {
     const refuse: string[] = [];
+    const pendingRoth = {
+      ...fed,
+      taxabilityByItemKind: {
+        ...fed.taxabilityByItemKind,
+        kinds: {
+          ...fed.taxabilityByItemKind.kinds,
+          roth_401k: { status: 'pending' as const, note: 'Not sourced.' },
+        },
+      },
+    };
     federalWages(
-      fed,
+      pendingRoth,
       items(['salary', '1000'], ['roth_401k', '100'], ['other_employer_contribution', '10']),
       'fit',
       refuse,
@@ -328,6 +349,31 @@ describe('a paycheck', () => {
     expect(str(line(r, 'state_unemployment').taxableWages)).toBe('2000.00');
     expect(str(line(r, 'state_unemployment').amount)).toBe('54.00');
     expect(str(line(r, 'federal_income').taxableWages)).toBe('1850.00');
+  });
+
+  it('Texas: reported tips and noncash pay are wages; company health plan payments are not (Labor Code 201.081-.082)', () => {
+    const r = calculatePaycheckTaxes(data, {
+      ...baseInput('TX'),
+      items: items(
+        ['salary', '2000'],
+        ['cash_tips', '120'],
+        ['paid_tips', '80'],
+        ['fringe_benefit', '50'],
+        ['employer_health', '400'],
+      ),
+    });
+    expect(str(line(r, 'state_unemployment').taxableWages)).toBe('2250.00');
+    // Reimbursements are still not addressed.
+    expect(
+      refusal(() =>
+        calculatePaycheckTaxes(data, {
+          ...baseInput('TX'),
+          items: items(['salary', '2000'], ['reimbursement', '40']),
+        }),
+      ),
+    ).toEqual([
+      "Texas unemployment tax: the treatment of Expense reimbursement isn't sourced yet.",
+    ]);
   });
 
   it('Florida: cafeteria plan deductions and company health and 401(k) contributions are not wages', () => {
@@ -455,6 +501,41 @@ describe('a paycheck', () => {
       ytd: { ...NO_YTD, nyPflContributions: m('405') },
     });
     expect(str(line(nearCap, 'ny_pfl').amount)).toBe('6.91');
+  });
+
+  it('New York: more than 14 allowances on an IT-2104 means sending the state a copy (IT-2104-I)', () => {
+    const at = (n: number) =>
+      calculatePaycheckTaxes(data, {
+        ...baseInput('NY'),
+        stateCertificate: nyCert({ stateAllowances: n }),
+        items: items(['salary', '2000']),
+      }).notices;
+    expect(at(14)).toEqual([]);
+    expect(at(15)).toEqual([
+      'The IT-2104 claims more than 14 allowances: send a copy to the New York State Tax Department (box A).',
+    ]);
+  });
+
+  it('New York unemployment counts noncash pay and certified tips (IA 318.15); PFL waits on them', () => {
+    const pay = items(['salary', '2000'], ['fringe_benefit', '75'], ['cash_tips', '40']);
+    const refuse: string[] = [];
+    const ui = stateWages(
+      fed,
+      ny.taxableWages.unemployment,
+      pay,
+      dec('0'),
+      'NY',
+      refuse,
+      '2026-03-06',
+    );
+    expect(str(toCents(ui))).toBe('2115.00');
+    expect(refuse).toEqual([]);
+    // Paid Family Leave wages are the "money rate" of the contract of hiring (WCL § 201(12)).
+    stateWages(fed, ny.taxableWages.paidFamilyLeave, pay, dec('0'), 'NY PFL', refuse, '2026-03-06');
+    expect(refuse).toEqual([
+      "NY PFL: the treatment of Taxable fringe benefit isn't sourced yet.",
+      "NY PFL: the treatment of Cash tips (reported by the employee) isn't sourced yet.",
+    ]);
   });
 
   it('Illinois without an IL-W-4 withholds with no allowances (Pub. 130); bonuses at the flat rate', () => {

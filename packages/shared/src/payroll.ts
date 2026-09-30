@@ -346,10 +346,14 @@ export function payPeriods(s: ScheduleShape, from: IsoDate, count: number): PayP
 // ---------------------------------------------------------------------------------------------
 // State registrations, unemployment rates, workers' comp classes
 // ---------------------------------------------------------------------------------------------
+export const STATE_DEPOSIT_SCHEDULES = ['monthly', 'semiweekly'] as const;
+export type StateDepositSchedule = (typeof STATE_DEPOSIT_SCHEDULES)[number];
 export const stateRegistrationInputSchema = z.object({
   state: z.enum(PAYROLL_STATES, 'Payroll supports CA, FL, IL, NY and TX for now'),
   withholdingAccountNumber: optText(30),
   unemploymentAccountNumber: optText(30),
+  /** The withholding deposit schedule the state assigned (Illinois: from its IDOR notice). */
+  withholdingDepositSchedule: z.enum(STATE_DEPOSIT_SCHEDULES).nullable().optional(),
   isActive: z.boolean().optional(),
 });
 export type StateRegistrationInput = z.input<typeof stateRegistrationInputSchema>;
@@ -366,6 +370,7 @@ export interface StateRegistrationDto {
   state: PayrollState;
   withholdingAccountNumber: string | null;
   unemploymentAccountNumber: string | null;
+  withholdingDepositSchedule: StateDepositSchedule | null;
   isActive: boolean;
   /** The employer's unemployment rate per year, newest first. */
   unemploymentRates: { year: number; rate: string }[];
@@ -822,7 +827,10 @@ export const caDe4FieldsSchema = z.object({
   estimatedDeductionAllowances: allowances,
   /** Line 2: additional amount to withhold each pay period. */
   additionalWithholding: moneyOrZero,
+  /** Line 3: exemption for the year (renewed by February 15). */
   exempt: z.boolean().default(false),
+  /** Line 4: not subject to California withholding as a military spouse (DE 4 Rev. 56, 1-26). */
+  militarySpouseExempt: z.boolean().default(false),
 });
 
 export const IT2104_STATUSES = ['single', 'married', 'married_single_rate'] as const;

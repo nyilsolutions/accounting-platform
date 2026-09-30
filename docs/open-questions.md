@@ -172,29 +172,41 @@ Add new questions here instead of guessing.
     approved by you for building (2026-09-30) and wait for a CPA or payroll specialist's review
     (`reviewedBy`) before real paychecks. The tax engine refuses anything not sourced, with the
     reason. Still needed:
-    - **New York**: Disability Benefits employee limit (DBL withholding is optional, so paychecks
-      don't wait on it); Publication 420 (MCTMT rates); which table applies to IT-2104 "Married,
-      but withhold at higher single rate" (expected: single); how employee pre-tax deductions
-      (401(k), cafeteria plan, FSA, HSA), tips and company contributions count for unemployment
-      and for Paid Family Leave. Paid Family Leave itself is now calculated (0.432%, $411.91 cap);
+    - **New York**:
+      - the current MCTMT employer rates: Publication 420 (8/15) was supplied, but its cover note
+        says its employer rates are obsolete from July 1, 2023. Needs the Tax Department's
+        "Employers: metropolitan commuter transportation mobility tax" page;
+      - which table applies to IT-2104 "Married, but withhold at higher single rate" (expected:
+        single; IT-2104-I doesn't say);
+      - how employee pre-tax deductions (401(k), cafeteria plan, FSA, HSA) count for
+        unemployment. Labor Law § 517 excludes plan payments and 401(a) trust payments but doesn't
+        address salary reductions. (Noncash pay and certified tips are now sourced, IA 318.15);
+      - Paid Family Leave and DBL wages: see question 55;
     - **California**: the 2026 California Employer's Guide (DE 44) for income tax withholding
       (every California paycheck waits on this). One conflict for the reviewer: DE 231EB (2017)
       shows employer 401(k) contributions as subject to unemployment and SDI, the newer DE 231A
       (2023) says they are not; payroll follows DE 231A;
     - **Florida**: whether employee 401(k) deferrals are reemployment tax wages. Section
       443.1217(2)(f)1 exempts payments "to a trust described in s. 401(a)" without the
-      salary-reduction exception it makes for 403(b), and the Employer Guide (RT-800002) doesn't
-      mention 401(k). Florida paychecks with a 401(k) deduction wait on this; also company HSA
-      contributions and reimbursements;
+      salary-reduction exception it makes for 403(b). Neither the Employer Guide (RT-800002) nor
+      the Department's return page settles it: the page lists both plans as excluded without that
+      exception. Florida paychecks with a 401(k) deduction wait on this. Also reimbursements, and
+      company HSA contributions (question 56);
     - **Illinois**: how 403(b), HSA and reimbursements count for unemployment. A health FSA is
       treated as excluded (a cafeteria-plan benefit for medical expenses); a reviewer should
       confirm;
-    - **Texas**: company-paid health insurance outside a cafeteria plan, tips, reimbursements and
-      taxable fringe benefits for unemployment; the new-employer rate;
-    - **Roth 401(k)/403(b)**: a citation that designated Roth contributions are wages (Form W-2
-      instructions or Pub. 525);
+    - **Texas**: reimbursements, company HSA and other company contributions for unemployment
+      (Labor Code 201.081–.082 and the TWC pages settle tips, noncash pay, company health plans
+      and the 2.70% new-employer rate);
     - the **2026 FUTA credit reduction states** (Department of Labor, November 2026). Paychecks
-      use the 0.6% net rate; a credit reduction is added on Form 940 at year end.
+      use the 0.6% net rate; a credit reduction is added on Form 940 at year end;
+    - **state holidays** for due dates: Illinois moves a due date on a state-recognized holiday to
+      the next business day (Publication 131). Only weekends are applied today (see question 46).
+
+    Settled by the documents supplied on 2026-09-30: Roth 401(k)/403(b) (2026 W-2 instructions),
+    the Illinois withholding deposit schedule (Publication 131), Florida RT-6 due dates, the
+    Texas new-employer rate, and the current IL-W-4 (R-07/23), DE 4 (Rev. 56, 1-26) and IT-2104
+    (2026) forms.
 
     A paycheck with a kind of pay whose treatment isn't sourced for its state is refused with the
     reason; everything else is calculated.
@@ -205,9 +217,9 @@ Add new questions here instead of guessing.
     - whether prenotes are required, and how many business days to wait after one.
 46. **Pay dates on bank holidays:** a pay date on a weekend moves to the Friday before. Should
     Federal Reserve holidays move it too? If so, the holiday list would live in `tax-data`.
-47. **State certificate fields:** the IL-W-4, DE 4 and IT-2104 fields follow the forms as we know
-    them. The state sites are blocked here, so the fields have not been checked against the
-    current forms. Please confirm them, or allow the state hosts so we can.
+47. **State certificate fields:** settled. The fields match the current IL-W-4 (R-07/23), DE 4
+    (Rev. 56, 1-26) and IT-2104 (2026). DE 4 line 4 (military spouse) was added. New York
+    paychecks now say when an IT-2104 claims more than 14 allowances and must be sent to the state.
 48. **Paid sick leave:** California and New York require minimum paid sick leave, and some cities
     have their own rules. Should PTO policies enforce those minimums, or is that the employer's
     job?
@@ -236,3 +248,22 @@ Add new questions here instead of guessing.
 54. **Paper paychecks:** paychecks paid by check are marked "to print" but can't be printed yet
     with the check printing from Phase 3 (voucher stubs differ). Do customers print paychecks, or
     is direct deposit plus a pay stub enough for now?
+55. **New York Paid Family Leave and Disability Benefits (DBL):** the WCB page supplied says an
+    employer "is allowed, but not required" to collect either from employees.
+    - **Wages:** Workers' Compensation Law § 201(12) defines them as "the money rate at which
+      employment... is recompensed under the contract of hiring", and the 2026 notice says
+      "gross wages". My reading is that employee pre-tax deductions (401(k), cafeteria plan, FSA,
+      HSA) don't lower PFL or DBL wages, and company contributions aren't wages. Should payroll
+      follow that reading (for the CPA to confirm), or wait for a written source? Until then, New
+      York paychecks with those items are refused for PFL.
+    - **DBL:** 0.5% of wages, at most $0.60 a week, is now in `ny.json`, but payroll doesn't deduct
+      it. Should payroll deduct DBL? If so, is the cap $0.60 times the weeks in each pay period
+      ($1.20 every two weeks, $1.30 twice a month, $2.60 monthly)? And should employees exempt on
+      Form DB-130 be marked on the employee?
+    - **Company pays:** should a company be able to pay the employee share of PFL or DBL itself
+      instead of deducting it?
+56. **Florida company HSA contributions:** Florida excludes HSA contributions only when they are
+    made through a cafeteria plan. Company HSA contributions (the "HSA (company contribution)"
+    item) can be made either way. Should payroll:
+    - split the item into "through the cafeteria plan" and "outside it" (recommended); or
+    - treat all company HSA contributions as outside a cafeteria plan (taxable in Florida)?

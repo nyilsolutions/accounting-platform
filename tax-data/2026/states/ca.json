@@ -42,6 +42,13 @@
       "revision": "2025 (created 2026-03-13)",
       "url": null,
       "urlNote": "The supplied copy does not show its own address; publisher site ftb.ca.gov."
+    },
+    {
+      "id": "de-4",
+      "title": "EDD, DE 4, Employee's Withholding Allowance Certificate",
+      "revision": "DE 4 Rev. 56 (1-26)",
+      "url": null,
+      "urlNote": "The supplied copy does not show its own address; publisher site edd.ca.gov."
     }
   ],
   "incomeTaxWithholding": {
@@ -138,7 +145,8 @@
         "page": 1,
         "ref": "Important Due Dates"
       }
-    ]
+    ],
+    "dueNote": "The quarterly return (DE 9) is delinquent after this date."
   },
   "taxableWages": {
     "incomeTax": {
@@ -515,5 +523,28 @@
     "scope": "Figures checked as copied from the supplied documents, for building and testing the tax calculations. Not a professional review: reviewedBy stays null until a CPA or payroll specialist signs off, which is required before real paychecks."
   },
   "reviewedBy": null,
-  "note": "Approved by the product owner for building (see ownerApproval); awaiting professional review."
+  "note": "Approved by the product owner for building (see ownerApproval); awaiting professional review.",
+  "noCertificate": {
+    "rule": "single_zero_allowances",
+    "note": "Without a completed DE 4, withhold as Single with zero allowances. (California income tax itself still waits on DE 44.)",
+    "cite": [
+      {
+        "source": "de-4",
+        "page": 1,
+        "ref": "\"If you do not provide your employer a completed DE 4, your employer must use Single with Zero withholding allowance.\""
+      }
+    ]
+  },
+  "certificate": {
+    "form": "DE 4",
+    "revision": "Rev. 56 (1-26)",
+    "note": "Line 3 is the exemption for employees who owed no federal or state tax last year and expect none this year (renewed by February 15 each year); line 4 is the exemption for a military spouse under the Servicemembers Civil Relief Act as amended by the Military Spouses Residency Relief Act.",
+    "cite": [
+      {
+        "source": "de-4",
+        "page": 1,
+        "ref": "Line 3: \"I claim exemption from withholding for 2026\"; line 4: \"I certify under penalty of perjury that I am not subject to California withholding. I meet the conditions set forth under the Service Member Civil Relief Act...\"; \"a new DE 4 designating exempt must be submitted by February 15 each year\""
+      }
+    ]
+  }
 }

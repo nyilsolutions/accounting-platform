@@ -210,6 +210,19 @@ describe('setup', () => {
     ).body;
     expect(after.unemploymentRates).toEqual([{ year: 2026, rate: '3.4' }]);
     await owner.agent.put(`${base()}/states/${ny.id}`).send({ state: 'TX' }).expect(400);
+    // The withholding deposit schedule the state assigned; unset until given.
+    expect(after.withholdingDepositSchedule).toBeNull();
+    const semiweekly: StateRegistrationDto = (
+      await owner.agent
+        .put(`${base()}/states/${ny.id}`)
+        .send({ state: 'NY', withholdingDepositSchedule: 'semiweekly' })
+        .expect(200)
+    ).body;
+    expect(semiweekly.withholdingDepositSchedule).toBe('semiweekly');
+    await owner.agent
+      .put(`${base()}/states/${ny.id}`)
+      .send({ state: 'NY', withholdingDepositSchedule: 'weekly' })
+      .expect(400);
   });
 
   it("workers' comp classes, PTO policies and items", async () => {
