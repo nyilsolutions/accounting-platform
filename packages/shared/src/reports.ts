@@ -37,6 +37,10 @@ export const REPORT_KEYS = [
   'inventory_valuation_summary',
   'inventory_valuation_detail',
   'inventory_stock_status',
+  'time_by_customer',
+  'time_detail',
+  'unbilled_time',
+  'estimates_progress',
   'custom',
 ] as const;
 export type ReportKey = (typeof REPORT_KEYS)[number];
@@ -74,6 +78,10 @@ export const REPORT_TITLES: Record<ReportKey, string> = {
   inventory_valuation_summary: 'Inventory Valuation Summary',
   inventory_valuation_detail: 'Inventory Valuation Detail',
   inventory_stock_status: 'Inventory Stock Status by Item',
+  time_by_customer: 'Time by Customer Summary',
+  time_detail: 'Time Activities by Person Detail',
+  unbilled_time: 'Unbilled Time',
+  estimates_progress: 'Estimates Progress',
   custom: 'Custom report',
 };
 

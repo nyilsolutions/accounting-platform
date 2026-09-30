@@ -13,7 +13,7 @@ export class PayrollLookupsService {
 
   get(auth: AuthContext, ctx: CompanyContext): Promise<PayrollLookupsDto> {
     return withTenant(this.db, { userId: auth.userId, companyId: ctx.companyId }, async (tx) => {
-      const [accounts, vendors, classes, locations] = await Promise.all([
+      const [accounts, vendors, classes, locations, members] = await Promise.all([
         tx
           .selectFrom('accounts')
           .select(['id', 'parent_id', 'name', 'number', 'account_type'])
@@ -40,6 +40,13 @@ export class PayrollLookupsService {
           .where('company_id', '=', ctx.companyId)
           .where('is_active', '=', true)
           .execute(),
+        tx
+          .selectFrom('memberships as m')
+          .innerJoin('users as u', 'u.id', 'm.user_id')
+          .select(['u.id', 'u.full_name'])
+          .where('m.company_id', '=', ctx.companyId)
+          .orderBy('u.full_name')
+          .execute(),
       ]);
       const tree = <T extends { id: string; parent_id: string | null; name: string }>(rows: T[]) =>
         flattenTree(buildTree(rows, (r) => r.name));
@@ -58,6 +65,7 @@ export class PayrollLookupsService {
         vendors: vendors.map((v) => ({ id: v.id, displayName: v.display_name })),
         classes: tree(classes).map((n) => ({ id: n.item.id, fullName: n.fullName })),
         locations: tree(locations).map((n) => ({ id: n.item.id, fullName: n.fullName })),
+        members: members.map((u) => ({ userId: u.id, fullName: u.full_name })),
       };
     });
   }

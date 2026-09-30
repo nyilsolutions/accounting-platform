@@ -276,7 +276,35 @@ export class PayRunsService {
           .where('id', '=', employeeId)
           .executeTakeFirstOrThrow();
         const earnings: PaycheckInputFacts['earnings'] = [];
-        if (runValues.kind === 'regular' || runValues.kind === 'final') {
+        // Hourly employees are paid the approved time in the period, when there is any
+        // (ADR 0019), grouped by the payroll item each entry is paid as.
+        const approvedTime =
+          runValues.kind === 'regular' && e.pay_type === 'hourly' && runValues.period_start
+            ? await tx
+                .selectFrom('time_entries')
+                .select(['id', 'hours', 'payroll_item_id'])
+                .where('company_id', '=', ctx.companyId)
+                .where('employee_id', '=', e.id)
+                .where('status', '=', 'approved')
+                .where('paycheck_id', 'is', null)
+                .where('work_date', '>=', runValues.period_start)
+                .where('work_date', '<=', runValues.period_end!)
+                .execute()
+            : [];
+        if (approvedTime.length && hourlyItem) {
+          const byItem = new Map<string, bigint>();
+          for (const t of approvedTime) {
+            const item = t.payroll_item_id ?? hourlyItem.id;
+            byItem.set(item, (byItem.get(item) ?? 0n) + parseMoney(t.hours));
+          }
+          for (const [payrollItemId, h] of byItem)
+            earnings.push({
+              payrollItemId,
+              hours: trimDecimal(moneyToString(h, 4)),
+              rate: null,
+              amount: null,
+            });
+        } else if (runValues.kind === 'regular' || runValues.kind === 'final') {
           if (e.pay_type === 'hourly' && hourlyItem && e.default_hours)
             earnings.push({
               payrollItemId: hourlyItem.id,
@@ -306,6 +334,16 @@ export class PayRunsService {
           })
           .returning('id')
           .executeTakeFirstOrThrow();
+        if (approvedTime.length && hourlyItem)
+          await tx
+            .updateTable('time_entries')
+            .set({ paycheck_id: paycheck.id })
+            .where(
+              'id',
+              'in',
+              approvedTime.map((t) => t.id),
+            )
+            .execute();
         await this.calculate(tx, ctx.companyId, paycheck.id);
       }
       await this.record(tx, auth, ctx, meta, 'payroll.pay_run_created', 'pay_run', run.id, {
@@ -680,6 +718,13 @@ export class PayRunsService {
         .set({ status: 'void', voided_by: auth.userId, voided_at: new Date() })
         .where('id', '=', pc.id)
         .execute();
+      // The time it paid can be paid again.
+      await tx
+        .updateTable('time_entries')
+        .set({ paycheck_id: null })
+        .where('company_id', '=', ctx.companyId)
+        .where('paycheck_id', '=', pc.id)
+        .execute();
       await this.record(tx, auth, ctx, meta, 'payroll.paycheck_voided', 'paycheck', pc.id, {
         payRunId: pc.pay_run_id,
         employeeId: pc.employee_id,
@@ -812,6 +857,39 @@ export class PayRunsService {
   }
 
   // --- Calculation ---------------------------------------------------------------------------------
+  /** What the payroll admin should know about the employee's time in the pay period. */
+  private async timeNotices(
+    tx: Tx,
+    companyId: string,
+    pc: { id: string; employee_id: string; period_start: string | null; period_end: string | null },
+  ): Promise<string[]> {
+    const notices: string[] = [];
+    const paid = await tx
+      .selectFrom('time_entries')
+      .select((eb) => eb.fn.sum<string>('hours').as('hours'))
+      .where('company_id', '=', companyId)
+      .where('paycheck_id', '=', pc.id)
+      .executeTakeFirst();
+    if (paid?.hours)
+      notices.push(`Hours come from approved time: ${trimDecimal(paid.hours)} hours.`);
+    if (pc.period_start && pc.period_end) {
+      const pending = await tx
+        .selectFrom('time_entries')
+        .select((eb) => eb.fn.sum<string>('hours').as('hours'))
+        .where('company_id', '=', companyId)
+        .where('employee_id', '=', pc.employee_id)
+        .where('status', 'in', ['open', 'submitted', 'rejected'])
+        .where('work_date', '>=', pc.period_start)
+        .where('work_date', '<=', pc.period_end)
+        .executeTakeFirst();
+      if (pending?.hours)
+        notices.push(
+          `${trimDecimal(pending.hours)} hours of time in this period aren't approved, so they aren't on this paycheck.`,
+        );
+    }
+    return notices;
+  }
+
   /** Recalculates one draft paycheck from its input and today's facts, replacing its lines. */
   private async calculate(tx: Tx, companyId: string, paycheckId: string): Promise<void> {
     const pc = await tx
@@ -827,6 +905,8 @@ export class PayRunsService {
         'p.status',
         'r.frequency',
         'r.kind',
+        'r.period_start',
+        'r.period_end',
       ])
       .where('p.company_id', '=', companyId)
       .where('p.id', '=', paycheckId)
@@ -954,7 +1034,10 @@ export class PayRunsService {
         employer_taxes: moneyToString(result.employerTaxes, 4),
         contributions: moneyToString(result.contributions, 4),
         problems: result.problems.length ? JSON.stringify(result.problems) : null,
-        notices: JSON.stringify(result.notices),
+        notices: JSON.stringify([
+          ...result.notices,
+          ...(await this.timeNotices(tx, companyId, pc)),
+        ]),
         w4_id: w4?.id ?? null,
         state_certificate_id: cert?.id ?? null,
         tax_year: year,

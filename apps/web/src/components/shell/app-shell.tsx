@@ -22,7 +22,14 @@ export function AppShell({ companyId, children }: { companyId: string; children:
 
   const base = `/c/${companyId}`;
   const visible = useMemo(
-    () => NAV.filter((n) => !n.permission || access.data?.permissions.includes(n.permission)),
+    () =>
+      NAV.filter(
+        (n) =>
+          !n.permission ||
+          (Array.isArray(n.permission) ? n.permission : [n.permission]).some((p) =>
+            access.data?.permissions.includes(p),
+          ),
+      ),
     [access.data],
   );
   const company = companies.data?.find((c) => c.id === companyId);

@@ -26,6 +26,8 @@ export const PERMISSIONS = [
   'payroll.sensitive.reveal',
   'reports.view',
   'time.manage',
+  /** Approve or reject submitted time (managers approve their own employees' time without it). */
+  'time.approve',
   'documents.view',
   'documents.manage',
   'migration.manage',
@@ -89,6 +91,7 @@ export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
     'payroll.view',
     'payroll.manage',
     'payroll.sensitive.reveal',
+    'time.approve',
     'documents.view',
     'documents.manage',
   ],
