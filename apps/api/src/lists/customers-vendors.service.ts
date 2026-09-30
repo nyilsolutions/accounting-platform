@@ -296,6 +296,8 @@ export class VendorsService {
         ['is1099', 'is_1099'],
         ['tinType', 'tin_type'],
         ['defaultExpenseAccountId', 'default_expense_account_id'],
+        ['w9ReceivedOn', 'w9_received_on'],
+        ['backupWithholding', 'backup_withholding'],
       ]),
       updated_by: auth.userId,
     };
@@ -379,6 +381,8 @@ function toVendorDto(r: Vendor): VendorDto {
     tinType: r.tin_type as 'ein' | 'ssn' | null,
     tinMasked: maskTin(r.tin_type, r.tin_last4),
     defaultExpenseAccountId: r.default_expense_account_id,
+    w9ReceivedOn: r.w9_received_on,
+    backupWithholding: r.backup_withholding,
     ...contactDto(r),
   };
 }

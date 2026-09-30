@@ -15,6 +15,7 @@ import { MigrationModule } from './migration/migration.module';
 import { BankingModule } from './banking/banking.module';
 import { BudgetsModule } from './budgets/budgets.module';
 import { DocumentsModule } from './documents/documents.module';
+import { PayrollModule } from './payroll/payroll.module';
 import { PurchasesModule } from './purchases/purchases.module';
 import { ReportsModule } from './reports/reports.module';
 import { SalesModule } from './sales/sales.module';
@@ -49,6 +50,7 @@ export class AppModule {
         BankingModule,
         DocumentsModule,
         MigrationModule,
+        PayrollModule,
       ],
       controllers: [HealthController],
       providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
