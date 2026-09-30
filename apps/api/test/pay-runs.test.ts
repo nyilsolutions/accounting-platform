@@ -619,7 +619,11 @@ describe('liabilities', () => {
       accrued: '451.23',
       balance: '451.23',
     });
-    expect(row('federal_940')).toMatchObject({ accrued: '11.76', dueDate: '2027-02-01', status: 'open' });
+    expect(row('federal_940')).toMatchObject({
+      accrued: '11.76',
+      dueDate: '2027-02-01',
+      status: 'open',
+    });
     expect(row('state_unemployment:TX')).toMatchObject({ accrued: '52.92', dueDate: null });
     expect(row(`item:${item('Child support')}`)).toMatchObject({
       agencyLabel: 'Child support',
