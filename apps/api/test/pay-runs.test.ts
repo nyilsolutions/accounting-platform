@@ -402,6 +402,17 @@ describe('a regular pay run', () => {
         .expect(200)
     ).body;
     expect(stub.id).toBe(pc.id);
+    // Year to date on a posted paycheck includes the paycheck itself.
+    expect(stub.lines.find((l) => l.label === 'Hourly wage')).toMatchObject({
+      amount: '1960.00',
+      ytd: '1960.00',
+    });
+    expect(stub.ytd).toEqual({
+      grossPay: '1960.00',
+      employeeTaxes: '301.29',
+      deductions: '100.00',
+      netPay: '1558.71',
+    });
     expect(stub.deposits).toEqual([
       { accountMasked: '****6789', accountType: 'checking', amount: '1558.71' },
     ]);
@@ -608,7 +619,7 @@ describe('liabilities', () => {
       accrued: '451.23',
       balance: '451.23',
     });
-    expect(row('federal_940')).toMatchObject({ accrued: '11.76', dueDate: '2026-07-31' });
+    expect(row('federal_940')).toMatchObject({ accrued: '11.76', dueDate: '2027-02-01', status: 'open' });
     expect(row('state_unemployment:TX')).toMatchObject({ accrued: '52.92', dueDate: null });
     expect(row(`item:${item('Child support')}`)).toMatchObject({
       agencyLabel: 'Child support',

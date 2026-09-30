@@ -12,11 +12,14 @@ export default function PayrollLayout({ children }: { children: ReactNode }) {
     <>
       <PageHeader
         title="Payroll"
-        description="Employees, pay schedules, states, payroll items and direct deposit."
+        description="Pay runs, employees, taxes owed, payroll reports and setup."
       />
       <RouteTabs
         tabs={[
           { href: base, label: 'Employees', exact: true },
+          { href: `${base}/runs`, label: 'Pay runs' },
+          { href: `${base}/liabilities`, label: 'Taxes & liabilities' },
+          { href: `${base}/reports`, label: 'Reports' },
           { href: `${base}/setup`, label: 'Setup' },
           { href: `${base}/direct-deposit`, label: 'Direct deposit' },
         ]}

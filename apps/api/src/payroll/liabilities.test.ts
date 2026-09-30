@@ -123,7 +123,7 @@ describe('Form 941 deposits (Pub. 15)', () => {
 });
 
 describe('FUTA deposits', () => {
-  it('a quarter under $500 carries to the next; Q4 is due by January 31', () => {
+  it('a quarter under $500 carries forward to the quarter that passes $500; Q4 is due by January 31', () => {
     const { rows } = run(
       facts({
         today: '2026-12-31',
@@ -140,6 +140,14 @@ describe('FUTA deposits', () => {
       // January 31, 2027 is a Sunday.
       ['2026-10-01', '2027-02-01', false],
     ]);
+  });
+
+  it('FUTA still at $500 or less is not overdue: it is due by January 31 at the latest', () => {
+    const { rows } = run(
+      facts({ today: '2026-09-30', lines: [tax('2026-01-15', 'futa', '23.76')] }),
+    );
+    expect(rows[0]).toMatchObject({ dueDate: '2027-02-01', status: 'open' });
+    expect(rows[0]!.dueNote).toMatch(/carried forward/);
   });
 });
 

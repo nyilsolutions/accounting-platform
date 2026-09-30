@@ -15,6 +15,11 @@ import type {
   PayrollItemDto,
   PayrollLookupsDto,
   PayrollSettingsDto,
+  PaycheckDto,
+  PayRunDto,
+  PayRunSummaryDto,
+  PayrollLiabilitiesDto,
+  PayrollLiabilityPaymentDto,
   PayScheduleDto,
   Permission,
   PtoPolicyDto,
@@ -261,5 +266,47 @@ export function useEmployee(id: string, employeeId: string) {
   return useQuery({
     queryKey: [...keys.payroll(id), 'employee', employeeId],
     queryFn: payrollGet<EmployeeDto>(id, `/employees/${employeeId}`),
+  });
+}
+
+export function usePayRuns(id: string) {
+  return useQuery({
+    queryKey: [...keys.payroll(id), 'pay-runs'],
+    queryFn: payrollGet<PayRunSummaryDto[]>(id, '/pay-runs'),
+  });
+}
+
+export function usePayRun(id: string, runId: string) {
+  return useQuery({
+    queryKey: [...keys.payroll(id), 'pay-run', runId],
+    queryFn: payrollGet<PayRunDto>(id, `/pay-runs/${runId}`),
+  });
+}
+
+export function usePaycheck(id: string, paycheckId: string) {
+  return useQuery({
+    queryKey: [...keys.payroll(id), 'paycheck', paycheckId],
+    queryFn: payrollGet<PaycheckDto>(id, `/paychecks/${paycheckId}`),
+  });
+}
+
+export function usePaycheckByTransaction(id: string, transactionId: string) {
+  return useQuery({
+    queryKey: [...keys.payroll(id), 'paycheck-by-transaction', transactionId],
+    queryFn: payrollGet<PaycheckDto>(id, `/paychecks/by-transaction/${transactionId}`),
+  });
+}
+
+export function usePayrollLiabilities(id: string) {
+  return useQuery({
+    queryKey: [...keys.payroll(id), 'liabilities'],
+    queryFn: payrollGet<PayrollLiabilitiesDto>(id, '/liabilities'),
+  });
+}
+
+export function usePayrollLiabilityPayments(id: string) {
+  return useQuery({
+    queryKey: [...keys.payroll(id), 'liability-payments'],
+    queryFn: payrollGet<PayrollLiabilityPaymentDto[]>(id, '/liabilities/payments'),
   });
 }

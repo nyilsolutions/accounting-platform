@@ -1330,7 +1330,15 @@ export class PayRunsService {
       .where((eb) =>
         eb.or([
           eb('q.pay_date', '<', p.pay_date),
-          eb.and([eb('q.pay_date', '=', p.pay_date), eb('q.created_at', '<=', p.created_at)]),
+          eb.and([
+            eb('q.pay_date', '=', p.pay_date),
+            // Compared in the database: JavaScript dates drop Postgres's microseconds.
+            eb(
+              'q.created_at',
+              '<=',
+              sql<Date>`(select created_at from paychecks where id = ${p.id})`,
+            ),
+          ]),
         ]),
       )
       .groupBy(['l.line_type', 'l.payroll_item_id', 'l.tax_code', 'l.state', 'l.payer'])
@@ -1396,6 +1404,7 @@ export class PayRunsService {
         deductions: moneyToString(ytdDeductions),
         netPay: moneyToString(ytdGross - ytdTaxes - ytdDeductions),
       },
+      input: p.input as PaycheckDto['input'],
       deposits: (p.deposits as StoredDeposit[]).map((d) => ({
         accountMasked: `****${d.last4}`,
         accountType: d.accountType,

@@ -265,37 +265,52 @@ export function payrollLiabilities(
   }
 
   // --- FUTA: quarterly, deposited once more than $500 has accumulated. -------------------------
+  // A quarter at $500 or less carries forward: it is deposited with the first later quarter that
+  // takes the running total over $500, or with the fourth quarter's by January 31.
   const futa = f.lines.filter((l) => agencyOf(l) === 'federal_940');
   const futaYears = [...new Set(futa.map((l) => Number(l.payDate.slice(0, 4))))].sort();
   for (const year of futaYears) {
     const fed = f.federal(year);
-    let carried = ZERO;
+    const quarters: { q: number; amount: Money; g: Group }[] = [];
     for (let q = 1; q <= 4; q++) {
       const lines = futa.filter(
         (l) => Number(l.payDate.slice(0, 4)) === year && quarterOf(l.payDate).q === q,
       );
       if (lines.length === 0) continue;
       const { start, end } = quarterOf(`${year}-${String(q * 3).padStart(2, '0')}-01`);
-      const amount = lines.reduce((a, l) => a + l.amount, ZERO);
       const g = group('federal_940', start, end);
       for (const l of lines) addPart(g, partLabel(l), l.amount);
-      if (!fed) {
+      quarters.push({ q, amount: lines.reduce((a, l) => a + l.amount, ZERO), g });
+    }
+    if (!fed) {
+      for (const { g } of quarters)
         g.dueNote = `There is no ${year} federal tax data, so the due date isn't known.`;
-        continue;
-      }
-      const dueOf = (quarter: number) => {
-        const md = fed.futa.depositDue[`Q${quarter}` as 'Q1'];
-        return onBusinessDay(`${quarter === 4 ? year + 1 : year}-${md}`);
-      };
-      carried += amount;
-      if (q === 4 || carried > parseMoney(fed.futa.quarterlyDepositThreshold)) {
-        g.dueDate = dueOf(q);
+      continue;
+    }
+    const threshold = parseMoney(fed.futa.quarterlyDepositThreshold);
+    const dueOf = (quarter: number) =>
+      onBusinessDay(
+        `${quarter === 4 ? year + 1 : year}-${fed.futa.depositDue[`Q${quarter}` as 'Q1']}`,
+      );
+    let waiting: typeof quarters = [];
+    let carried = ZERO;
+    for (const quarter of quarters) {
+      waiting.push(quarter);
+      carried += quarter.amount;
+      if (quarter.q === 4 || carried > threshold) {
+        for (const w of waiting) {
+          w.g.dueDate = dueOf(quarter.q);
+          if (w.q !== quarter.q)
+            w.g.dueNote = `Carried forward (under $${moneyToString(threshold)}): deposit with Q${quarter.q}.`;
+        }
+        waiting = [];
         carried = ZERO;
-      } else {
-        // Under $500: carried into the next quarter (due with it, or with Form 940 by Jan 31).
-        g.dueDate = dueOf(q + 1);
-        g.dueNote = `Under $${moneyToString(parseMoney(fed.futa.quarterlyDepositThreshold))} so far: deposit with the next quarter's FUTA.`;
       }
+    }
+    // Still at $500 or less: due when a later quarter passes $500, and by January 31 at the latest.
+    for (const w of waiting) {
+      w.g.dueDate = dueOf(4);
+      w.g.dueNote = `Under $${moneyToString(threshold)} so far: carried forward until a quarter takes the year's undeposited FUTA over $${moneyToString(threshold)}, and due by January 31 at the latest.`;
     }
   }
 

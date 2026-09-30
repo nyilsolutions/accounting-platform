@@ -1273,6 +1273,20 @@ export interface PaycheckDto extends PaycheckSummaryDto {
   companyName: string;
   lines: PaycheckLineDto[];
   ytd: { grossPay: string; employeeTaxes: string; deductions: string; netPay: string };
+  /**
+   * What was entered: earnings, and amounts that replace (or, at "0", skip) a recurring
+   * deduction or contribution for this paycheck. Recurring items not listed are calculated.
+   */
+  input: {
+    earnings: {
+      payrollItemId: string;
+      hours: string | null;
+      rate: string | null;
+      amount: string | null;
+    }[];
+    deductions: { payrollItemId: string; amount: string }[];
+    contributions: { payrollItemId: string; amount: string }[];
+  };
   /** Where net pay went (masked accounts), for direct deposit. */
   deposits: { accountMasked: string; accountType: BankAccountType; amount: string }[];
   voidedAt: string | null;

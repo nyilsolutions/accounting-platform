@@ -2,12 +2,14 @@ import { NestFactory } from '@nestjs/core';
 import { withTenant, type Db } from '@acct/db';
 import {
   bankAccountsInputSchema,
+  createPayRunSchema,
   employeeInputSchema,
   employeePayItemsInputSchema,
   employeePtoInputSchema,
   payrollItemInputSchema,
   payrollSettingsInputSchema,
   payScheduleInputSchema,
+  payPeriods,
   PERMISSIONS,
   ptoPolicyInputSchema,
   stateRegistrationInputSchema,
@@ -21,6 +23,7 @@ import type { AuthContext, CompanyContext, RequestMeta } from './common/request'
 import type { AppConfig } from './config';
 import { VendorsService } from './lists/customers-vendors.service';
 import { EmployeesService } from './payroll/employees.service';
+import { PayRunsService } from './payroll/pay-runs.service';
 import { PayrollSetupService } from './payroll/payroll-setup.service';
 
 /**
@@ -30,6 +33,8 @@ import { PayrollSetupService } from './payroll/payroll-setup.service';
  * - Maria Lopez: hourly crew lead, complete (SSN, W-4, direct deposit waiting for its prenote);
  * - David Chen: salaried office manager, paid by check, SSN not yet provided;
  * - Kim Nguyen: a new hire with only her job details entered.
+ * Then a posted pay run for the first period ending in September (Maria and David) and a draft
+ * run for the next period.
  * The SSN is 078-05-1120, the number SSA voided after it was printed on a sample card.
  */
 export async function seedPhase8(
@@ -299,7 +304,37 @@ export async function seedPhase8(
       }),
       meta,
     );
-    console.log('Phase 8 demo: payroll setup and three employees added.');
+
+    // A posted pay run for the first period ending in September, and a draft for the next one.
+    const runs = app.get(PayRunsService);
+    const period = payPeriods(
+      {
+        frequency: 'biweekly',
+        firstPeriodEnd: schedule.firstPeriodEnd,
+        payDateOffset: schedule.payDateOffset,
+      },
+      `${year}-09-01`,
+      1,
+    )[0]!;
+    const posted = await runs.create(
+      auth,
+      ctx,
+      createPayRunSchema.parse({
+        kind: 'regular',
+        payScheduleId: schedule.id,
+        periodEnd: period.end,
+      }),
+      meta,
+    );
+    await runs.approve(auth, ctx, posted.id, meta);
+    await runs.post(auth, ctx, posted.id, meta);
+    await runs.create(
+      auth,
+      ctx,
+      createPayRunSchema.parse({ kind: 'regular', payScheduleId: schedule.id }),
+      meta,
+    );
+    console.log('Phase 8 demo: payroll setup, three employees, a posted pay run and a draft.');
   } finally {
     await app.close();
   }
