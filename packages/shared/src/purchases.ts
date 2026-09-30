@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { optExchangeRate } from './currency';
 import { isoDate, optDate, optText, positiveAmount, qtyRate, signedAmount } from './fields';
 import { MAX_AMOUNT, tryParseMoney } from './money';
 import {
@@ -86,6 +87,8 @@ export const purchaseDocumentInputSchema = z
     printLater: z.boolean().optional(),
     mailingAddress: optText(1000),
     memo: optText(4000),
+    /** Foreign-currency vendors: US dollars per unit; omitted uses the rate on file. */
+    exchangeRate: optExchangeRate,
     lines: z.array(purchaseLineBase).min(1, 'Add at least one line').max(1000),
     closingPassword: z.string().max(128).optional(),
     version: z.number().int().min(1).optional(),
@@ -140,10 +143,17 @@ export interface PurchaseDocumentDto {
   printStatus: PrintStatus | null;
   mailingAddress: string | null;
   memo: string | null;
+  /** The vendor's currency (null: US dollars); amounts are in it (ADR 0020). */
+  currency: string | null;
+  /** US dollars per unit of the currency, for foreign-currency documents. */
+  exchangeRate: string | null;
   lines: PurchaseLineDto[];
   total: string;
   /** Still owed (bill) or still available (vendor credit); 0 for checks and expenses. */
   balance: string;
+  /** Foreign-currency documents: the total and balance in US dollars. */
+  homeTotal: string | null;
+  homeBalance: string | null;
   status: DocumentStatus;
   paymentStatus: PaymentStatus;
   /** Bill payments (for a bill) or bills it was applied to (vendor credit). */
@@ -185,6 +195,8 @@ export const billPaymentInputSchema = z.object({
   printLater: z.boolean().optional(),
   mailingAddress: optText(1000),
   memo: optText(4000),
+  /** Foreign-currency vendors: US dollars per unit; omitted uses the rate on file. */
+  exchangeRate: optExchangeRate,
   applications,
   closingPassword: z.string().max(128).optional(),
   version: z.number().int().min(1).optional(),
@@ -219,6 +231,10 @@ export interface OpenBillDto {
   total: string;
   /** Open balance before this payment. */
   open: string;
+  /** The vendor's currency (null: US dollars). */
+  currency: string | null;
+  /** Foreign-currency documents: the open balance's US dollar value in the books. */
+  homeOpen: string | null;
 }
 
 export interface BillPaymentDto {
@@ -232,7 +248,15 @@ export interface BillPaymentDto {
   printStatus: PrintStatus | null;
   mailingAddress: string | null;
   memo: string | null;
-  applications: Array<AppliedDto & { targetType: string }>;
+  /** The vendor's currency (null: US dollars); amounts are in it (ADR 0020). */
+  currency: string | null;
+  /** US dollars per unit of the currency, for foreign-currency payments. */
+  exchangeRate: string | null;
+  /** Foreign-currency payments: the US dollars paid, and the realized exchange gain (+) or
+   * loss (−) against the rates of what it paid. */
+  homeAmount: string | null;
+  exchangeGainLoss: string | null;
+  applications: Array<AppliedDto & { targetType: string; homeAmount: string | null }>;
   status: DocumentStatus;
   version: number;
 }
@@ -307,6 +331,8 @@ export interface PurchaseOrderDto {
   emailTo: string | null;
   vendorMessage: string | null;
   memo: string | null;
+  /** The vendor's currency (null: US dollars). */
+  currency: string | null;
   total: string;
   billId: string | null;
   lines: Array<Omit<PurchaseLineDto, 'accountId'> & { accountId: string | null }>;
@@ -346,8 +372,12 @@ export interface PurchaseTransactionDto {
   vendorId: string | null;
   vendorName: string | null;
   dueDate: string | null;
+  /** In the vendor's currency. */
   total: string;
   balance: string;
+  currency: string | null;
+  /** Foreign-currency transactions: the total in US dollars. */
+  homeTotal: string | null;
   paymentStatus: PaymentStatus;
   printStatus: PrintStatus | null;
   status: DocumentStatus;
@@ -361,7 +391,11 @@ export interface PurchaseTransactionPageDto {
 
 export interface VendorBalanceDto {
   vendorId: string;
+  /** In the vendor's currency. */
+  currency: string | null;
   openBalance: string;
+  /** The open balance's US dollar value in the books. */
+  homeOpenBalance: string;
   overdueBalance: string;
   /** Unused vendor credits (positive amount). */
   availableCredit: string;

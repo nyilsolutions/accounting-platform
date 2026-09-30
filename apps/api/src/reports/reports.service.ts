@@ -316,7 +316,9 @@ export class ReportsService {
     }>`
       select ${key} as key, ${label} as label,
              sum(case when t.txn_type in ('invoice', 'sales_receipt') then coalesce(sl.quantity, 0) else -coalesce(sl.quantity, 0) end) as quantity,
-             sum(case when t.txn_type in ('invoice', 'sales_receipt') then sl.amount else -sl.amount end) as amount
+             -- Foreign-currency documents in US dollars, line by line as they post (ADR 0020).
+             sum(case when t.txn_type in ('invoice', 'sales_receipt') then 1 else -1 end
+                 * round(sl.amount * coalesce(t.exchange_rate, 1), 2)) as amount
       from sales_lines sl
       join transactions t on t.id = sl.transaction_id
       join accounts a on a.id = sl.account_id and a.account_type in ('income', 'other_income')
@@ -344,7 +346,9 @@ export class ReportsService {
     const from = q.from ?? fiscalYearStart(q.to, scope.company.fiscal_year_start_month);
     const rows = await sql<{ key: string | null; label: string | null; amount: string }>`
       select t.vendor_id as key, v.display_name as label,
-             sum(case when t.txn_type in ('bill', 'check', 'expense') then pl.amount else -pl.amount end) as amount
+             -- Foreign-currency documents in US dollars, line by line as they post (ADR 0020).
+             sum(case when t.txn_type in ('bill', 'check', 'expense') then 1 else -1 end
+                 * round(pl.amount * coalesce(t.exchange_rate, 1), 2)) as amount
       from purchase_lines pl
       join transactions t on t.id = pl.transaction_id
       join accounts a on a.id = pl.account_id

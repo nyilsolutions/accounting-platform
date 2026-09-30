@@ -98,6 +98,7 @@ function compatible(role: SystemRole, type: AccountType | 'non_posting' | null):
     uncategorized_income: ['income'],
     uncategorized_expense: ['expense'],
     uncategorized_asset: ['other_current_asset'],
+    exchange_gain_loss: ['other_expense', 'other_income'],
     payroll_liabilities: ['other_current_liability'],
     payroll_expenses: ['expense'],
     cost_of_goods_sold: ['cost_of_goods_sold'],

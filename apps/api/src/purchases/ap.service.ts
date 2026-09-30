@@ -18,6 +18,7 @@ import {
 import { AuditService } from '../audit/audit.service';
 import type { AuthContext, CompanyContext, RequestMeta } from '../common/request';
 import { DB } from '../db/db.module';
+import { partyCurrency } from '../currency/fx';
 import { balancesOf, openItems } from '../ledger/subledger';
 import { appliedTo, decodeCursor, encodeCursor, validationError } from '../sales/sales-common';
 import { purchaseStatus } from './purchase-documents.service';
@@ -51,6 +52,8 @@ export class ApService {
           'v.display_name',
           't.due_date',
           't.total',
+          't.currency',
+          't.home_total',
           't.status',
           't.memo',
           't.print_status',
@@ -109,6 +112,8 @@ export class ApService {
           dueDate: r.due_date,
           total: moneyToString(total),
           balance: moneyToString(r.status === 'void' ? 0n : balance),
+          currency: r.currency,
+          homeTotal: r.home_total === null ? null : moneyToString(parseMoney(r.home_total)),
           paymentStatus: purchaseStatus(r.txn_type, r.status, total, balance, r.due_date),
           printStatus: r.print_status as PrintStatus | null,
           status: r.status === 'void' ? 'void' : 'posted',
@@ -133,10 +138,19 @@ export class ApService {
     return withTenant(this.db, { userId: auth.userId, companyId: ctx.companyId }, async (tx) => {
       const items = await openItems(tx, ctx.companyId, '2199-12-31', 'ap', vendorId);
       const by = balancesOf(items, todayIso());
-      if (vendorId && !by.has(vendorId)) by.set(vendorId, { open: 0n, overdue: 0n, credit: 0n });
+      if (vendorId && !by.has(vendorId))
+        by.set(vendorId, {
+          open: 0n,
+          overdue: 0n,
+          credit: 0n,
+          homeOpen: 0n,
+          currency: await partyCurrency(tx, ctx.companyId, 'vendor', vendorId),
+        });
       return [...by.entries()].map(([id, b]) => ({
         vendorId: id,
+        currency: b.currency,
         openBalance: moneyToString(b.open),
+        homeOpenBalance: moneyToString(b.homeOpen),
         overdueBalance: moneyToString(b.overdue),
         availableCredit: moneyToString(b.credit),
       }));

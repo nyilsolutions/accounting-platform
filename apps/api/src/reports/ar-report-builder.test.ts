@@ -21,6 +21,9 @@ const item = (
   dueDate: p.dueDate ?? null,
   amount: parseMoney(p.amount ?? p.open),
   open: parseMoney(p.open),
+  currency: null,
+  foreignAmount: null,
+  foreignOpen: null,
 });
 
 const items: ArItem[] = [

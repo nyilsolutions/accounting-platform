@@ -9,6 +9,9 @@ import { withTenant, type Db, type Tx } from '@acct/db';
 import {
   moneyToString,
   parseMoney,
+  parseRate,
+  rateToString,
+  toHome,
   type Money,
   type OpenItemDto,
   type PaymentDto,
@@ -18,11 +21,14 @@ import type { paymentInputSchema } from '@acct/shared';
 import { AuditService } from '../audit/audit.service';
 import type { AuthContext, CompanyContext, RequestMeta } from '../common/request';
 import { DB } from '../db/db.module';
-import { PostingService } from '../ledger/posting.service';
+import { controlAccount, documentCurrency, gainLossAccount, gainLossOf } from '../currency/fx';
+import { PostingService, type PostingLine } from '../ledger/posting.service';
 import {
+  appliedHomeTo,
   appliedTo,
   depositsOf,
   paymentUnapplied,
+  relievedHome,
   systemAccount,
   validationError,
 } from './sales-common';
@@ -35,6 +41,16 @@ type PaymentInput = z.output<typeof paymentInputSchema>;
  *
  * Ledger: Dr Undeposited Funds (or bank) A, Cr A/R A, both tagged with the customer. Applying
  * credits moves nothing between accounts, so a credit-only payment (A = 0) has no journal lines.
+ *
+ * Foreign-currency customers (ADR 0020): A, I, C and U are in the customer's currency. The money
+ * received is worth A at the payment's rate; A/R (currency) is relieved of what each invoice and
+ * credit is worth at its own rate (home_amount), plus U at the payment's rate. The difference is
+ * the realized exchange gain or loss:
+ *
+ *   Dr deposit account  A × payment rate
+ *   Dr A/R (currency)   credits used, at their rates
+ *   Cr A/R (currency)   invoices paid at their rates + U at the payment rate
+ *   Cr/Dr Exchange Gain or Loss  the difference
  */
 @Injectable()
 export class PaymentsService {
@@ -54,7 +70,16 @@ export class PaymentsService {
     return withTenant(this.db, { userId: auth.userId, companyId: ctx.companyId }, async (tx) => {
       const docs = await tx
         .selectFrom('transactions')
-        .select(['id', 'txn_type', 'txn_number', 'txn_date', 'due_date', 'total'])
+        .select([
+          'id',
+          'txn_type',
+          'txn_number',
+          'txn_date',
+          'due_date',
+          'total',
+          'currency',
+          'home_total',
+        ])
         .where('company_id', '=', ctx.companyId)
         .where('customer_id', '=', customerId)
         .where('txn_type', 'in', ['invoice', 'credit_memo'])
@@ -62,11 +87,9 @@ export class PaymentsService {
         .orderBy('due_date')
         .orderBy('txn_date')
         .execute();
-      const applied = await appliedTo(
-        tx,
-        docs.map((d) => d.id),
-        { excludePaymentId: paymentId },
-      );
+      const ids = docs.map((d) => d.id);
+      const applied = await appliedTo(tx, ids, { excludePaymentId: paymentId });
+      const appliedHome = await appliedHomeTo(tx, ids, { excludePaymentId: paymentId });
       return docs
         .map((d) => ({ d, open: parseMoney(d.total ?? '0') - (applied.get(d.id) ?? 0n) }))
         .filter(({ open }) => open > 0n)
@@ -78,6 +101,11 @@ export class PaymentsService {
           dueDate: d.due_date,
           total: moneyToString(parseMoney(d.total ?? '0')),
           open: moneyToString(open),
+          currency: d.currency,
+          homeOpen:
+            d.home_total === null
+              ? null
+              : moneyToString(parseMoney(d.home_total) - (appliedHome.get(d.id) ?? 0n)),
         }));
     });
   }
@@ -116,7 +144,7 @@ export class PaymentsService {
 
     const customer = await tx
       .selectFrom('customers')
-      .select(['id', 'is_active'])
+      .select(['id', 'is_active', 'currency'])
       .where('id', '=', input.customerId)
       .where('company_id', '=', companyId)
       .executeTakeFirst();
@@ -127,6 +155,14 @@ export class PaymentsService {
     }
 
     const amount = parseMoney(input.amount);
+    const fx = await documentCurrency(
+      tx,
+      companyId,
+      customer.currency,
+      input.txnDate,
+      input.exchangeRate,
+      before,
+    );
     const depositAccountId =
       input.depositAccountId ??
       before?.depositAccountId ??
@@ -149,7 +185,9 @@ export class PaymentsService {
     }
     if (
       before?.depositId &&
-      (amount !== parseMoney(before.amount) || depositAccountId !== before.depositAccountId)
+      (amount !== parseMoney(before.amount) ||
+        depositAccountId !== before.depositAccountId ||
+        (fx?.rateText ?? null) !== before.exchangeRate)
     ) {
       throw new ConflictException(
         'This payment is in a bank deposit. Remove it from the deposit before changing the amount or account.',
@@ -163,7 +201,15 @@ export class PaymentsService {
         ? (
             await tx
               .selectFrom('transactions')
-              .select(['id', 'txn_type', 'customer_id', 'status', 'total', 'txn_number'])
+              .select([
+                'id',
+                'txn_type',
+                'customer_id',
+                'status',
+                'total',
+                'txn_number',
+                'home_total',
+              ])
               .where('company_id', '=', companyId)
               .where('id', 'in', targetIds)
               .forUpdate()
@@ -172,9 +218,15 @@ export class PaymentsService {
         : [],
     );
     const alreadyApplied = await appliedTo(tx, targetIds, { excludePaymentId: id ?? undefined });
+    const alreadyAppliedHome = fx
+      ? await appliedHomeTo(tx, targetIds, { excludePaymentId: id ?? undefined })
+      : new Map<string, Money>();
     const errors: Array<{ path: string; message: string }> = [];
     let invoicesPaid: Money = 0n;
     let creditsUsed: Money = 0n;
+    let invoicesHome: Money = 0n;
+    let creditsHome: Money = 0n;
+    const homeAmounts = new Map<string, Money>();
     input.applications.forEach((a, i) => {
       const t = targets.get(a.targetId);
       const path = `applications.${i}.amount`;
@@ -201,6 +253,18 @@ export class PaymentsService {
       }
       if (t.txn_type === 'invoice') invoicesPaid += value;
       else creditsUsed += value;
+      if (fx && value <= open) {
+        const home = relievedHome(
+          value,
+          open,
+          parseMoney(t.total ?? '0'),
+          parseMoney(t.home_total ?? '0'),
+          alreadyAppliedHome.get(t.id) ?? 0n,
+        );
+        homeAmounts.set(t.id, home);
+        if (t.txn_type === 'invoice') invoicesHome += home;
+        else creditsHome += home;
+      }
     });
     if (errors.length) throw new BadRequestException(validationError(errors));
     if (creditsUsed > invoicesPaid) {
@@ -224,9 +288,19 @@ export class PaymentsService {
       );
     }
 
-    const ar = await systemAccount(tx, companyId, 'accounts_receivable');
-    const journal =
-      amount > 0n
+    const ar = await controlAccount(tx, companyId, 'ar', fx?.currency ?? null);
+    const received = fx ? toHome(amount, fx.rate) : amount;
+    const journal: PostingLine[] = fx
+      ? await this.foreignJournal(tx, companyId, input.customerId, depositAccountId, ar, {
+          received,
+          invoicesPaid,
+          invoicesHome,
+          creditsUsed,
+          creditsHome,
+          unapplied: amount + creditsUsed - invoicesPaid,
+          unappliedHome: toHome(amount + creditsUsed - invoicesPaid, fx.rate),
+        })
+      : amount > 0n
         ? [
             {
               accountId: depositAccountId,
@@ -262,6 +336,9 @@ export class PaymentsService {
         reference: input.reference ?? null,
         depositAccountId,
         total: moneyToString(amount, 2),
+        currency: fx?.currency ?? null,
+        exchangeRate: fx?.rateText ?? null,
+        homeTotal: fx ? moneyToString(received, 2) : null,
       },
     };
     const postingCtx = { companyId, userId: auth.userId, closingPassword: input.closingPassword };
@@ -279,6 +356,7 @@ export class PaymentsService {
             payment_id: paymentId!,
             target_id: a.targetId,
             amount: a.amount,
+            home_amount: fx ? moneyToString(homeAmounts.get(a.targetId) ?? 0n, 4) : null,
           })),
         )
         .execute();
@@ -338,6 +416,62 @@ export class PaymentsService {
     });
   }
 
+  /** The entry for a foreign-currency payment (see the class comment). */
+  private async foreignJournal(
+    tx: Tx,
+    companyId: string,
+    customerId: string,
+    depositAccountId: string,
+    ar: string,
+    m: {
+      received: Money;
+      invoicesPaid: Money;
+      invoicesHome: Money;
+      creditsUsed: Money;
+      creditsHome: Money;
+      unapplied: Money;
+      unappliedHome: Money;
+    },
+  ): Promise<PostingLine[]> {
+    const base = {
+      description: null,
+      customerId,
+      vendorId: null,
+      classId: null,
+      locationId: null,
+    };
+    const lines: PostingLine[] = [];
+    if (m.received > 0n)
+      lines.push({ ...base, accountId: depositAccountId, debit: m.received, credit: 0n });
+    const relieved = m.invoicesHome + m.unappliedHome;
+    if (relieved > 0n)
+      lines.push({
+        ...base,
+        accountId: ar,
+        debit: 0n,
+        credit: relieved,
+        foreign: { debit: 0n, credit: m.invoicesPaid + m.unapplied },
+      });
+    if (m.creditsHome > 0n)
+      lines.push({
+        ...base,
+        accountId: ar,
+        debit: m.creditsHome,
+        credit: 0n,
+        foreign: { debit: m.creditsUsed, credit: 0n },
+      });
+    const gain = m.received + m.creditsHome - relieved;
+    if (gain !== 0n)
+      lines.push({
+        ...base,
+        accountId: await gainLossAccount(tx, companyId),
+        debit: gain < 0n ? -gain : 0n,
+        credit: gain > 0n ? gain : 0n,
+        description: `Realized exchange ${gain > 0n ? 'gain' : 'loss'}`,
+      });
+    return lines;
+  }
+
   async load(tx: Tx, companyId: string, id: string): Promise<PaymentDto> {
     const p = await tx
       .selectFrom('transactions as t')
@@ -353,7 +487,7 @@ export class PaymentsService {
     const apps = await tx
       .selectFrom('payment_applications as pa')
       .innerJoin('transactions as t', 't.id', 'pa.target_id')
-      .select(['t.id', 't.txn_type', 't.txn_number', 't.txn_date', 'pa.amount'])
+      .select(['t.id', 't.txn_type', 't.txn_number', 't.txn_date', 'pa.amount', 'pa.home_amount'])
       .where('pa.payment_id', '=', id)
       .orderBy('t.txn_date')
       .execute();
@@ -368,6 +502,10 @@ export class PaymentsService {
       reference: p.reference,
       depositAccountId: p.deposit_account_id,
       memo: p.memo,
+      currency: p.currency,
+      exchangeRate: p.exchange_rate === null ? null : rateToString(parseRate(p.exchange_rate)),
+      homeAmount: p.home_total === null ? null : moneyToString(parseMoney(p.home_total)),
+      exchangeGainLoss: p.currency ? await gainLossOf(tx, companyId, p.id, p.version) : null,
       applications: apps.map((a) => ({
         txnId: a.id,
         txnType: a.txn_type,
@@ -375,6 +513,7 @@ export class PaymentsService {
         number: a.txn_number,
         txnDate: a.txn_date,
         amount: moneyToString(parseMoney(a.amount)),
+        homeAmount: a.home_amount === null ? null : moneyToString(parseMoney(a.home_amount)),
       })),
       unapplied: moneyToString(p.status === 'void' ? 0n : unapplied),
       depositId: (await depositsOf(tx, [id])).get(id) ?? null,

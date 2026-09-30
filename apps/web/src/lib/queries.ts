@@ -17,6 +17,7 @@ import type {
   TaxFilingDto,
   W2FormsDto,
   ItemDto,
+  CurrencySettingsDto,
   LedgerSettingsDto,
   MeDto,
   PayrollItemDto,
@@ -81,6 +82,8 @@ export const keys = {
   inventory: (id: string) => ['company', id, 'inventory'] as const,
   /** Time: entries, timesheets, approvals. */
   time: (id: string) => ['company', id, 'time'] as const,
+  /** Multi-currency: settings, currencies, rates and revaluations. */
+  currencies: (id: string) => ['company', id, 'currencies'] as const,
 };
 
 /** Invalidates everything derived from the ledger (balances, lists of entries, reports). */
@@ -153,6 +156,14 @@ export function useLedgerSettings(id: string) {
   return useQuery({
     queryKey: keys.ledgerSettings(id),
     queryFn: () => api<LedgerSettingsDto>(`/companies/${id}/ledger-settings`),
+  });
+}
+
+/** Multi-currency settings and the company's currencies (every member can read them). */
+export function useCurrencies(id: string) {
+  return useQuery({
+    queryKey: keys.currencies(id),
+    queryFn: () => api<CurrencySettingsDto>(`/companies/${id}/currencies`),
   });
 }
 

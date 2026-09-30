@@ -63,6 +63,8 @@ export interface CompaniesTable {
   closing_date: DateCol | null;
   closing_password_hash: string | null;
   inventory_costing: Generated<string>;
+  /** Multi-currency is on (migration 0021); it can't be turned off. */
+  multicurrency: Generated<boolean>;
   created_by: string | null;
   updated_by: string | null;
   created_at: Generated<Date>;
@@ -127,6 +129,8 @@ export interface AccountsTable extends Audited {
   description: string | null;
   system_role: string | null;
   is_active: Generated<boolean>;
+  /** Foreign-currency A/R and A/P accounts (migration 0021); null: US dollars. */
+  currency: ColumnType<string | null, string | null | undefined, string | null>;
 }
 
 export interface TermsTable {
@@ -181,6 +185,8 @@ export interface CustomersTable extends Audited, ContactColumns {
   tax_rate_id: ColumnType<string | null, string | null | undefined, string | null>;
   tax_exemption_reason: ColumnType<string | null, string | null | undefined, string | null>;
   tax_exemption_number: ColumnType<string | null, string | null | undefined, string | null>;
+  /** Migration 0021; null: US dollars. */
+  currency: ColumnType<string | null, string | null | undefined, string | null>;
 }
 
 export interface VendorsTable extends Audited, ContactColumns {
@@ -195,6 +201,8 @@ export interface VendorsTable extends Audited, ContactColumns {
   default_expense_account_id: string | null;
   w9_received_on: DateCol | null;
   backup_withholding: Generated<boolean>;
+  /** Migration 0021; null: US dollars. */
+  currency: ColumnType<string | null, string | null | undefined, string | null>;
 }
 
 export interface ItemsTable extends Audited {
@@ -254,6 +262,11 @@ export interface TransactionsTable extends Audited {
   // Sales tax (migration 0009)
   tax_rate_id: ColumnType<string | null, string | null | undefined, string | null>;
   tax_agency_id: ColumnType<string | null, string | null | undefined, string | null>;
+  // Multi-currency (migration 0021): null currency is US dollars. total is in the currency,
+  // home_total its US dollar value.
+  currency: ColumnType<string | null, string | null | undefined, string | null>;
+  exchange_rate: ColumnType<string | null, string | null | undefined, string | null>;
+  home_total: ColumnType<string | null, string | null | undefined, string | null>;
 }
 
 export interface JournalLinesTable {
@@ -274,6 +287,9 @@ export interface JournalLinesTable {
   created_at: Generated<Date>;
   /** 'inventory' for lines a transaction carries because of inventory (migration 0018). */
   role: string | null;
+  /** Lines on foreign-currency accounts: the amount in the currency (migration 0021). */
+  foreign_debit: ColumnType<string | null, string | null | undefined, string | null>;
+  foreign_credit: ColumnType<string | null, string | null | undefined, string | null>;
 }
 
 export interface SalesLinesTable {
@@ -301,6 +317,8 @@ export interface PaymentApplicationsTable {
   payment_id: string;
   target_id: string;
   amount: string;
+  /** Foreign payments: the application's US dollar value at the document's rate (0021). */
+  home_amount: ColumnType<string | null, string | null | undefined, string | null>;
 }
 
 export interface DepositLinesTable {
@@ -335,6 +353,7 @@ export interface EstimatesTable extends Audited {
   sent_at: Timestamp | null;
   tax_rate_id: ColumnType<string | null, string | null | undefined, string | null>;
   tax_total: Generated<string>;
+  currency: ColumnType<string | null, string | null | undefined, string | null>;
 }
 
 export interface EstimateLinesTable {
@@ -384,6 +403,7 @@ export interface PurchaseOrdersTable extends Audited {
   total: Generated<string>;
   bill_id: string | null;
   sent_at: Timestamp | null;
+  currency: ColumnType<string | null, string | null | undefined, string | null>;
 }
 
 export interface PurchaseOrderLinesTable {
@@ -760,6 +780,9 @@ export interface SalesTaxLinesTable {
   rate: Numeric | null;
   taxable_amount: Numeric;
   amount: Numeric;
+  /** Foreign-currency documents: the amounts in the document's currency (migration 0022). */
+  foreign_taxable_amount: ColumnType<string | null, string | null | undefined, string | null>;
+  foreign_amount: ColumnType<string | null, string | null | undefined, string | null>;
 }
 
 export interface BudgetsTable extends Audited {
@@ -1231,6 +1254,23 @@ export interface TimeEntriesTable {
   updated_at: Generated<Date>;
 }
 
+export interface CompanyCurrenciesTable {
+  company_id: string;
+  currency: string;
+  created_by: string | null;
+  created_at: Generated<Date>;
+}
+
+export interface ExchangeRatesTable extends Audited {
+  id: Generated<string>;
+  company_id: string;
+  currency: string;
+  rate_date: DateCol;
+  /** US dollars per one unit of the currency. */
+  rate: string;
+  source: string;
+}
+
 export interface Database {
   users: UsersTable;
   mfa_recovery_codes: MfaRecoveryCodesTable;
@@ -1312,6 +1352,8 @@ export interface Database {
   prior_payroll_lines: PriorPayrollLinesTable;
   prior_tax_deposits: PriorTaxDepositsTable;
   tax_filings: TaxFilingsTable;
+  company_currencies: CompanyCurrenciesTable;
+  exchange_rates: ExchangeRatesTable;
   assembly_components: AssemblyComponentsTable;
   inventory_moves: InventoryMovesTable;
   inventory_adjustment_lines: InventoryAdjustmentLinesTable;

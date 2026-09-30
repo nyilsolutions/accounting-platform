@@ -93,7 +93,7 @@ export class PurchaseOrdersService {
 
     const vendor = await tx
       .selectFrom('vendors')
-      .select(['id', 'is_active'])
+      .select(['id', 'is_active', 'currency'])
       .where('id', '=', input.vendorId)
       .where('company_id', '=', companyId)
       .executeTakeFirst();
@@ -140,6 +140,8 @@ export class PurchaseOrdersService {
 
     const values = {
       vendor_id: input.vendorId,
+      // In the vendor's currency (ADR 0020).
+      currency: vendor.currency,
       txn_date: input.txnDate,
       expected_date: input.expectedDate ?? null,
       number: input.number ?? before?.number ?? (await nextPurchaseOrderNumber(tx, companyId)),
@@ -341,6 +343,7 @@ export class PurchaseOrdersService {
       number: po.number,
       vendorId: po.vendor_id,
       vendorName: po.vendor_name,
+      currency: po.currency,
       txnDate: po.txn_date,
       expectedDate: po.expected_date,
       status: po.status as PurchaseOrderStatus,

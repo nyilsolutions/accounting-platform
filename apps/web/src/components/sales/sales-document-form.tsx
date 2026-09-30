@@ -3,13 +3,16 @@
 import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import {
   dueDateFromTerms,
+  formatCurrency,
   formatMoney,
+  moneyToString,
   parseMoney,
   todayIso,
   type SalesDocType,
   type SalesDocumentDto,
   type SalesDocumentInput,
 } from '@acct/shared';
+import { CurrencyTag, ExchangeRateField } from '@/components/currency/currency-fields';
 import { AccountSelect, OptionSelect } from '@/components/ledger/pickers';
 import { Alert, Button, cx } from '@/components/ui';
 import { ApiError } from '@/lib/api';
@@ -135,10 +138,15 @@ export function SalesDocumentForm({
     initial ? (initial.taxRateId ?? '') : (defaultCustomer?.taxRateId ?? ''),
   );
   const [taxOverride, setTaxOverride] = useState('');
+  const [exchangeRate, setExchangeRate] = useState(initial?.exchangeRate ?? '');
   const [error, setError] = useState<ApiError | string | null>(null);
   const [pending, setPending] = useState<SaveAction | null>(null);
   const dueTouched = useRef(!!initial?.dueDate);
   const customer = lookups.customers.find((c) => c.id === customerId);
+  // Foreign-currency customers (ADR 0020): amounts are in their currency.
+  const currency = customer?.currency ?? initial?.currency ?? null;
+  const money = (m: bigint | string) =>
+    currency ? formatCurrency(m, currency) : `$${formatMoney(m)}`;
   const tax = useTaxPreview(lookups, {
     rateId: taxRateId,
     txnDate,
@@ -201,6 +209,7 @@ export function SalesDocumentForm({
           depositAccountId: isReceipt ? depositAccountId || null : null,
           taxRateId: taxRateId || null,
           taxAmount: taxRateId && taxOverride.trim() ? taxOverride.trim() : null,
+          exchangeRate: currency ? exchangeRate.trim() || null : null,
           lines: linesToInput(lines),
           version: initial?.version,
         },
@@ -316,6 +325,19 @@ export function SalesDocumentForm({
               className={inputClass}
             />
           </Labeled>
+          {currency && (
+            <div className="md:col-span-2">
+              <ExchangeRateField
+                companyId={lookups.company.id}
+                currency={currency}
+                date={txnDate}
+                value={exchangeRate}
+                onChange={setExchangeRate}
+                amount={moneyToString(total)}
+                error={fieldError('exchangeRate')}
+              />
+            </div>
+          )}
           {isReceipt && (
             <>
               <Labeled label="Payment method">
@@ -419,9 +441,18 @@ export function SalesDocumentForm({
               </>
             )}
             <div className="flex justify-between text-base font-semibold">
-              <dt>Total</dt>
-              <dd className="tabular-nums">${formatMoney(total)}</dd>
+              <dt>
+                Total
+                <CurrencyTag currency={currency} />
+              </dt>
+              <dd className="tabular-nums">{money(total)}</dd>
             </div>
+            {initial?.homeTotal && (
+              <div className="flex justify-between text-gray-600" data-testid="home-total">
+                <dt>In US dollars (at {initial.exchangeRate})</dt>
+                <dd className="tabular-nums">{formatCurrency(initial.homeTotal, null)}</dd>
+              </div>
+            )}
             {initial && type === 'invoice' && (
               <>
                 <div className="flex justify-between text-gray-600">
@@ -431,7 +462,7 @@ export function SalesDocumentForm({
                 <div className="flex justify-between font-semibold">
                   <dt>Balance due</dt>
                   <dd className="tabular-nums" data-testid="balance-due">
-                    ${formatMoney(initial.balance)}
+                    {money(initial.balance)}
                   </dd>
                 </div>
               </>

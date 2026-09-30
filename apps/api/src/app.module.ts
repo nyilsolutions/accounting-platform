@@ -4,6 +4,7 @@ import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { AuditModule } from './audit/audit.module';
 import { AuthModule } from './auth/auth.module';
 import { CompaniesModule } from './companies/companies.module';
+import { CurrencyModule } from './currency/currency.module';
 import { APP_CONFIG, type AppConfig } from './config';
 import { DbModule } from './db/db.module';
 import { HealthController } from './health/health.controller';
@@ -45,6 +46,7 @@ export class AppModule {
         LedgerModule,
         InventoryModule,
         TimeModule,
+        CurrencyModule,
         ListsModule,
         ReportsModule,
         SalesModule,

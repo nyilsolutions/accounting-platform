@@ -101,6 +101,7 @@ export function BillApplications({
                 <td className="px-3 py-1.5 text-right tabular-nums">
                   {r.txnType === 'vendor_credit' ? '-' : ''}
                   {formatMoney(r.open)}
+                  {r.currency && <span className="ml-1 text-xs text-gray-500">{r.currency}</span>}
                 </td>
                 <td className="px-3 py-1">
                   <input

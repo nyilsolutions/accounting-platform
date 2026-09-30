@@ -1,6 +1,6 @@
 import { ConflictException } from '@nestjs/common';
 import { sql, type Tx } from '@acct/db';
-import { parseMoney, type Money, type SystemRole } from '@acct/shared';
+import { homeShare, parseMoney, type Money, type SystemRole } from '@acct/shared';
 
 export function validationError(errors: Array<{ path: string; message: string }>) {
   return { statusCode: 400, message: 'Validation failed', errors };
@@ -37,6 +37,42 @@ export async function appliedTo(
       ${opts.excludePaymentId ? sql`and pa.payment_id <> ${opts.excludePaymentId}` : sql``}
     group by pa.target_id`.execute(tx);
   return new Map(rows.rows.map((r) => [r.target_id, parseMoney(r.applied)]));
+}
+
+/**
+ * US dollar value of what has been applied to each target (foreign-currency documents: the
+ * applications' home_amount; US dollar documents: their amount).
+ */
+export async function appliedHomeTo(
+  tx: Tx,
+  targetIds: string[],
+  opts: { excludePaymentId?: string } = {},
+): Promise<Map<string, Money>> {
+  if (targetIds.length === 0) return new Map();
+  const rows = await sql<{ target_id: string; applied: string }>`
+    select pa.target_id, sum(coalesce(pa.home_amount, pa.amount)) as applied
+    from payment_applications pa
+    join transactions p on p.id = pa.payment_id and p.status = 'posted'
+    where pa.target_id in (${sql.join(targetIds)})
+      ${opts.excludePaymentId ? sql`and pa.payment_id <> ${opts.excludePaymentId}` : sql``}
+    group by pa.target_id`.execute(tx);
+  return new Map(rows.rows.map((r) => [r.target_id, parseMoney(r.applied)]));
+}
+
+/**
+ * What a foreign-currency payment relieves of a document, in US dollars at the document's own
+ * rate (ADR 0020): its share of the document's US dollar value, or, when the payment settles the
+ * document, whatever US dollar value is left, so a settled document is settled in both.
+ */
+export function relievedHome(
+  value: Money,
+  foreignOpen: Money,
+  foreignTotal: Money,
+  homeTotal: Money,
+  homeAppliedByOthers: Money,
+): Money {
+  if (value === foreignOpen) return homeTotal - homeAppliedByOthers;
+  return homeShare(value, foreignTotal, homeTotal);
 }
 
 /** Unapplied amount (customer credit) of each payment: amount + credits used − invoices paid. */

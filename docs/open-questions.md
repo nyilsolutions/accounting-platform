@@ -302,3 +302,19 @@ Add new questions here instead of guessing.
     - transactions before the cut-over stay as QuickBooks posted them.
 
     See ADR 0018 and migration 0019.
+
+## Multi-currency (Phase 10c)
+
+62. **Foreign-currency bank and credit card accounts:** decided 2026-09-30. They come in a
+    follow-up part (10c-2): bank and card accounts in a currency, their registers and
+    reconciliation in it, and transfers between currencies. In 10c, money for foreign-currency
+    customers and vendors moves through US dollar accounts at the day's rate.
+63. **Sales tax on foreign-currency invoices:** decided 2026-09-30 ("go with your
+    recommendations"). The tax is calculated in the document's currency and each agency's part is
+    recorded in US dollars at the document's rate, so the liability ties to Sales Tax Payable.
+    The document shows its tax in its currency (migration 0022, ADR 0020).
+64. **QuickBooks companies with multi-currency on:** decided 2026-09-30 ("go with your
+    recommendations"). QuickBooks' currencies, rates and home amounts will be mapped onto 10c's
+    model once a sample multi-currency company file or export is available. **Still needed:**
+    that sample (a QuickBooks Online sandbox company with multi-currency on, or a Desktop file).
+    Until then the import reads document amounts as US dollars, as before.

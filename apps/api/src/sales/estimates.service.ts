@@ -102,7 +102,7 @@ export class EstimatesService {
       );
     const customer = await tx
       .selectFrom('customers')
-      .select(['is_active', 'tax_exempt'])
+      .select(['is_active', 'tax_exempt', 'currency'])
       .where('id', '=', input.customerId)
       .where('company_id', '=', companyId)
       .executeTakeFirst();
@@ -209,6 +209,8 @@ export class EstimatesService {
       total: moneyToString(total, 2),
       tax_rate_id: taxRateId,
       tax_total: moneyToString(taxTotal, 2),
+      // In the customer's currency (ADR 0020).
+      currency: customer.currency,
       updated_by: auth.userId,
     };
     let estimateId = id;
@@ -591,6 +593,7 @@ export class EstimatesService {
       number: e.number,
       customerId: e.customer_id,
       customerName: e.customer_name,
+      currency: e.currency,
       txnDate: e.txn_date,
       expirationDate: e.expiration_date,
       status: e.status as EstimateStatus,

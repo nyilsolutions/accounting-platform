@@ -22,6 +22,12 @@ export interface PostingLine {
    * the inventory asset). They are replaced on their own when costs change (replaceRoleLines).
    */
   role?: 'inventory' | null;
+  /**
+   * Lines on a foreign-currency account (its A/R or A/P, ADR 0020) carry the amount in that
+   * currency as well; debit and credit above are always US dollars. Required on those accounts
+   * and refused on others. A revaluation line has zero foreign amounts.
+   */
+  foreign?: { debit: Money; credit: Money } | null;
 }
 
 export type PostingTxnType =
@@ -45,7 +51,8 @@ export type PostingTxnType =
   | 'payroll_liability_payment'
   | 'inventory_adjustment'
   | 'inventory_build'
-  | 'inventory_opening';
+  | 'inventory_opening'
+  | 'currency_revaluation';
 
 /** Document fields stored on the transaction header (sales and purchase documents). */
 export interface DocumentDetails {
@@ -68,6 +75,11 @@ export interface DocumentDetails {
   taxRateId?: string | null;
   /** Sales tax payments and adjustments: the agency. */
   taxAgencyId?: string | null;
+  /** Foreign-currency documents and payments (ADR 0020): null for US dollars. */
+  currency?: string | null;
+  exchangeRate?: string | null;
+  /** The total's US dollar value. */
+  homeTotal?: string | null;
 }
 
 function detailColumns(d: DocumentDetails | undefined) {
@@ -90,6 +102,9 @@ function detailColumns(d: DocumentDetails | undefined) {
     ['mailingAddress', 'mailing_address'],
     ['taxRateId', 'tax_rate_id'],
     ['taxAgencyId', 'tax_agency_id'],
+    ['currency', 'currency'],
+    ['exchangeRate', 'exchange_rate'],
+    ['homeTotal', 'home_total'],
   ];
   for (const [key, column] of map) if (d[key] !== undefined) out[column] = d[key] ?? null;
   return out;
@@ -233,6 +248,10 @@ export class PostingService {
       classId: r.class_id,
       locationId: r.location_id,
       role: (r.role as 'inventory' | null) ?? null,
+      foreign:
+        r.foreign_debit !== null
+          ? { debit: parseMoney(r.foreign_debit), credit: parseMoney(r.foreign_credit ?? '0') }
+          : null,
     });
     const key = (l: PostingLine) =>
       [l.accountId, l.debit, l.credit, l.customerId, l.vendorId, l.classId, l.locationId].join('|');
@@ -409,17 +428,14 @@ export class PostingService {
         ? (
             await tx
               .selectFrom('accounts')
-              .select(['id', 'is_active', 'system_role', 'name'])
+              .select(['id', 'is_active', 'system_role', 'name', 'account_type', 'currency'])
               .where('company_id', '=', companyId)
               .where('id', 'in', accountIds)
               .execute()
           ).map((a) => [a.id, a])
         : [],
     );
-    const activeIds = async (
-      table: 'customers' | 'vendors' | 'classes' | 'locations',
-      wanted: string[],
-    ) =>
+    const activeIds = async (table: 'classes' | 'locations', wanted: string[]) =>
       new Set(
         wanted.length
           ? (
@@ -433,11 +449,26 @@ export class PostingService {
             ).map((r) => r.id)
           : [],
       );
-    const customers = await activeIds(
+    /** Active parties and their currencies. */
+    const activeParties = async (table: 'customers' | 'vendors', wanted: string[]) =>
+      new Map(
+        wanted.length
+          ? (
+              await tx
+                .selectFrom(table)
+                .select(['id', 'currency', 'display_name'])
+                .where('company_id', '=', companyId)
+                .where('id', 'in', wanted)
+                .where('is_active', '=', true)
+                .execute()
+            ).map((r) => [r.id, r])
+          : [],
+      );
+    const customers = await activeParties(
       'customers',
       ids((l) => l.customerId),
     );
-    const vendors = await activeIds(
+    const vendors = await activeParties(
       'vendors',
       ids((l) => l.vendorId),
     );
@@ -465,6 +496,30 @@ export class PostingService {
           path: `lines.${i}.vendorId`,
           message: 'Choose a vendor for an Accounts Payable line',
         });
+      }
+      if (account) {
+        if (account.currency && !l.foreign)
+          errors.push({
+            path: `lines.${i}.accountId`,
+            message: `"${account.name}" is in ${account.currency}: only ${account.currency} invoices, bills, credits and payments post to it`,
+          });
+        else if (!account.currency && l.foreign)
+          errors.push({
+            path: `lines.${i}.accountId`,
+            message: `"${account.name}" is in US dollars`,
+          });
+        // A party's receivables and payables are in its own currency's control account.
+        const control =
+          account.account_type === 'accounts_receivable'
+            ? customers.get(l.customerId ?? '')
+            : account.account_type === 'accounts_payable'
+              ? vendors.get(l.vendorId ?? '')
+              : undefined;
+        if (control && (control.currency ?? null) !== (account.currency ?? null))
+          errors.push({
+            path: `lines.${i}.accountId`,
+            message: `${control.display_name} is in ${control.currency ?? 'USD'}; "${account.name}" is in ${account.currency ?? 'USD'}`,
+          });
       }
       if (l.customerId && !customers.has(l.customerId))
         errors.push({ path: `lines.${i}.customerId`, message: 'Customer not found or inactive' });
@@ -507,6 +562,8 @@ export class PostingService {
           class_id: l.classId,
           location_id: l.locationId,
           role: l.role ?? null,
+          foreign_debit: l.foreign ? moneyToString(l.foreign.debit, 4) : null,
+          foreign_credit: l.foreign ? moneyToString(l.foreign.credit, 4) : null,
         })),
       )
       .execute();
