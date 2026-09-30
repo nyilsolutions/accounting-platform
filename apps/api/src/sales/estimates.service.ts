@@ -168,15 +168,6 @@ export class EstimatesService {
     const subtotal = lines.reduce((s, l) => s + l.amount, 0n);
     const taxRateId = input.taxRateId === undefined ? (before?.taxRateId ?? null) : input.taxRateId;
     let taxTotal = 0n;
-    if (taxRateId && customer.currency)
-      throw new BadRequestException(
-        validationError([
-          {
-            path: 'taxRateId',
-            message: `Sales tax isn't charged on documents in ${customer.currency} yet`,
-          },
-        ]),
-      );
     if (taxRateId) {
       const rate = await tx
         .selectFrom('tax_rates')

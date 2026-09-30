@@ -538,15 +538,57 @@ describe('multi-currency', () => {
     expect(JSON.stringify(wrongParty.body)).toMatch(/Rhein Logistik GmbH is in EUR/);
   });
 
-  it('refuses sales tax on foreign-currency documents and a changed currency once used', async () => {
-    const taxed = await owner.agent.post(`${base()}/sales/invoices`).send({
-      customerId: euroCustomer,
-      txnDate: '2026-03-10',
-      taxRateId: '00000000-0000-4000-8000-000000000001',
-      lines: [{ accountId: acct('Services'), amount: '10' }],
+  it('charges sales tax in the currency and records it in dollars at the rate', async () => {
+    const agency = (
+      await owner.agent
+        .post(`${base()}/sales-tax/agencies`)
+        .send({ name: 'State Dept. of Revenue', filingFrequency: 'quarterly' })
+        .expect(201)
+    ).body as { id: string };
+    const rate = (
+      await owner.agent
+        .post(`${base()}/sales-tax/rates`)
+        .send({ name: 'State', kind: 'single', agencyId: agency.id, rate: '6.25' })
+        .expect(201)
+    ).body as { id: string };
+    const customer = (
+      await post<{ id: string }>('/customers', { displayName: 'Taxed Imports AG', currency: 'EUR' })
+    ).id;
+    // €200.00 taxable at 6.25% = €12.50 tax; at 1.10: $220.00 of sales and $13.75 of tax.
+    const inv = await post<SalesDocumentDto>('/sales/invoices', {
+      customerId: customer,
+      txnDate: '2026-07-01',
+      exchangeRate: '1.10',
+      taxRateId: rate.id,
+      lines: [{ accountId: acct('Services'), amount: '200', taxable: true }],
     });
-    expect(taxed.status).toBe(400);
-    expect(JSON.stringify(taxed.body)).toMatch(/Sales tax isn't charged on documents in EUR/);
+    expect(inv).toMatchObject({
+      subtotal: '200.00',
+      taxTotal: '12.50',
+      total: '212.50',
+      homeTotal: '233.75',
+      taxLines: [{ taxable: '200.00', amount: '12.50' }],
+    });
+    expect(await journal(inv.id)).toEqual([
+      'Accounts Receivable (EUR) Dr 233.75 [212.50]',
+      'Services Cr 220.00',
+      'Sales Tax Payable Cr 13.75',
+    ]);
+    const stl = await admin
+      .selectFrom('sales_tax_lines')
+      .select(['taxable_amount', 'amount', 'foreign_taxable_amount', 'foreign_amount'])
+      .where('transaction_id', '=', inv.id)
+      .executeTakeFirstOrThrow();
+    expect(stl).toEqual({
+      taxable_amount: '220.0000',
+      amount: '13.7500',
+      foreign_taxable_amount: '200.0000',
+      foreign_amount: '12.5000',
+    });
+    await assertTiesOut();
+  });
+
+  it("refuses a changed currency once it's used", async () => {
     await owner.agent
       .patch(`${base()}/customers/${euroCustomer}`)
       .send({ currency: 'USD' })

@@ -15,8 +15,10 @@ export interface SalesTaxLine {
   rate: string | null;
   /** Signed like `amount`. */
   taxable: Money;
-  /** + raises what is owed to the agency, - lowers it. */
+  /** + raises what is owed to the agency, - lowers it. US dollars. */
   amount: Money;
+  /** Foreign-currency documents: taxable and amount in the document's currency (ADR 0020). */
+  foreign?: { taxable: Money; amount: Money } | null;
 }
 
 /** Replaces a transaction's sales tax detail (document detail is current state, like sales_lines). */
@@ -40,6 +42,8 @@ export async function replaceSalesTaxLines(
         rate: l.rate,
         taxable_amount: moneyToString(l.taxable, 4),
         amount: moneyToString(l.amount, 4),
+        foreign_taxable_amount: l.foreign ? moneyToString(l.foreign.taxable, 4) : null,
+        foreign_amount: l.foreign ? moneyToString(l.foreign.amount, 4) : null,
       })),
     )
     .execute();

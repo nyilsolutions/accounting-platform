@@ -309,18 +309,12 @@ Add new questions here instead of guessing.
     follow-up part (10c-2): bank and card accounts in a currency, their registers and
     reconciliation in it, and transfers between currencies. In 10c, money for foreign-currency
     customers and vendors moves through US dollar accounts at the day's rate.
-63. **Sales tax on foreign-currency invoices:** open. US sales tax can apply to a customer billed
-    in another currency (for example, a Canadian company taking delivery in New York). 10c
-    refuses a tax rate on foreign-currency documents rather than guess. The options:
-    - **(a) Recommended:** calculate the tax in the document's currency, record each agency's
-      tax in US dollars at the document's rate (so the liability report ties to Sales Tax
-      Payable), and show both on the invoice.
-    - **(b)** Keep refusing: such sales are invoiced in US dollars.
-64. **QuickBooks companies with multi-currency on:** open. The QuickBooks import reads document
-    amounts as US dollars. For a QuickBooks company with foreign-currency customers or vendors,
-    those amounts are in the other currency. The tie-out's true-ups keep the books equal to
-    QuickBooks', but the subledger would be wrong. The options:
-    - **(a) Recommended:** once a sample multi-currency company file or export is available,
-      map QuickBooks' currencies, rates and home amounts onto 10c's model.
-    - **(b)** Until then, refuse to import a multi-currency QuickBooks company, with a clear
-      message.
+63. **Sales tax on foreign-currency invoices:** decided 2026-09-30 ("go with your
+    recommendations"). The tax is calculated in the document's currency and each agency's part is
+    recorded in US dollars at the document's rate, so the liability ties to Sales Tax Payable.
+    The document shows its tax in its currency (migration 0022, ADR 0020).
+64. **QuickBooks companies with multi-currency on:** decided 2026-09-30 ("go with your
+    recommendations"). QuickBooks' currencies, rates and home amounts will be mapped onto 10c's
+    model once a sample multi-currency company file or export is available. **Still needed:**
+    that sample (a QuickBooks Online sandbox company with multi-currency on, or a Desktop file).
+    Until then the import reads document amounts as US dollars, as before.

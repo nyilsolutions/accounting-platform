@@ -205,16 +205,6 @@ export class SalesDocumentsService {
     // An edit that doesn't mention the rate keeps the one the document has.
     const taxRateId = input.taxRateId === undefined ? (before?.taxRateId ?? null) : input.taxRateId;
     let tax: SalesTaxCalculation | null = null;
-    if (taxRateId && fx) {
-      throw new BadRequestException(
-        validationError([
-          {
-            path: 'taxRateId',
-            message: `Sales tax isn't charged on documents in ${fx.currency} yet`,
-          },
-        ]),
-      );
-    }
     if (taxRateId) {
       const rate = await tx
         .selectFrom('tax_rates')
@@ -369,11 +359,14 @@ export class SalesDocumentsService {
     }
     if (tax) {
       const stp = await systemAccount(tx, companyId, 'sales_tax_payable');
+      // In a foreign currency the tax is calculated in the currency and each agency's part is
+      // recorded in US dollars at the document's rate (ADR 0020).
       for (const c of tax.components) {
-        if (c.amount === 0n) continue;
-        homeTotal += c.amount;
+        const amount = toBooks(c.amount);
+        if (amount === 0n) continue;
+        homeTotal += amount;
         incomeLines.push(
-          line(stp, c.amount, totalIsDebit, { description: `${c.rateName} (${c.agencyName})` }),
+          line(stp, amount, totalIsDebit, { description: `${c.rateName} (${c.agencyName})` }),
         );
       }
     }
@@ -501,8 +494,9 @@ export class SalesDocumentsService {
         agencyId: c.agencyId,
         taxRateId: c.rateId,
         rate: c.rate,
-        taxable: sign * c.taxable,
-        amount: sign * c.amount,
+        taxable: sign * toBooks(c.taxable),
+        amount: sign * toBooks(c.amount),
+        foreign: fx ? { taxable: sign * c.taxable, amount: sign * c.amount } : null,
       })),
     );
 
@@ -697,6 +691,8 @@ export class SalesDocumentsService {
         'stl.rate',
         'stl.taxable_amount',
         'stl.amount',
+        'stl.foreign_taxable_amount',
+        'stl.foreign_amount',
       ])
       .where('stl.transaction_id', '=', id)
       .orderBy('stl.line_no')
@@ -715,8 +711,13 @@ export class SalesDocumentsService {
       const m = parseMoney(v);
       return moneyToString(m < 0n ? -m : m);
     };
+    // The document shows its tax in its own currency.
+    const docTax = (l: (typeof taxLines)[number]) => ({
+      taxable: l.foreign_taxable_amount ?? l.taxable_amount,
+      amount: l.foreign_amount ?? l.amount,
+    });
     const taxTotal = taxLines.reduce((s, l) => {
-      const m = parseMoney(l.amount);
+      const m = parseMoney(docTax(l).amount);
       return s + (m < 0n ? -m : m);
     }, 0n);
     const appliedSum = applied.reduce((s, a) => s + parseMoney(a.amount), 0n);
@@ -772,8 +773,8 @@ export class SalesDocumentsService {
         taxRateId: l.tax_rate_id,
         rateName: l.rate_name,
         rate: l.rate === null ? null : trimZeros(l.rate),
-        taxable: abs(l.taxable_amount),
-        amount: abs(l.amount),
+        taxable: abs(docTax(l).taxable),
+        amount: abs(docTax(l).amount),
       })),
       taxTotal: moneyToString(taxTotal),
       total: moneyToString(total),

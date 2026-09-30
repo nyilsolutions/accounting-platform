@@ -780,6 +780,9 @@ export interface SalesTaxLinesTable {
   rate: Numeric | null;
   taxable_amount: Numeric;
   amount: Numeric;
+  /** Foreign-currency documents: the amounts in the document's currency (migration 0022). */
+  foreign_taxable_amount: ColumnType<string | null, string | null | undefined, string | null>;
+  foreign_amount: ColumnType<string | null, string | null | undefined, string | null>;
 }
 
 export interface BudgetsTable extends Audited {

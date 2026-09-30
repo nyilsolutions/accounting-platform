@@ -137,7 +137,10 @@ The owner decided (2026-09-30):
   So **journal entries can't post to foreign-currency A/R or A/P**, or to US dollar A/R or A/P
   for a foreign-currency party.
 
-- **Sales tax** isn't charged on foreign-currency documents yet (refused, open question 63).
+- **Sales tax** on a foreign-currency document (open question 63, decided) is calculated in the
+  document's currency. Each agency's part posts to Sales Tax Payable in US dollars at the
+  document's rate, and `sales_tax_lines` keeps both: the US dollar amounts the liability report
+  uses, and the amounts in the currency (migration 0022) that the document shows.
 
 ## Consequences
 
@@ -147,7 +150,6 @@ The owner decided (2026-09-30):
 - **Not in this part:**
   - foreign-currency bank and credit card accounts, with transfers between currencies (10c-2,
     open question 62);
-  - sales tax in a foreign currency (open question 63);
-  - importing QuickBooks multi-currency companies (open question 64);
+  - importing QuickBooks multi-currency companies (open question 64: waits on a sample file);
   - removing a currency;
   - changing a document's rate after payments are applied.
