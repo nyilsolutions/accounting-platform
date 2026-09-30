@@ -1,6 +1,13 @@
-import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
-import { withTenant, type Db, type Item, type Term, type Tx } from '@acct/db';
 import {
+  BadRequestException,
+  ConflictException,
+  Inject,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
+import { sql, withTenant, type Db, type Item, type Term, type Tx } from '@acct/db';
+import {
+  isStocked,
   moneyToString,
   parseMoney,
   type ItemDto,
@@ -312,7 +319,7 @@ export class ItemsService {
           ]),
         );
       }
-      return (await query.execute()).map(toItemDto);
+      return this.toDtos(tx, ctx.companyId, await query.execute());
     });
   }
 
@@ -337,6 +344,7 @@ export class ItemsService {
     input: ItemPatch,
     meta: RequestMeta,
   ): Promise<ItemDto> {
+    const companyId = ctx.companyId;
     const map: Array<[keyof ItemPatch, string]> = [
       ['name', 'name'],
       ['sku', 'sku'],
@@ -348,27 +356,97 @@ export class ItemsService {
       ['cost', 'cost'],
       ['expenseAccountId', 'expense_account_id'],
       ['taxable', 'taxable'],
+      ['assetAccountId', 'asset_account_id'],
+      ['reorderPoint', 'reorder_point'],
     ];
     const set: Record<string, unknown> = { updated_by: auth.userId };
     for (const [key, column] of map) if (input[key] !== undefined) set[column] = input[key] ?? null;
     if ('isActive' in input && input.isActive !== undefined) set.is_active = input.isActive;
-    await this.assertAccounts(tx, ctx.companyId, input);
+
+    const existing = id
+      ? await tx
+          .selectFrom('items')
+          .selectAll()
+          .where('id', '=', id)
+          .where('company_id', '=', companyId)
+          .forUpdate()
+          .executeTakeFirst()
+      : undefined;
+    if (id && !existing) throw new NotFoundException('Product or service not found');
+    const type = input.itemType ?? existing!.item_type;
+    const stocked = isStocked(type);
+
+    // Inventory: the asset and cost of goods sold accounts default to the system ones.
+    if (stocked) {
+      const asset = input.assetAccountId ?? existing?.asset_account_id ?? null;
+      if (!asset) set.asset_account_id = await inventoryAccount(tx, auth, companyId, 'asset');
+      const cogs =
+        input.expenseAccountId !== undefined
+          ? input.expenseAccountId
+          : (existing?.expense_account_id ?? null);
+      if (!cogs) set.expense_account_id = await inventoryAccount(tx, auth, companyId, 'cogs');
+    } else {
+      if ('components' in input && input.components?.length)
+        throw invalid('components', 'Only assemblies have components');
+      set.asset_account_id = null;
+      set.reorder_point = null;
+    }
+    if (type === 'assembly' && !existing?.item_type.startsWith('assembly') && !input.components)
+      throw invalid('components', 'Add the components that make up the assembly');
+    if (input.components && type !== 'assembly')
+      throw invalid('components', 'Only assemblies have components');
+
+    if (existing) {
+      const moved = await hasMoves(tx, companyId, existing.id);
+      if (type !== existing.item_type && (stocked || isStocked(existing.item_type))) {
+        const used =
+          moved ||
+          !!(await tx
+            .selectFrom('sales_lines')
+            .select('id')
+            .where('item_id', '=', existing.id)
+            .limit(1)
+            .executeTakeFirst()) ||
+          !!(await tx
+            .selectFrom('purchase_lines')
+            .select('id')
+            .where('item_id', '=', existing.id)
+            .limit(1)
+            .executeTakeFirst()) ||
+          !!(await tx
+            .selectFrom('assembly_components')
+            .select('assembly_id')
+            .where('component_id', '=', existing.id)
+            .limit(1)
+            .executeTakeFirst());
+        if (used)
+          throw new ConflictException(
+            `"${existing.name}" is already on transactions or assemblies, so it can't change to or from an inventory item. Make a new item instead.`,
+          );
+      }
+      if (
+        moved &&
+        set.asset_account_id !== undefined &&
+        set.asset_account_id !== existing.asset_account_id
+      )
+        throw new ConflictException(
+          `"${existing.name}" has inventory on hand or history in its asset account, so the account can't change.`,
+        );
+    }
+    await this.assertAccounts(tx, companyId, {
+      incomeAccountId: input.incomeAccountId,
+      expenseAccountId: input.expenseAccountId,
+      assetAccountId: input.assetAccountId,
+    });
 
     let before: ItemDto | null = null;
     let row: Item;
-    if (id) {
-      const existing = await tx
-        .selectFrom('items')
-        .selectAll()
-        .where('id', '=', id)
-        .where('company_id', '=', ctx.companyId)
-        .executeTakeFirst();
-      if (!existing) throw new NotFoundException('Product or service not found');
-      before = toItemDto(existing);
+    if (existing) {
+      before = (await this.toDtos(tx, companyId, [existing]))[0]!;
       row = await tx
         .updateTable('items')
         .set(set)
-        .where('id', '=', id)
+        .where('id', '=', existing.id)
         .returningAll()
         .executeTakeFirstOrThrow();
     } else {
@@ -376,14 +454,18 @@ export class ItemsService {
         .insertInto('items')
         .values({
           ...(set as { name: string; item_type: string }),
-          company_id: ctx.companyId,
+          company_id: companyId,
           created_by: auth.userId,
         })
         .returningAll()
         .executeTakeFirstOrThrow();
     }
-    const after = toItemDto(row);
-    const strip = ({ id: _id, ...rest }: ItemDto) => rest;
+    if (input.components) await this.saveComponents(tx, companyId, row, input.components);
+    else if (type !== 'assembly' && existing?.item_type === 'assembly')
+      await tx.deleteFrom('assembly_components').where('assembly_id', '=', row.id).execute();
+
+    const after = (await this.toDtos(tx, companyId, [row]))[0]!;
+    const strip = ({ id: _id, quantityOnHand: _q, inventoryValue: _v, ...rest }: ItemDto) => rest;
     const changes = before
       ? diff(strip(before), strip(after))
       : { before: null, after: strip(after) };
@@ -391,7 +473,7 @@ export class ItemsService {
       await this.audit.record(
         tx,
         {
-          companyId: ctx.companyId,
+          companyId,
           actorUserId: auth.userId,
           action: before ? 'item.updated' : 'item.created',
           entityType: 'item',
@@ -404,8 +486,117 @@ export class ItemsService {
     return after;
   }
 
-  /** Income accounts must be income-type; expense accounts must be expense/COGS/other expense. */
-  private async assertAccounts(tx: Tx, companyId: string, input: ItemPatch): Promise<void> {
+  /** Replaces an assembly's components: inventory items or assemblies, never itself. */
+  private async saveComponents(
+    tx: Tx,
+    companyId: string,
+    assembly: Item,
+    components: Array<{ componentId: string; quantity: string }>,
+  ): Promise<void> {
+    const ids = components.map((c) => c.componentId);
+    const found = ids.length
+      ? await tx
+          .selectFrom('items')
+          .select(['id', 'name', 'item_type'])
+          .where('company_id', '=', companyId)
+          .where('id', 'in', ids)
+          .execute()
+      : [];
+    const byId = new Map(found.map((f) => [f.id, f]));
+    components.forEach((c, i) => {
+      const item = byId.get(c.componentId);
+      if (!item) throw invalid(`components.${i}.componentId`, 'Item not found');
+      if (!isStocked(item.item_type))
+        throw invalid(
+          `components.${i}.componentId`,
+          `"${item.name}" isn't an inventory item. Assemblies are made of inventory items and other assemblies.`,
+        );
+    });
+    // No assembly may contain itself, directly or through other assemblies.
+    let frontier = ids;
+    const seen = new Set<string>();
+    while (frontier.length) {
+      if (frontier.includes(assembly.id))
+        throw invalid('components', `"${assembly.name}" can't contain itself`);
+      frontier.forEach((f) => seen.add(f));
+      const next = await tx
+        .selectFrom('assembly_components')
+        .select('component_id')
+        .where('company_id', '=', companyId)
+        .where('assembly_id', 'in', frontier)
+        .execute();
+      frontier = [...new Set(next.map((n) => n.component_id))].filter((f) => !seen.has(f));
+    }
+    await tx.deleteFrom('assembly_components').where('assembly_id', '=', assembly.id).execute();
+    if (components.length)
+      await tx
+        .insertInto('assembly_components')
+        .values(
+          components.map((c, i) => ({
+            company_id: companyId,
+            assembly_id: assembly.id,
+            component_id: c.componentId,
+            quantity: c.quantity,
+            position: i + 1,
+          })),
+        )
+        .execute();
+  }
+
+  private async toDtos(tx: Tx, companyId: string, rows: Item[]): Promise<ItemDto[]> {
+    const stocked = rows.filter((r) => isStocked(r.item_type)).map((r) => r.id);
+    const onHand = new Map<string, { qty: string; value: string }>();
+    const components = new Map<string, ItemDto['components']>();
+    if (stocked.length) {
+      const sums = await tx
+        .selectFrom('inventory_moves')
+        .select(['item_id'])
+        .select((eb) => [
+          eb.fn.sum<string>('quantity').as('qty'),
+          eb.fn.sum<string>('cost').as('value'),
+        ])
+        .where('company_id', '=', companyId)
+        .where('item_id', 'in', stocked)
+        .groupBy('item_id')
+        .execute();
+      for (const r of sums) onHand.set(r.item_id, { qty: r.qty, value: r.value });
+      const parts = await tx
+        .selectFrom('assembly_components as c')
+        .innerJoin('items as i', 'i.id', 'c.component_id')
+        .select(['c.assembly_id', 'c.component_id', 'c.quantity', 'i.name'])
+        .where('c.company_id', '=', companyId)
+        .where('c.assembly_id', 'in', stocked)
+        .orderBy('c.position')
+        .execute();
+      for (const p of parts) {
+        const list = components.get(p.assembly_id) ?? [];
+        list.push({ componentId: p.component_id, name: p.name, quantity: qtyString(p.quantity) });
+        components.set(p.assembly_id, list);
+      }
+    }
+    return rows.map((r) => {
+      const oh = isStocked(r.item_type) ? (onHand.get(r.id) ?? { qty: '0', value: '0' }) : null;
+      return toItemDto(r, {
+        quantityOnHand: oh ? qtyString(oh.qty) : null,
+        inventoryValue: oh ? moneyToString(parseMoney(oh.value), 2) : null,
+        components: components.get(r.id) ?? [],
+      });
+    });
+  }
+
+  /**
+   * Income accounts must be income-type; expense accounts expense/COGS/other expense; inventory
+   * asset accounts other current assets.
+   */
+  private async assertAccounts(
+    tx: Tx,
+    companyId: string,
+    input: {
+      incomeAccountId?: string | null;
+      expenseAccountId?: string | null;
+      assetAccountId?: string | null;
+    },
+  ): Promise<void> {
     const check = async (
       id: string | null | undefined,
       allowed: string[],
@@ -419,13 +610,8 @@ export class ItemsService {
         .where('id', '=', id)
         .where('company_id', '=', companyId)
         .executeTakeFirst();
-      if (!a || !a.is_active || !allowed.includes(a.account_type)) {
-        throw new BadRequestException({
-          statusCode: 400,
-          message: 'Validation failed',
-          errors: [{ path, message: `Choose an active ${label} account` }],
-        });
-      }
+      if (!a || !a.is_active || !allowed.includes(a.account_type))
+        throw invalid(path, `Choose an active ${label} account`);
     };
     await check(input.incomeAccountId, ['income', 'other_income'], 'incomeAccountId', 'income');
     await check(
@@ -434,10 +620,118 @@ export class ItemsService {
       'expenseAccountId',
       'expense or cost of goods sold',
     );
+    await check(
+      input.assetAccountId,
+      ['other_current_asset'],
+      'assetAccountId',
+      'other current asset',
+    );
   }
 }
 
-function toItemDto(i: Item): ItemDto {
+function invalid(path: string, message: string) {
+  return new BadRequestException({
+    statusCode: 400,
+    message: 'Validation failed',
+    errors: [{ path, message }],
+  });
+}
+
+async function hasMoves(tx: Tx, companyId: string, itemId: string): Promise<boolean> {
+  return !!(await tx
+    .selectFrom('inventory_moves')
+    .select('id')
+    .where('company_id', '=', companyId)
+    .where('item_id', '=', itemId)
+    .limit(1)
+    .executeTakeFirst());
+}
+
+/** A quantity without trailing zeros ("12", "2.5"). */
+function qtyString(v: string): string {
+  const s = moneyToString(parseMoney(v), 4).replace(/\.?0+$/, '');
+  return s === '' || s === '-' ? '0' : s;
+}
+
+/**
+ * The company's Inventory Asset or Cost of Goods Sold account, created (as QuickBooks does) the
+ * first time an inventory item needs it. An existing top-level account with the same name is
+ * adopted.
+ */
+export async function inventoryAccount(
+  tx: Tx,
+  auth: AuthContext,
+  companyId: string,
+  which: 'asset' | 'cogs',
+): Promise<string> {
+  const spec =
+    which === 'asset'
+      ? {
+          role: 'inventory_asset',
+          name: 'Inventory Asset',
+          number: '1250',
+          type: 'other_current_asset',
+          detail: 'Inventory',
+        }
+      : {
+          role: 'cost_of_goods_sold',
+          name: 'Cost of Goods Sold',
+          number: '5000',
+          type: 'cost_of_goods_sold',
+          detail: 'Supplies & Materials - COGS',
+        };
+  const byRole = await tx
+    .selectFrom('accounts')
+    .select('id')
+    .where('company_id', '=', companyId)
+    .where('system_role', '=', spec.role)
+    .executeTakeFirst();
+  if (byRole) return byRole.id;
+  const byName = await tx
+    .selectFrom('accounts')
+    .select('id')
+    .where('company_id', '=', companyId)
+    .where('parent_id', 'is', null)
+    .where('account_type', '=', spec.type)
+    .where(sql<string>`lower(name)`, '=', spec.name.toLowerCase())
+    .executeTakeFirst();
+  if (byName) {
+    await tx
+      .updateTable('accounts')
+      .set({ system_role: spec.role, updated_by: auth.userId })
+      .where('id', '=', byName.id)
+      .execute();
+    return byName.id;
+  }
+  const numberTaken = await tx
+    .selectFrom('accounts')
+    .select('id')
+    .where('company_id', '=', companyId)
+    .where(sql<string>`lower(number)`, '=', spec.number)
+    .executeTakeFirst();
+  const row = await tx
+    .insertInto('accounts')
+    .values({
+      company_id: companyId,
+      name: spec.name,
+      number: numberTaken ? null : spec.number,
+      account_type: spec.type,
+      detail_type: spec.detail,
+      system_role: spec.role,
+      parent_id: null,
+      description: null,
+      created_by: auth.userId,
+      updated_by: auth.userId,
+    })
+    .returning('id')
+    .executeTakeFirstOrThrow();
+  return row.id;
+}
+
+function toItemDto(
+  i: Item,
+  extra: Pick<ItemDto, 'quantityOnHand' | 'inventoryValue' | 'components'>,
+): ItemDto {
   const price = (v: string | null) => (v === null ? null : moneyToString(parseMoney(v), 2));
   return {
     id: i.id,
@@ -452,5 +746,9 @@ function toItemDto(i: Item): ItemDto {
     expenseAccountId: i.expense_account_id,
     taxable: i.taxable,
     isActive: i.is_active,
+    assetAccountId: i.asset_account_id,
+    reorderPoint: i.reorder_point === null ? null : qtyString(i.reorder_point),
+    inventoryStartDate: i.inventory_start_date,
+    ...extra,
   };
 }

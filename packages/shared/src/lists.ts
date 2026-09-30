@@ -151,13 +151,25 @@ export function maskTin(type: string | null, last4: string | null): string | nul
 }
 
 // ---- Products and services ------------------------------------------------------------------
-export const ITEM_TYPES = ['service', 'non_inventory', 'other_charge'] as const;
+export const ITEM_TYPES = [
+  'service',
+  'non_inventory',
+  'other_charge',
+  'inventory',
+  'assembly',
+] as const;
 export type ItemType = (typeof ITEM_TYPES)[number];
 export const ITEM_TYPE_LABELS: Record<ItemType, string> = {
   service: 'Service',
   non_inventory: 'Non-inventory',
   other_charge: 'Other charge',
+  inventory: 'Inventory',
+  assembly: 'Assembly',
 };
+/** Items whose quantity on hand is tracked (ADR 0018). */
+export const STOCKED_ITEM_TYPES: readonly ItemType[] = ['inventory', 'assembly'];
+export const isStocked = (t: string): boolean =>
+  (STOCKED_ITEM_TYPES as readonly string[]).includes(t);
 
 const optPrice = z
   .string()
@@ -172,28 +184,23 @@ const optPrice = z
   .nullable()
   .optional();
 
-export const itemInputSchema = z
-  .object({
-    name: listName(100),
-    sku: optText(100),
-    itemType: z.enum(ITEM_TYPES),
-    description: optText(4000),
-    salesPrice: optPrice,
-    incomeAccountId: z.uuid().nullable().optional(),
-    purchaseDescription: optText(4000),
-    cost: optPrice,
-    expenseAccountId: z.uuid().nullable().optional(),
-    taxable: z.boolean().optional(),
-  })
-  .refine((v) => v.incomeAccountId || v.expenseAccountId, {
-    message: 'Choose an income account (if you sell it) or an expense account (if you buy it)',
-    path: ['incomeAccountId'],
-  });
-export type ItemInput = z.input<typeof itemInputSchema>;
-export const itemUpdateSchema = z.object({
-  name: listName(100).optional(),
+const positiveQty = z
+  .string()
+  .trim()
+  .refine((v) => tryParseMoney(v) !== null && parseMoney(v) > 0n, 'Enter a quantity above zero')
+  .refine((v) => decimalPlaces(v) <= 4, 'At most 4 decimal places');
+
+/** An assembly's parts: each component item and how many go into one assembly. */
+export const assemblyComponentsSchema = z
+  .array(z.object({ componentId: z.uuid(), quantity: positiveQty }))
+  .max(200, 'At most 200 components')
+  .refine(
+    (v) => new Set(v.map((c) => c.componentId)).size === v.length,
+    'List each component once',
+  );
+
+const itemFields = {
   sku: optText(100),
-  itemType: z.enum(ITEM_TYPES).optional(),
   description: optText(4000),
   salesPrice: optPrice,
   incomeAccountId: z.uuid().nullable().optional(),
@@ -201,6 +208,37 @@ export const itemUpdateSchema = z.object({
   cost: optPrice,
   expenseAccountId: z.uuid().nullable().optional(),
   taxable: z.boolean().optional(),
+  /** Inventory and assemblies: the inventory asset account (default: Inventory Asset). */
+  assetAccountId: z.uuid().nullable().optional(),
+  /** Inventory and assemblies: reorder when the quantity on hand falls to this. */
+  reorderPoint: optPrice,
+  /** Assemblies only. */
+  components: assemblyComponentsSchema.optional(),
+};
+
+export const itemInputSchema = z
+  .object({ name: listName(100), itemType: z.enum(ITEM_TYPES), ...itemFields })
+  .refine((v) => isStocked(v.itemType) || v.incomeAccountId || v.expenseAccountId, {
+    message: 'Choose an income account (if you sell it) or an expense account (if you buy it)',
+    path: ['incomeAccountId'],
+  })
+  .refine((v) => v.itemType !== 'assembly' || (v.components?.length ?? 0) > 0, {
+    message: 'Add the components that make up the assembly',
+    path: ['components'],
+  })
+  .refine((v) => v.itemType === 'assembly' || !v.components?.length, {
+    message: 'Only assemblies have components',
+    path: ['components'],
+  })
+  .refine((v) => isStocked(v.itemType) || (!v.assetAccountId && v.reorderPoint == null), {
+    message: 'Only inventory items and assemblies have an asset account and reorder point',
+    path: ['assetAccountId'],
+  });
+export type ItemInput = z.input<typeof itemInputSchema>;
+export const itemUpdateSchema = z.object({
+  name: listName(100).optional(),
+  itemType: z.enum(ITEM_TYPES).optional(),
+  ...itemFields,
   isActive: z.boolean().optional(),
 });
 
@@ -217,6 +255,16 @@ export interface ItemDto {
   expenseAccountId: string | null;
   taxable: boolean;
   isActive: boolean;
+  /** Inventory and assemblies (null for other items). */
+  assetAccountId: string | null;
+  reorderPoint: string | null;
+  /** Items converted to inventory: tracked from this date (earlier documents have no quantities). */
+  inventoryStartDate: string | null;
+  quantityOnHand: string | null;
+  /** The value of the quantity on hand, at cost. */
+  inventoryValue: string | null;
+  /** Assemblies: their components (empty for other items). */
+  components: Array<{ componentId: string; name: string; quantity: string }>;
 }
 
 // ---- Classes, locations, payment methods, terms -------------------------------------------

@@ -62,6 +62,7 @@ export interface CompaniesTable {
   use_account_numbers: Generated<boolean>;
   closing_date: DateCol | null;
   closing_password_hash: string | null;
+  inventory_costing: Generated<string>;
   created_by: string | null;
   updated_by: string | null;
   created_at: Generated<Date>;
@@ -210,6 +211,11 @@ export interface ItemsTable extends Audited {
   expense_account_id: string | null;
   taxable: Generated<boolean>;
   is_active: Generated<boolean>;
+  /** Inventory and assemblies: the inventory asset account (migration 0018). */
+  asset_account_id: string | null;
+  reorder_point: Numeric | null;
+  /** Inventory tracked from this date (items converted to inventory); null: from the start. */
+  inventory_start_date: DateCol | null;
 }
 
 export interface TransactionsTable extends Audited {
@@ -266,6 +272,8 @@ export interface JournalLinesTable {
   class_id: string | null;
   location_id: string | null;
   created_at: Generated<Date>;
+  /** 'inventory' for lines a transaction carries because of inventory (migration 0018). */
+  role: string | null;
 }
 
 export interface SalesLinesTable {
@@ -1132,6 +1140,63 @@ export interface TaxFilingsTable {
   voided_at: Date | null;
 }
 
+export interface AssemblyComponentsTable {
+  company_id: string;
+  assembly_id: string;
+  component_id: string;
+  quantity: Numeric;
+  position: number;
+}
+
+export interface InventoryMovesTable {
+  id: Generated<string>;
+  company_id: string;
+  item_id: string;
+  transaction_id: string;
+  seq: number;
+  line_no: number | null;
+  move_date: DateCol;
+  kind: string;
+  quantity: Numeric;
+  fixed_cost: Numeric | null;
+  cost: ColumnType<string, string | number | undefined, string | number>;
+  asset_account_id: string;
+  counter_account_id: string | null;
+  class_id: string | null;
+  created_at: Generated<Date>;
+}
+
+export interface InventoryAdjustmentLinesTable {
+  id: Generated<string>;
+  company_id: string;
+  transaction_id: string;
+  line_no: number;
+  item_id: string;
+  quantity_change: Numeric;
+  unit_cost: Numeric | null;
+  account_id: string;
+  description: string | null;
+  class_id: string | null;
+}
+
+export interface InventoryBuildsTable {
+  transaction_id: string;
+  company_id: string;
+  assembly_id: string;
+  quantity: Numeric;
+}
+
+export interface InventoryOpeningLinesTable {
+  id: Generated<string>;
+  company_id: string;
+  transaction_id: string;
+  line_no: number;
+  item_id: string;
+  quantity: Numeric;
+  value: Numeric;
+  offset_account_id: string | null;
+}
+
 export interface Database {
   users: UsersTable;
   mfa_recovery_codes: MfaRecoveryCodesTable;
@@ -1212,6 +1277,11 @@ export interface Database {
   prior_payroll_lines: PriorPayrollLinesTable;
   prior_tax_deposits: PriorTaxDepositsTable;
   tax_filings: TaxFilingsTable;
+  assembly_components: AssemblyComponentsTable;
+  inventory_moves: InventoryMovesTable;
+  inventory_adjustment_lines: InventoryAdjustmentLinesTable;
+  inventory_builds: InventoryBuildsTable;
+  inventory_opening_lines: InventoryOpeningLinesTable;
 }
 
 export type User = Selectable<UsersTable>;

@@ -48,7 +48,9 @@ A single package: `pnpm --filter @acct/api test`, `pnpm --filter @acct/db test`,
   by `pay-runs.service.ts`; liabilities in `liabilities.ts` with payments through `EftpsProvider`;
   payroll reports in `payroll-reports.ts`; tax forms in `payroll/forms/` (pure builders over pay
   records) served by `tax-forms.service.ts`, prior payroll in `prior-payroll.service.ts`, filing
-  records in `tax-filings.ts`).
+  records in `tax-filings.ts`), inventory (costing in `inventory/costing.ts` (pure),
+  `InventoryService` for movements and recosting, adjustments, builds and starting values in
+  `inventory-documents.service.ts`, reports in `reports/inventory-reports.ts`).
   The A/R and A/P subledgers share one engine: `ledger/subledger.ts`.
 - `apps/desktop-agent`: QuickBooks Desktop migration agent (C#/.NET 8; `Core` is portable and
   tested on Linux with `dotnet test`, `Windows` is the WinForms wizard and QBXMLRP2 session).
@@ -149,6 +151,15 @@ A single package: `pnpm --filter @acct/api test`, `pnpm --filter @acct/db test`,
   posts to the books, and is locked once a filed form covers it. A filing keeps a snapshot of its
   figures (no SSNs); later differences are listed, never silently absorbed. Exports with full SSNs
   are POSTs needing `payroll.sensitive.reveal`, are never stored, and are audited without SSNs.
+- Inventory (ADR 0018): anything that changes a quantity plans its movements through
+  `InventoryService.plan()` before posting, appends the plan's inventory lines (journal lines with
+  `role = 'inventory'`) to its own, posts once, then calls `commit(txnId)`. Voids and deletes plan
+  with no movements. Never write `inventory_moves` or inventory lines directly: `commit` recosts
+  later transactions through `PostingService.replaceRoleLines`. Stock never goes below zero on any
+  date. The inventory asset accounts must equal the value on hand (tests check it). The costing
+  method is fixed once inventory has moved. Items converted to inventory (the QuickBooks cut-over)
+  are tracked from `inventory_start_date`: documents dated earlier post as they did, with no
+  quantities.
 - Database errors map to HTTP in `common/pg-error.filter.ts`; add friendly messages for new unique
   indexes there.
 
@@ -164,6 +175,6 @@ A single package: `pnpm --filter @acct/api test`, `pnpm --filter @acct/db test`,
 - [x] Phase 7: Reports suite, sales tax, budgets (columns/comparisons, cash flow, detail reports, custom builder, PDF/Excel/CSV, memorized + scheduled, sales tax, budgets)
 - [x] Phase 8: Payroll core (setup, employees, tax engine with golden tests, pay runs, pay stubs, direct deposit, liabilities + EFTPS, payroll reports; tax data owner-approved, awaiting professional review)
 - [ ] Phase 9: Payroll and 1099 tax forms (part 1 done: prior payroll, W-2/W-3 figures, quarterly and FUTA summaries, state reports, filings; official PDFs, EFW2, 1099/IRIS and state layouts wait on documents)
-- [ ] Phase 10: Advanced (inventory, time, multi-currency, …)
+- [ ] Phase 10: Advanced, in six parts (10a inventory done: items and assemblies, FIFO/average costing with backdated recosting, no negative stock, adjustments, builds, valuation and stock status reports; next 10b time tracking, then multi-currency, accountant tools, Stripe payments, portals)
 - [ ] Phase 11: E-file and partners
 - [ ] Phase 12: Hardening and launch

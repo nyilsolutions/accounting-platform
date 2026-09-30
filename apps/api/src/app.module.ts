@@ -7,6 +7,7 @@ import { CompaniesModule } from './companies/companies.module';
 import { APP_CONFIG, type AppConfig } from './config';
 import { DbModule } from './db/db.module';
 import { HealthController } from './health/health.controller';
+import { InventoryModule } from './inventory/inventory.module';
 import { LedgerModule } from './ledger/ledger.module';
 import { ListsModule } from './lists/lists.module';
 import { MailModule } from './mail/mail.module';
@@ -41,6 +42,7 @@ export class AppModule {
         CompaniesModule,
         MembersModule,
         LedgerModule,
+        InventoryModule,
         ListsModule,
         ReportsModule,
         SalesModule,

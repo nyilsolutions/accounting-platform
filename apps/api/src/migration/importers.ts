@@ -6,6 +6,7 @@ import {
   customerInputSchema,
   depositInputSchema,
   estimateInputSchema,
+  isStocked,
   itemInputSchema,
   journalEntryInputSchema,
   lineAmount,
@@ -467,7 +468,7 @@ export class Importers {
         : 'non_inventory';
     if (p.itemType === 'inventory')
       c.warnings.push(
-        'Imported as non-inventory: quantity on hand and average cost arrive with inventory (Phase 10)',
+        "Imported as non-inventory, with its history as QuickBooks posted it: quantities of imported items aren't tracked here yet",
       );
     if (p.itemType === 'discount') itemType = 'other_charge';
     // Our item list holds income and expense accounts only; transactions imported from QuickBooks
@@ -512,7 +513,24 @@ export class Importers {
     });
     const target = c.existingId ?? c.r.existingByName('item', input.name);
     if (target && (c.existingId || !c.r.isMappedTarget(target))) {
-      if (c.existingId) await this.items.saveInTx(c.tx, auth, ctx, target, input, meta);
+      if (c.existingId) {
+        // An item converted to inventory here since the import keeps its type and accounts.
+        const current = await c.tx
+          .selectFrom('items')
+          .select('item_type')
+          .where('id', '=', target)
+          .executeTakeFirst();
+        const tracked = !!current && isStocked(current.item_type);
+        if (tracked) c.warnings.push('Tracked as inventory here; its type and accounts were kept');
+        await this.items.saveInTx(
+          c.tx,
+          auth,
+          ctx,
+          target,
+          tracked ? { ...input, itemType: undefined, expenseAccountId: undefined } : input,
+          meta,
+        );
+      }
       c.r.items.set(target, { income: incomeAccountId, expense: expenseAccountId });
       return { targetId: target, fullName: p.fullName, inactive: !p.isActive };
     }

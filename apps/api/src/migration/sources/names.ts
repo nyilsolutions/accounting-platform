@@ -101,6 +101,7 @@ function compatible(role: SystemRole, type: AccountType | 'non_posting' | null):
     payroll_liabilities: ['other_current_liability'],
     payroll_expenses: ['expense'],
     cost_of_goods_sold: ['cost_of_goods_sold'],
+    inventory_asset: ['other_current_asset'],
   };
   return !!type && type !== 'non_posting' && expected[role].includes(type);
 }

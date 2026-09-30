@@ -31,6 +31,8 @@ export const PERMISSIONS = [
   'migration.manage',
   'sales_tax.manage',
   'budgets.manage',
+  /** Inventory quantity adjustments and assembly builds. */
+  'inventory.manage',
 ] as const;
 
 export type Permission = (typeof PERMISSIONS)[number];
@@ -65,6 +67,7 @@ const TRANSACTIONS: readonly Permission[] = [
   'documents.manage',
   'reports.view',
   'sales_tax.manage',
+  'inventory.manage',
 ];
 
 export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {

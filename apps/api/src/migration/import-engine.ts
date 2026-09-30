@@ -114,7 +114,8 @@ export class ImportEngine {
 
   /**
    * The tie-out only means something when every transaction came from QuickBooks: importing into
-   * a company that already has its own transactions is refused.
+   * a company that already has its own transactions is refused. Inventory starting values that
+   * post nothing (the QuickBooks cut-over, ADR 0018) don't change the books, so they don't count.
    */
   private async assertOnlyImported(
     tx: Parameters<Parameters<typeof withTenant>[2]>[0],
@@ -123,7 +124,9 @@ export class ImportEngine {
     const r = await sql<{ n: string }>`
       select count(*) as n from transactions t
        where t.company_id = ${companyId} and t.status <> 'deleted'
-         and not exists (select 1 from migration_map m where m.company_id = t.company_id and m.target_id = t.id)`.execute(
+         and not exists (select 1 from migration_map m where m.company_id = t.company_id and m.target_id = t.id)
+         and not (t.txn_type = 'inventory_opening'
+                  and not exists (select 1 from journal_lines l where l.transaction_id = t.id))`.execute(
       tx,
     );
     const n = Number(r.rows[0]?.n ?? 0);

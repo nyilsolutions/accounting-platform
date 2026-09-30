@@ -25,6 +25,7 @@ import { AuditService } from '../audit/audit.service';
 import { APP_CONFIG, type AppConfig } from '../config';
 import type { AuthContext, CompanyContext, RequestMeta } from '../common/request';
 import { DB } from '../db/db.module';
+import { InventoryService, type ProposedMove } from '../inventory/inventory.service';
 import { PostingService, type PostingLine } from '../ledger/posting.service';
 import { MAILER, type Mailer } from '../mail/mailer';
 import { replaceSalesTaxLines } from '../sales-tax/sales-tax-ledger';
@@ -47,6 +48,8 @@ interface ResolvedLine {
   classId: string | null;
   serviceDate: string | null;
   taxable: boolean;
+  /** Inventory items and assemblies: the cost of goods sold account the cost goes to. */
+  cogsAccountId: string | null;
 }
 
 /** Which side of the ledger the document total goes to. */
@@ -85,6 +88,7 @@ export class SalesDocumentsService {
     @Inject(MAILER) private readonly mailer: Mailer,
     @Inject(SALES_TAX_CALCULATOR) private readonly taxCalculator: SalesTaxCalculator,
     private readonly posting: PostingService,
+    private readonly inventory: InventoryService,
     private readonly audit: AuditService,
   ) {}
 
@@ -345,9 +349,33 @@ export class SalesDocumentsService {
       },
     };
     const postingCtx = { companyId, userId: auth.userId, closingPassword: input.closingPassword };
+    // Inventory sold goes out at cost to cost of goods sold; credits and refunds bring it back.
+    const outward = type === 'invoice' || type === 'sales_receipt';
+    const moves: ProposedMove[] = [];
+    lines.forEach((l, i) => {
+      if (!l.cogsAccountId) return;
+      const qty = parseMoney(l.quantity!);
+      moves.push({
+        itemId: l.itemId!,
+        lineNo: i + 1,
+        kind: outward ? 'sale' : 'sale_return',
+        quantity: outward ? -qty : qty,
+        fixedCost: null,
+        counterAccountId: l.cogsAccountId,
+        classId: l.classId,
+      });
+    });
+    const plan = await this.inventory.plan(
+      tx,
+      postingCtx,
+      { id, date: input.txnDate, customerId, vendorId: null },
+      moves,
+    );
+    journal.push(...plan.lines);
     let txnId = id;
     if (id) await this.posting.revise(tx, postingCtx, id, input.version, header, journal);
     else txnId = await this.posting.create(tx, postingCtx, header, journal);
+    await plan.commit(txnId!);
 
     await tx.deleteFrom('sales_lines').where('transaction_id', '=', txnId!).execute();
     await tx
@@ -424,12 +452,15 @@ export class SalesDocumentsService {
           'This receipt is in a bank deposit. Remove it from the deposit first.',
         );
       }
-      await this.posting.setStatus(
+      const postingCtx = { companyId: ctx.companyId, userId: auth.userId, closingPassword };
+      const plan = await this.inventory.plan(
         tx,
-        { companyId: ctx.companyId, userId: auth.userId, closingPassword },
-        id,
-        status,
+        postingCtx,
+        { id, date: before.txnDate, customerId: before.customerId, vendorId: null },
+        [],
       );
+      await this.posting.setStatus(tx, postingCtx, id, status);
+      await plan.commit(id);
       await this.audit.record(
         tx,
         {
@@ -655,7 +686,17 @@ export class SalesDocumentsService {
         ? (
             await tx
               .selectFrom('items')
-              .select(['id', 'name', 'is_active', 'income_account_id', 'description', 'taxable'])
+              .select([
+                'id',
+                'name',
+                'is_active',
+                'item_type',
+                'income_account_id',
+                'expense_account_id',
+                'inventory_start_date',
+                'description',
+                'taxable',
+              ])
               .where('company_id', '=', companyId)
               .where('id', 'in', itemIds)
               .execute()
@@ -675,6 +716,16 @@ export class SalesDocumentsService {
           path: `lines.${i}.itemId`,
           message: `"${item.name}" has no income account. Edit it, or choose an account.`,
         });
+      // Inventory is tracked from the item's start date; earlier documents post as they did.
+      const stocked =
+        item &&
+        (item.item_type === 'inventory' || item.item_type === 'assembly') &&
+        (!item.inventory_start_date || input.txnDate >= item.inventory_start_date);
+      if (stocked && !(l.quantity && parseMoney(l.quantity) > 0n))
+        errors.push({
+          path: `lines.${i}.quantity`,
+          message: `Enter how many "${item.name}" (more than zero)`,
+        });
       return {
         itemId: l.itemId ?? null,
         accountId: accountId ?? '',
@@ -685,6 +736,7 @@ export class SalesDocumentsService {
         classId: l.classId ?? null,
         serviceDate: l.serviceDate ?? null,
         taxable: l.taxable ?? item?.taxable ?? false,
+        cogsAccountId: stocked ? item.expense_account_id : null,
       };
     });
     const accountIds = [...new Set(resolved.map((l) => l.accountId).filter(Boolean))];

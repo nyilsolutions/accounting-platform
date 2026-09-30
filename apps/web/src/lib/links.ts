@@ -34,6 +34,12 @@ export function txnHref(companyId: string, txnType: string, id: string): string 
       return `${base}/payroll/paychecks/by-transaction/${id}`;
     case 'payroll_liability_payment':
       return `${base}/payroll/liabilities`;
+    case 'inventory_adjustment':
+      return `${base}/inventory/adjustments/${id}`;
+    case 'inventory_build':
+      return `${base}/inventory/builds/${id}`;
+    case 'inventory_opening':
+      return `${base}/inventory/openings/${id}`;
     default:
       return `${base}/accounting/journal-entries/${id}`;
   }

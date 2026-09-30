@@ -205,6 +205,46 @@ describe('IIF import', () => {
     expect(after).toEqual(before);
   });
 
+  it('starts tracking inventory items on a cut-over date, and reruns keep them (question 61)', async () => {
+    const items = (
+      await owner.agent.get(`/companies/${companyId}/items?includeInactive=true`).expect(200)
+    ).body as Array<{ id: string; name: string; itemType: string }>;
+    const shrubs = items.find((i) => i.name === 'Shrubs')!;
+    // A QuickBooks inventory part arrives as non-inventory, with its history as QuickBooks posted it.
+    expect(shrubs.itemType).toBe('non_inventory');
+    const res = await owner.agent.post(`/companies/${companyId}/inventory/start-tracking`).send({
+      startDate: '2025-04-01',
+      offsetAccountId: null,
+      lines: [{ itemId: shrubs.id, quantity: '12', value: '240' }],
+    });
+    expect(res.status, JSON.stringify(res.body)).toBe(201);
+    // Desktop exports (IIF) are costed at average cost, as QuickBooks Desktop does.
+    const settings = (await owner.agent.get(`/companies/${companyId}/ledger-settings`).expect(200))
+      .body;
+    expect([settings.inventoryCosting, settings.inventoryCostingLocked]).toEqual(['average', true]);
+
+    // A rerun that updates the item from QuickBooks keeps it as inventory.
+    await adminQuery(
+      `update migration_map set payload_hash = 'changed' where company_id = $1 and target_id = $2`,
+      [companyId, shrubs.id],
+    );
+    const m = await runAndWait(owner, companyId, migrationId);
+    expect(m.status).toBe('imported');
+    const errors = (await records(owner, companyId, migrationId, '&status=error')).records;
+    expect(errors).toEqual([]);
+    const after = (
+      await owner.agent.get(`/companies/${companyId}/items?includeInactive=true`).expect(200)
+    ).body.find((i: { id: string }) => i.id === shrubs.id);
+    expect([after.itemType, after.inventoryStartDate, after.quantityOnHand]).toEqual([
+      'inventory',
+      '2025-04-01',
+      '12',
+    ]);
+    // Nothing posted, so the tie-out is unchanged.
+    const report = (await owner.agent.get(`${base()}/report`).expect(200)).body as TieOutReportDto;
+    expect(report.status).toBe('tied_out');
+  });
+
   it('completes once tied out', async () => {
     const res = await owner.agent.post(`${base()}/complete`).send({}).expect(201);
     expect(res.body).toMatchObject({ status: 'complete', acceptedDifferences: false });
