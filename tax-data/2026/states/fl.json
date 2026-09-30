@@ -1,0 +1,34 @@
+{
+  "year": 2026,
+  "state": "FL",
+  "description": "Florida payroll figures for 2026. Florida has no state personal income tax; employers pay reemployment (unemployment) tax.",
+  "sources": [
+    {
+      "id": "fl-rt-rates",
+      "title": "Florida Department of Revenue, Reemployment Tax Rate Information",
+      "revision": "page as supplied 2026-09-30 (no revision date shown)",
+      "url": "https://floridarevenue.com/taxes/taxesfees/Pages/rt_rate_info.aspx"
+    }
+  ],
+  "incomeTaxWithholding": {
+    "none": true,
+    "note": "Florida has no state personal income tax."
+  },
+  "unemployment": {
+    "wageBase": "7000.00",
+    "newEmployerRatePercent": "2.7",
+    "minimumRatePercent": "0.1",
+    "maximumRatePercent": "5.4",
+    "paidBy": "employer",
+    "note": "New employers pay 2.7% until they have enough history for an earned rate. The employer's own rate comes from its Form RT-20 rate notice (entered in Payroll > Setup). Minimum and maximum apply to wages paid in 2026; a higher rate may apply to delinquent employers.",
+    "cite": [
+      {
+        "source": "fl-rt-rates",
+        "page": null,
+        "ref": "Reemployment Tax Rate Information: initial rate 2.7%; 2026 minimum 0.1% and maximum 5.4% on annual wages up to $7,000 per employee"
+      }
+    ]
+  },
+  "reviewedBy": null,
+  "note": "Pending sign-off. The source is a web page without a revision date; the page's 2026 statement is cited."
+}

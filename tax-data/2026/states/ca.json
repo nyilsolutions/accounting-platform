@@ -1,0 +1,117 @@
+{
+  "year": 2026,
+  "state": "CA",
+  "description": "California payroll figures for 2026: unemployment insurance (UI), employment training tax (ETT) and state disability insurance (SDI). Personal income tax withholding needs the 2026 California Employer's Guide (DE 44), not yet supplied.",
+  "sources": [
+    {
+      "id": "de-201",
+      "title": "EDD, 2026 California Payroll Taxes (DE 201)",
+      "revision": "Rev. 12 (1-26)",
+      "url": "https://edd.ca.gov/siteassets/files/pdf_pub_ctr/de201.pdf"
+    },
+    {
+      "id": "de-3395",
+      "title": "EDD, Tax Rates, Wage Limits, and Value of Meals and Lodging (DE 3395)",
+      "revision": "Rev. 69 (1-26)",
+      "url": "https://edd.ca.gov/siteassets/files/pdf_pub_ctr/de3395.pdf"
+    }
+  ],
+  "incomeTaxWithholding": {
+    "status": "pending",
+    "note": "Needs the 2026 California Employer's Guide (DE 44): Method B tables, low-income exemption, standard deduction, estimated deduction and exemption allowance tables, and supplemental rates."
+  },
+  "unemployment": {
+    "wageBase": "7000.00",
+    "newEmployerRatePercent": "3.4",
+    "newEmployerRateYears": 3,
+    "maximumRatePercent": "6.2",
+    "paidBy": "employer",
+    "note": "The employer's own rate comes from its EDD rate notice (entered in Payroll > Setup); new employers pay 3.4% for up to 3 years.",
+    "cite": [
+      {
+        "source": "de-201",
+        "page": 1,
+        "ref": "2026 California Payroll Taxes, footnote 1"
+      },
+      {
+        "source": "de-3395",
+        "page": 1,
+        "ref": "2026 row: maximum UI tax %"
+      }
+    ]
+  },
+  "employmentTrainingTax": {
+    "ratePercent": "0.1",
+    "wageBase": "7000.00",
+    "paidBy": "employer",
+    "cite": [
+      {
+        "source": "de-201",
+        "page": 1,
+        "ref": "Employment Training Tax"
+      },
+      {
+        "source": "de-3395",
+        "page": 1,
+        "ref": "2026 row"
+      }
+    ]
+  },
+  "stateDisabilityInsurance": {
+    "ratePercent": "1.3",
+    "wageBase": null,
+    "paidBy": "employee",
+    "note": "No SDI taxable wage limit since January 1, 2024.",
+    "cite": [
+      {
+        "source": "de-201",
+        "page": 1,
+        "ref": "SDI, footnote 3"
+      },
+      {
+        "source": "de-3395",
+        "page": 1,
+        "ref": "2026 row, footnote 1"
+      }
+    ]
+  },
+  "mealsAndLodging2026": {
+    "meals": {
+      "perDay": "15.85",
+      "breakfast": "3.25",
+      "lunch": "4.90",
+      "dinner": "7.70",
+      "unidentified": "5.70"
+    },
+    "lodging": {
+      "maxPerMonth": "2038.00",
+      "minPerWeek": "66.10",
+      "note": "66.67% of ordinary rental value, within these limits; non-maritime employees."
+    },
+    "cite": [
+      {
+        "source": "de-3395",
+        "page": 1,
+        "ref": "Value of Meals and Lodging, 2026"
+      }
+    ]
+  },
+  "quarterlyReturns": {
+    "form": "DE 9 and DE 9C",
+    "delinquentDates": {
+      "Q1": "2026-04-30",
+      "Q2": "2026-07-31",
+      "Q3": "2026-11-02",
+      "Q4": "2027-02-01"
+    },
+    "cite": [
+      {
+        "source": "de-201",
+        "page": 1,
+        "ref": "Important Due Dates"
+      }
+    ]
+  },
+  "reviewedBy": null,
+  "note": "Pending sign-off."
+}
