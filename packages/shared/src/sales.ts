@@ -43,6 +43,7 @@ export const TXN_TYPE_LABELS: Record<string, string> = {
   transfer: 'Transfer',
   sales_tax_payment: 'Sales Tax Payment',
   sales_tax_adjustment: 'Sales Tax Adjustment',
+  paycheck: 'Paycheck',
 };
 
 /** Every transaction type that posts to the ledger. */
@@ -63,6 +64,7 @@ export const POSTING_TXN_TYPES = [
   'transfer',
   'sales_tax_payment',
   'sales_tax_adjustment',
+  'paycheck',
 ] as const;
 export type PostingTxnType = (typeof POSTING_TXN_TYPES)[number];
 

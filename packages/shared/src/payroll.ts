@@ -1075,3 +1075,203 @@ export interface PendingPrenoteDto {
   accountMasked: string;
   accountType: BankAccountType;
 }
+
+// ---------------------------------------------------------------------------------------------
+// Pay runs and paychecks (Phase 8, part 2)
+// ---------------------------------------------------------------------------------------------
+export const PAY_RUN_KINDS = ['regular', 'off_cycle', 'bonus', 'final'] as const;
+export type PayRunKind = (typeof PAY_RUN_KINDS)[number];
+export const PAY_RUN_KIND_LABELS: Record<PayRunKind, string> = {
+  regular: 'Regular',
+  off_cycle: 'Off-cycle',
+  bonus: 'Bonus',
+  final: 'Final paycheck',
+};
+export const PAY_RUN_STATUSES = ['draft', 'approved', 'posted'] as const;
+export type PayRunStatus = (typeof PAY_RUN_STATUSES)[number];
+export type PaycheckStatus = 'draft' | 'posted' | 'void';
+
+/** Payroll taxes the tax engine calculates (codes stored on paycheck lines). */
+export const PAYROLL_TAX_CODES = [
+  'federal_income',
+  'social_security_employee',
+  'social_security_employer',
+  'medicare_employee',
+  'medicare_employer',
+  'additional_medicare',
+  'futa',
+  'state_income',
+  'nyc_income',
+  'yonkers_income',
+  'state_unemployment',
+  'ny_reemployment_fund',
+  'ca_ett',
+  'ca_sdi',
+] as const;
+export type PayrollTaxCode = (typeof PAYROLL_TAX_CODES)[number];
+/** Labels; state taxes are prefixed with the state on screen ("NY income tax"). */
+export const PAYROLL_TAX_LABELS: Record<PayrollTaxCode, string> = {
+  federal_income: 'Federal income tax',
+  social_security_employee: 'Social security',
+  social_security_employer: 'Social security (company)',
+  medicare_employee: 'Medicare',
+  medicare_employer: 'Medicare (company)',
+  additional_medicare: 'Additional Medicare',
+  futa: 'Federal unemployment (FUTA)',
+  state_income: 'income tax',
+  nyc_income: 'New York City income tax',
+  yonkers_income: 'Yonkers income tax',
+  state_unemployment: 'unemployment',
+  ny_reemployment_fund: 'NY Re-employment Service Fund',
+  ca_ett: 'CA Employment Training Tax',
+  ca_sdi: 'CA SDI',
+};
+export function payrollTaxLabel(code: PayrollTaxCode, state: string | null): string {
+  const label = PAYROLL_TAX_LABELS[code];
+  return (code === 'state_income' || code === 'state_unemployment') && state
+    ? `${state} ${label}`
+    : label;
+}
+
+export const createPayRunSchema = z.discriminatedUnion('kind', [
+  z.object({
+    kind: z.literal('regular'),
+    payScheduleId: z.uuid('Choose a pay schedule'),
+    /** The period to pay; the schedule's next unpaid period when left out. */
+    periodEnd: isoDate.optional(),
+    /** The pay date; the schedule's pay date for the period when left out. */
+    payDate: isoDate.optional(),
+    memo: z.string().trim().max(500).optional(),
+  }),
+  z.object({
+    kind: z.enum(['off_cycle', 'bonus', 'final']),
+    payDate: isoDate,
+    /** The pay frequency used for withholding. */
+    frequency: z.enum(PAY_FREQUENCIES),
+    employeeIds: z.array(z.uuid()).min(1, 'Choose at least one employee').max(500),
+    memo: z.string().trim().max(500).optional(),
+  }),
+]);
+export type CreatePayRunInput = z.input<typeof createPayRunSchema>;
+
+const hours = optDecimal(2, 9999, 'Enter hours like 40 or 7.5');
+const rate = optDecimal(4, 99999999, 'Enter a rate like 25.50');
+
+/** One paycheck's earnings, deductions and company contributions; taxes are calculated. */
+export const paycheckInputSchema = z.object({
+  earnings: z
+    .array(
+      z.object({
+        payrollItemId: z.uuid('Choose an item'),
+        /** Hours at a rate (hourly, overtime, PTO), or an amount (salary, bonus...). */
+        hours,
+        rate,
+        amount: optMoney,
+      }),
+    )
+    .max(50),
+  deductions: z.array(z.object({ payrollItemId: z.uuid('Choose an item'), amount: money })).max(50),
+  contributions: z
+    .array(z.object({ payrollItemId: z.uuid('Choose an item'), amount: money }))
+    .max(50),
+  payMethod: z.enum(['check', 'direct_deposit']).optional(),
+});
+export type PaycheckInput = z.input<typeof paycheckInputSchema>;
+
+export const payrollDepositFileSchema = z.object({
+  /** The settlement date the bank should use (usually the pay date). */
+  effectiveDate: isoDate,
+});
+
+export const voidPaycheckSchema = z.object({
+  reason: z.string().trim().min(1, 'Enter a reason').max(200),
+});
+
+export interface PaycheckSummaryDto {
+  id: string;
+  employeeId: string;
+  employeeName: string;
+  payMethod: PayMethod;
+  status: PaycheckStatus;
+  grossPay: string;
+  employeeTaxes: string;
+  deductions: string;
+  netPay: string;
+  employerTaxes: string;
+  contributions: string;
+  /** Why taxes couldn't be calculated; the run can't be approved until these are resolved. */
+  problems: string[];
+  notices: string[];
+  transactionId: string | null;
+}
+
+export interface PayRunSummaryDto {
+  id: string;
+  kind: PayRunKind;
+  status: PayRunStatus;
+  payScheduleId: string | null;
+  payScheduleName: string | null;
+  periodStart: string | null;
+  periodEnd: string | null;
+  payDate: string;
+  frequency: PayFrequency;
+  paycheckCount: number;
+  grossPay: string;
+  netPay: string;
+  employerTaxes: string;
+  /** What the run costs the company: gross pay, company taxes and contributions. */
+  totalCost: string;
+  problemCount: number;
+  createdAt: string;
+}
+
+export interface PayRunDto extends PayRunSummaryDto {
+  memo: string | null;
+  approvedAt: string | null;
+  postedAt: string | null;
+  paychecks: PaycheckSummaryDto[];
+  /** Totals of each tax across the run (employee and company). */
+  taxes: {
+    code: PayrollTaxCode;
+    state: string | null;
+    label: string;
+    payer: 'employee' | 'employer';
+    amount: string;
+  }[];
+  /** A payroll direct deposit file has been created for this run. */
+  depositFileCreated: boolean;
+}
+
+export interface PaycheckLineDto {
+  lineType: 'earning' | 'deduction' | 'contribution' | 'tax';
+  payrollItemId: string | null;
+  kind: PayrollItemKind | null;
+  taxCode: PayrollTaxCode | null;
+  payer: 'employee' | 'employer' | null;
+  state: string | null;
+  label: string;
+  hours: string | null;
+  rate: string | null;
+  amount: string;
+  taxableWages: string | null;
+  /** Year to date through this paycheck (posted paychecks in the calendar year). */
+  ytd: string;
+}
+
+/** A paycheck with everything a pay stub shows. */
+export interface PaycheckDto extends PaycheckSummaryDto {
+  payRunId: string;
+  payRunStatus: PayRunStatus;
+  payDate: string;
+  periodStart: string | null;
+  periodEnd: string | null;
+  supplemental: boolean;
+  employeeNumber: string | null;
+  ssnMasked: string | null;
+  companyName: string;
+  lines: PaycheckLineDto[];
+  ytd: { grossPay: string; employeeTaxes: string; deductions: string; netPay: string };
+  /** Where net pay went (masked accounts), for direct deposit. */
+  deposits: { accountMasked: string; accountType: BankAccountType; amount: string }[];
+  voidedAt: string | null;
+}

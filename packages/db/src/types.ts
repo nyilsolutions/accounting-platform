@@ -983,8 +983,76 @@ export interface AchBatchesTable {
   entry_count: number;
   total_credit: Numeric;
   file_sha256: string;
+  pay_run_id: string | null;
   created_by: string | null;
   created_at: Generated<Date>;
+}
+
+export interface PayRunsTable {
+  id: Generated<string>;
+  company_id: string;
+  kind: string;
+  pay_schedule_id: string | null;
+  period_start: DateCol | null;
+  period_end: DateCol | null;
+  pay_date: DateCol;
+  frequency: string;
+  status: Generated<string>;
+  memo: string | null;
+  approved_by: string | null;
+  approved_at: Date | null;
+  posted_by: string | null;
+  posted_at: Date | null;
+  created_by: string | null;
+  updated_by: string | null;
+  created_at: Generated<Date>;
+  updated_at: Generated<Date>;
+}
+
+export interface PaychecksTable {
+  id: Generated<string>;
+  company_id: string;
+  pay_run_id: string;
+  employee_id: string;
+  pay_date: DateCol;
+  pay_method: string;
+  supplemental: Generated<boolean>;
+  status: Generated<string>;
+  problems: ColumnType<unknown, string | null, string | null>;
+  notices: ColumnType<unknown, string | undefined, string>;
+  input: ColumnType<unknown, string | undefined, string>;
+  deposits: ColumnType<unknown, string | undefined, string>;
+  gross_pay: Generated<string>;
+  employee_taxes: Generated<string>;
+  deductions: Generated<string>;
+  net_pay: Generated<string>;
+  employer_taxes: Generated<string>;
+  contributions: Generated<string>;
+  w4_id: string | null;
+  state_certificate_id: string | null;
+  tax_year: number;
+  transaction_id: string | null;
+  voided_by: string | null;
+  voided_at: Date | null;
+  created_at: Generated<Date>;
+  updated_at: Generated<Date>;
+}
+
+export interface PaycheckLinesTable {
+  id: Generated<string>;
+  company_id: string;
+  paycheck_id: string;
+  line_no: number;
+  line_type: string;
+  payroll_item_id: string | null;
+  tax_code: string | null;
+  payer: string | null;
+  state: string | null;
+  hours: Numeric | null;
+  rate: Numeric | null;
+  amount: Numeric;
+  taxable_wages: Numeric | null;
+  description: string | null;
 }
 
 export interface Database {
@@ -1059,6 +1127,9 @@ export interface Database {
   employee_pay_items: EmployeePayItemsTable;
   employee_pto: EmployeePtoTable;
   ach_batches: AchBatchesTable;
+  pay_runs: PayRunsTable;
+  paychecks: PaychecksTable;
+  paycheck_lines: PaycheckLinesTable;
 }
 
 export type User = Selectable<UsersTable>;
@@ -1084,3 +1155,6 @@ export type Employee = Selectable<EmployeesTable>;
 export type PayrollItemRow = Selectable<PayrollItemsTable>;
 export type EmployeeW4Row = Selectable<EmployeeW4Table>;
 export type EmployeeBankAccountRow = Selectable<EmployeeBankAccountsTable>;
+export type PayRunRow = Selectable<PayRunsTable>;
+export type PaycheckRow = Selectable<PaychecksTable>;
+export type PaycheckLineRow = Selectable<PaycheckLinesTable>;

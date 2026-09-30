@@ -36,6 +36,7 @@ import type { z } from 'zod';
 import { AuditService, diff } from '../audit/audit.service';
 import type { AuthContext, CompanyContext, RequestMeta } from '../common/request';
 import { DB, FIELD_ENCRYPTOR } from '../db/db.module';
+import { achOrigin } from './ach-origin';
 import { bad, requirePayroll, trimNumber } from './payroll-common';
 import { PAYMENT_RAIL, type PaymentRail, type PaymentRailResult } from './payment-rail';
 
@@ -677,7 +678,7 @@ export class EmployeesService {
   > {
     return this.tenant(auth, ctx, async (tx) => {
       if (input.effectiveDate < todayIso()) throw bad('effectiveDate', 'The date is in the past');
-      const origin = await this.achOrigin(tx, ctx.companyId);
+      const origin = await achOrigin(tx, ctx.companyId, this.encryptor);
       const accounts = await tx
         .selectFrom('employee_bank_accounts as a')
         .innerJoin('employees as e', 'e.id', 'a.employee_id')
@@ -769,43 +770,6 @@ export class EmployeesService {
       );
       return result;
     });
-  }
-
-  /** The origination details for ACH files: the ODFI and the company as the bank knows it. */
-  private async achOrigin(tx: Tx, companyId: string) {
-    const s = await tx
-      .selectFrom('payroll_settings as s')
-      .innerJoin('companies as c', 'c.id', 's.company_id')
-      .select([
-        's.ach_odfi_routing',
-        's.ach_odfi_name',
-        's.ach_company_name',
-        's.ach_company_id',
-        'c.ein_enc',
-        'c.legal_name',
-      ])
-      .where('s.company_id', '=', companyId)
-      .executeTakeFirst();
-    if (!s) throw bad('effectiveDate', 'Set up payroll first');
-    if (!s.ach_odfi_routing || !s.ach_odfi_name) {
-      throw bad('achOdfiRouting', "Enter your bank's routing number and name in Payroll › Setup");
-    }
-    let companyAchId = s.ach_company_id;
-    if (!companyAchId) {
-      if (!s.ein_enc) {
-        throw bad('achCompanyId', 'Enter the company ID your bank assigned, or the company EIN');
-      }
-      const ein = this.encryptor.decrypt(s.ein_enc, `company:${companyId}:ein`);
-      companyAchId = `1${ein.replace(/-/g, '')}`;
-    }
-    const companyName = s.ach_company_name ?? s.legal_name;
-    return {
-      odfiRouting: s.ach_odfi_routing,
-      odfiName: s.ach_odfi_name,
-      immediateOrigin: companyAchId,
-      originName: companyName,
-      companyName,
-    };
   }
 
   // --- Loading ------------------------------------------------------------------------------------

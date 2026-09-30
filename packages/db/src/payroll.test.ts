@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createDb, createTestDatabase, sql, withTenant, type Db, type TestDatabase } from './index';
 
-/** Database guarantees for payroll setup and employees (migration 0010). */
+/** Database guarantees for payroll setup and employees (0010) and pay runs (0011). */
 let tdb: TestDatabase;
 let db: Db;
 let userId: string;
@@ -256,5 +256,253 @@ describe('payroll constraints', () => {
                          'ach_batches')
          and relrowsecurity`.execute(db);
     expect(r.rows).toHaveLength(14);
+  });
+});
+
+describe('pay runs (migration 0011)', () => {
+  let runId = '';
+  let paycheckId = '';
+  let expense = '';
+  let liability = '';
+
+  beforeAll(async () => {
+    await asA(async (tx) => {
+      const s = await tx
+        .selectFrom('payroll_settings')
+        .select(['wage_expense_account_id', 'liability_account_id'])
+        .executeTakeFirstOrThrow();
+      expense = s.wage_expense_account_id;
+      liability = s.liability_account_id;
+      runId = (
+        await tx
+          .insertInto('pay_runs')
+          .values({
+            company_id: A,
+            kind: 'regular',
+            pay_schedule_id: scheduleA,
+            period_start: '2026-01-10',
+            period_end: '2026-01-23',
+            pay_date: '2026-01-29',
+            frequency: 'biweekly',
+          })
+          .returning('id')
+          .executeTakeFirstOrThrow()
+      ).id;
+      paycheckId = (
+        await tx
+          .insertInto('paychecks')
+          .values({
+            company_id: A,
+            pay_run_id: runId,
+            employee_id: employeeA,
+            pay_date: '2026-01-29',
+            pay_method: 'check',
+            tax_year: 2026,
+            gross_pay: '100',
+            net_pay: '90',
+          })
+          .returning('id')
+          .executeTakeFirstOrThrow()
+      ).id;
+      const itemId = (
+        await tx
+          .insertInto('payroll_items')
+          .values({ company_id: A, name: 'Pay run wage', kind: 'hourly' })
+          .returning('id')
+          .executeTakeFirstOrThrow()
+      ).id;
+      await tx
+        .insertInto('paycheck_lines')
+        .values({
+          company_id: A,
+          paycheck_id: paycheckId,
+          line_no: 1,
+          line_type: 'earning',
+          payroll_item_id: itemId,
+          hours: '5',
+          rate: '20',
+          amount: '100',
+        })
+        .execute();
+    });
+  });
+
+  it('pay runs, paychecks and lines are invisible to other companies', async () => {
+    const seen = await asB(async (tx) => ({
+      runs: (await tx.selectFrom('pay_runs').select('id').execute()).length,
+      paychecks: (await tx.selectFrom('paychecks').select('id').execute()).length,
+      lines: (await tx.selectFrom('paycheck_lines').select('id').execute()).length,
+    }));
+    expect(seen).toEqual({ runs: 0, paychecks: 0, lines: 0 });
+    await expect(
+      asB((tx) =>
+        tx
+          .insertInto('paychecks')
+          .values({
+            company_id: B,
+            pay_run_id: runId,
+            employee_id: employeeA,
+            pay_date: '2026-01-29',
+            pay_method: 'check',
+            tax_year: 2026,
+          })
+          .execute(),
+      ),
+    ).rejects.toThrow();
+  });
+
+  it('a regular run pays one period of a schedule, once', async () => {
+    await expect(
+      asA((tx) =>
+        tx
+          .insertInto('pay_runs')
+          .values({ company_id: A, kind: 'regular', pay_date: '2026-01-29', frequency: 'biweekly' })
+          .execute(),
+      ),
+    ).rejects.toThrow(/check constraint/);
+    await expect(
+      asA((tx) =>
+        tx
+          .insertInto('pay_runs')
+          .values({
+            company_id: A,
+            kind: 'regular',
+            pay_schedule_id: scheduleA,
+            period_start: '2026-01-10',
+            period_end: '2026-01-23',
+            pay_date: '2026-01-30',
+            frequency: 'biweekly',
+          })
+          .execute(),
+      ),
+    ).rejects.toThrow(/pay_runs_regular_period_key/);
+  });
+
+  it('tax lines name their tax and taxable wages; other lines name an item', async () => {
+    await expect(
+      asA((tx) =>
+        tx
+          .insertInto('paycheck_lines')
+          .values({
+            company_id: A,
+            paycheck_id: paycheckId,
+            line_no: 2,
+            line_type: 'tax',
+            amount: '1',
+          })
+          .execute(),
+      ),
+    ).rejects.toThrow(/check constraint/);
+    await asA((tx) =>
+      tx
+        .insertInto('paycheck_lines')
+        .values({
+          company_id: A,
+          paycheck_id: paycheckId,
+          line_no: 2,
+          line_type: 'tax',
+          tax_code: 'futa',
+          payer: 'employer',
+          amount: '0.60',
+          taxable_wages: '100',
+        })
+        .execute(),
+    );
+  });
+
+  it('a posted paycheck is frozen: its lines and amounts cannot change, and it is voided, not deleted', async () => {
+    await asA(async (tx) => {
+      const txn = await tx
+        .insertInto('transactions')
+        .values({ company_id: A, txn_type: 'paycheck', txn_date: '2026-01-29', created_by: userId })
+        .returning('id')
+        .executeTakeFirstOrThrow();
+      await tx
+        .insertInto('journal_lines')
+        .values([
+          {
+            company_id: A,
+            transaction_id: txn.id,
+            version: 1,
+            line_no: 1,
+            txn_date: '2026-01-29',
+            account_id: expense,
+            debit: '100',
+            credit: '0',
+          },
+          {
+            company_id: A,
+            transaction_id: txn.id,
+            version: 1,
+            line_no: 2,
+            txn_date: '2026-01-29',
+            account_id: liability,
+            debit: '0',
+            credit: '100',
+          },
+        ])
+        .execute();
+      await tx
+        .updateTable('paychecks')
+        .set({ status: 'posted', transaction_id: txn.id })
+        .where('id', '=', paycheckId)
+        .execute();
+    });
+    await expect(
+      asA((tx) => tx.deleteFrom('paycheck_lines').where('paycheck_id', '=', paycheckId).execute()),
+    ).rejects.toThrow(/cannot change/);
+    await expect(
+      asA((tx) =>
+        tx.updateTable('paychecks').set({ net_pay: '1' }).where('id', '=', paycheckId).execute(),
+      ),
+    ).rejects.toThrow(/cannot change/);
+    await expect(
+      asA((tx) => tx.deleteFrom('paychecks').where('id', '=', paycheckId).execute()),
+    ).rejects.toThrow(/void it/);
+    await asA((tx) =>
+      tx
+        .updateTable('paychecks')
+        .set({ status: 'void', voided_at: new Date() })
+        .where('id', '=', paycheckId)
+        .execute(),
+    );
+    await expect(
+      asA((tx) =>
+        tx
+          .updateTable('paychecks')
+          .set({ status: 'posted', voided_at: null })
+          .where('id', '=', paycheckId)
+          .execute(),
+      ),
+    ).rejects.toThrow(/stays void/);
+  });
+
+  it('a posted run cannot be deleted; the app cannot change or delete paycheck lines', async () => {
+    await asA((tx) =>
+      tx
+        .updateTable('pay_runs')
+        .set({ status: 'posted', approved_at: new Date(), posted_at: new Date() })
+        .where('id', '=', runId)
+        .execute(),
+    );
+    await expect(
+      asA((tx) => tx.deleteFrom('pay_runs').where('id', '=', runId).execute()),
+    ).rejects.toThrow(/cannot be deleted/);
+    await expect(
+      asA((tx) =>
+        tx
+          .updateTable('paycheck_lines')
+          .set({ amount: '2' })
+          .where('paycheck_id', '=', paycheckId)
+          .execute(),
+      ),
+    ).rejects.toThrow(/permission denied/);
+  });
+
+  it('pay run tables have row-level security', async () => {
+    const r = await sql<{ relname: string }>`
+      select relname from pg_class
+       where relname in ('pay_runs', 'paychecks', 'paycheck_lines') and relrowsecurity`.execute(db);
+    expect(r.rows).toHaveLength(3);
   });
 });

@@ -1,5 +1,7 @@
 import {
   PAYROLL_ITEM_KINDS,
+  PAYROLL_TAX_CODES,
+  type PayrollTaxCode,
   ZERO,
   type CaDe4Fields,
   type IlW4Fields,
@@ -52,23 +54,8 @@ export class TaxCalculationRefused extends Error {
   }
 }
 
-export const TAX_CODES = [
-  'federal_income',
-  'social_security_employee',
-  'social_security_employer',
-  'medicare_employee',
-  'medicare_employer',
-  'additional_medicare',
-  'futa',
-  'state_income',
-  'nyc_income',
-  'yonkers_income',
-  'state_unemployment',
-  'ny_reemployment_fund',
-  'ca_ett',
-  'ca_sdi',
-] as const;
-export type TaxCode = (typeof TAX_CODES)[number];
+export const TAX_CODES = PAYROLL_TAX_CODES;
+export type TaxCode = PayrollTaxCode;
 
 export interface W4Facts {
   formVersion: W4Version;

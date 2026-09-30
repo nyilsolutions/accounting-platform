@@ -4,6 +4,9 @@ import { DatabaseError } from 'pg';
 
 /** User-facing messages for unique constraints, keyed by index name. */
 const UNIQUE_MESSAGES: Record<string, string> = {
+  pay_runs_regular_period_key: 'This pay period already has a regular pay run',
+  paychecks_pay_run_id_employee_id_key: 'This employee is already in the pay run',
+  ach_batches_pay_run_key: 'A direct deposit file was already created for this pay run',
   accounts_name_key: 'An account with this name already exists at this level',
   accounts_number_key: 'This account number is already in use',
   accounts_system_role_key: 'This company already has that system account',
