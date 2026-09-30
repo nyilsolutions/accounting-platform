@@ -9,6 +9,12 @@
       "revision": "R-12/25",
       "effective": "2026-01-01",
       "url": "https://tax.illinois.gov/content/dam/soi/en/web/tax/forms/withholding/documents/currentyear/il-700-t.pdf"
+    },
+    {
+      "id": "ea-50",
+      "title": "Illinois Department of Employment Security, EA-50, 2026 State Experience Factor and Employers' UI Contribution Rates",
+      "revision": "11/2025",
+      "url": "https://ides.illinois.gov/"
     }
   ],
   "incomeTaxWithholding": {
@@ -31,8 +37,35 @@
     ]
   },
   "unemployment": {
-    "status": "pending",
-    "note": "IDES 2026 taxable wage base and new-employer rate not yet supplied. The employer's own rate comes from its IDES notice (entered in Payroll > Setup)."
+    "wageBase": "14250.00",
+    "newEmployerRatePercent": "3.350",
+    "newEmployerRateByNaicsSector": {
+      "56": "3.450"
+    },
+    "fundBuildingRatePercent": "0.550",
+    "minimumRatePercent": "0.750",
+    "maximumRatePercent": "7.050",
+    "stateExperienceFactorPercent": "102",
+    "smallEmployerCapPercent": "5.400",
+    "smallEmployerQuarterlyWagesBelow": "50000.00",
+    "note": "New employer rates include the 0.550% fund building rate. The employer's own rate comes from its IDES notice (entered in Payroll > Setup). An experience-rated employer above 5.400% with quarterly wages under $50,000 pays 5.400% that quarter.",
+    "cite": [
+      {
+        "source": "ea-50",
+        "page": 3,
+        "ref": "Employers' contribution rates for 2026 (new employers)"
+      },
+      {
+        "source": "ea-50",
+        "page": 4,
+        "ref": "Minimum and maximum rates; small employer note"
+      },
+      {
+        "source": "ea-50",
+        "page": 5,
+        "ref": "Wage limitation"
+      }
+    ]
   },
   "noCertificate": {
     "status": "pending",

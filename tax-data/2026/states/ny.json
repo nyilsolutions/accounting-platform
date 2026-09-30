@@ -1,8 +1,15 @@
 {
   "year": 2026,
   "state": "NY",
-  "description": "New York payroll figures for 2026 supplied so far: New York City resident withholding (NYS-50-T-NYC Method II exact calculation) and unemployment insurance. New York State and Yonkers withholding tables, Paid Family Leave, Disability Benefits and MCTMT rates are still pending.",
+  "description": "New York payroll figures for 2026: New York State and New York City resident withholding (NYS-50-T-NYS and NYS-50-T-NYC, Method II exact calculation, Method III for top incomes) and unemployment insurance. Yonkers withholding, Paid Family Leave, Disability Benefits and MCTMT rates are still pending.",
   "sources": [
+    {
+      "id": "nys-50-t-nys",
+      "title": "NYS-50-T-NYS, New York State Withholding Tax Tables and Methods",
+      "revision": "1/26",
+      "effective": "2026-01-01",
+      "url": "https://www.tax.ny.gov/pdf/publications/withholding/nys50_t_nys.pdf"
+    },
     {
       "id": "nys-50-t-nyc",
       "title": "NYS-50-T-NYC, New York City Withholding Tax Tables and Methods",
@@ -19,8 +26,1226 @@
     }
   ],
   "stateIncomeTaxWithholding": {
-    "status": "pending",
-    "note": "Needs Publication NYS-50-T-NYS (New York State Withholding Tax Tables and Methods, 2026) and its supplemental rate."
+    "method": "Method II exact calculation: net wages = wages - Table A (deduction + exemptions); then (net wages - column 3) x column 4 + column 5 from the period's table for the marital status. When annualized net wages reach the Method III threshold ($1,077,550 single, $2,155,350 married), use Method III: annualized net wages x the Method III rate / pay periods.",
+    "exemptionsSource": "Number of New York State allowances on Form IT-2104 (line 1).",
+    "maritalStatus": {
+      "single": "single",
+      "married": "married",
+      "married_single_rate": {
+        "status": "pending",
+        "note": "IT-2104 'Married, but withhold at higher single rate': the booklet doesn't state which table applies; confirm (expected: the single table)."
+      }
+    },
+    "tableA_deductionPlusExemptions": {
+      "note": "Index = number of exemptions (0-10). Above 10: Table B deduction (exemptions = 0 column) + exemptions x Table C.",
+      "values": {
+        "daily": {
+          "single": [
+            "28.45",
+            "32.30",
+            "36.15",
+            "40.00",
+            "43.85",
+            "47.70",
+            "51.55",
+            "55.40",
+            "59.25",
+            "63.10",
+            "66.95"
+          ],
+          "married": [
+            "30.60",
+            "34.45",
+            "38.30",
+            "42.15",
+            "46.00",
+            "49.85",
+            "53.70",
+            "57.55",
+            "61.40",
+            "65.25",
+            "69.10"
+          ]
+        },
+        "weekly": {
+          "single": [
+            "142.30",
+            "161.55",
+            "180.80",
+            "200.05",
+            "219.30",
+            "238.55",
+            "257.80",
+            "277.05",
+            "296.30",
+            "315.55",
+            "334.80"
+          ],
+          "married": [
+            "152.90",
+            "172.15",
+            "191.40",
+            "210.65",
+            "229.90",
+            "249.15",
+            "268.40",
+            "287.65",
+            "306.90",
+            "326.15",
+            "345.40"
+          ]
+        },
+        "biweekly": {
+          "single": [
+            "284.60",
+            "323.10",
+            "361.60",
+            "400.10",
+            "438.60",
+            "477.10",
+            "515.60",
+            "554.10",
+            "592.60",
+            "631.10",
+            "669.60"
+          ],
+          "married": [
+            "305.80",
+            "344.30",
+            "382.80",
+            "421.30",
+            "459.80",
+            "498.30",
+            "536.80",
+            "575.30",
+            "613.80",
+            "652.30",
+            "690.80"
+          ]
+        },
+        "semimonthly": {
+          "single": [
+            "308.35",
+            "350.00",
+            "391.65",
+            "433.30",
+            "474.95",
+            "516.60",
+            "558.25",
+            "599.90",
+            "641.55",
+            "683.20",
+            "724.85"
+          ],
+          "married": [
+            "331.25",
+            "372.90",
+            "414.55",
+            "456.20",
+            "497.85",
+            "539.50",
+            "581.15",
+            "622.80",
+            "664.45",
+            "706.10",
+            "747.75"
+          ]
+        },
+        "monthly": {
+          "single": [
+            "616.70",
+            "700.00",
+            "783.30",
+            "866.60",
+            "949.90",
+            "1033.20",
+            "1116.50",
+            "1199.80",
+            "1283.10",
+            "1366.40",
+            "1449.70"
+          ],
+          "married": [
+            "662.50",
+            "745.80",
+            "829.10",
+            "912.40",
+            "995.70",
+            "1079.00",
+            "1162.30",
+            "1245.60",
+            "1328.90",
+            "1412.20",
+            "1495.50"
+          ]
+        },
+        "annual": {
+          "single": [
+            "7400.00",
+            "8400.00",
+            "9400.00",
+            "10400.00",
+            "11400.00",
+            "12400.00",
+            "13400.00",
+            "14400.00",
+            "15400.00",
+            "16400.00",
+            "17400.00"
+          ],
+          "married": [
+            "7950.00",
+            "8950.00",
+            "9950.00",
+            "10950.00",
+            "11950.00",
+            "12950.00",
+            "13950.00",
+            "14950.00",
+            "15950.00",
+            "16950.00",
+            "17950.00"
+          ]
+        }
+      }
+    },
+    "tableC_exemptionValue": {
+      "daily": "3.85",
+      "weekly": "19.25",
+      "biweekly": "38.50",
+      "semimonthly": "41.65",
+      "monthly": "83.30",
+      "annual": "1000.00"
+    },
+    "rateTables": {
+      "single": {
+        "biweekly": [
+          {
+            "atLeast": "0.00",
+            "lessThan": "327.00",
+            "subtract": "0.00",
+            "ratePercent": "3.9",
+            "plus": "0.00"
+          },
+          {
+            "atLeast": "327.00",
+            "lessThan": "450.00",
+            "subtract": "327.00",
+            "ratePercent": "4.4",
+            "plus": "12.77"
+          },
+          {
+            "atLeast": "450.00",
+            "lessThan": "535.00",
+            "subtract": "450.00",
+            "ratePercent": "5.15",
+            "plus": "18.15"
+          },
+          {
+            "atLeast": "535.00",
+            "lessThan": "3102.00",
+            "subtract": "535.00",
+            "ratePercent": "5.4",
+            "plus": "22.54"
+          },
+          {
+            "atLeast": "3102.00",
+            "lessThan": "3723.00",
+            "subtract": "3102.00",
+            "ratePercent": "5.9",
+            "plus": "161.15"
+          },
+          {
+            "atLeast": "3723.00",
+            "lessThan": "4140.00",
+            "subtract": "3723.00",
+            "ratePercent": "7.03",
+            "plus": "197.81"
+          },
+          {
+            "atLeast": "4140.00",
+            "lessThan": "6063.00",
+            "subtract": "4140.00",
+            "ratePercent": "7.53",
+            "plus": "227.15"
+          },
+          {
+            "atLeast": "6063.00",
+            "lessThan": "8285.00",
+            "subtract": "6063.00",
+            "ratePercent": "6.4",
+            "plus": "372.04"
+          },
+          {
+            "atLeast": "8285.00",
+            "lessThan": "10208.00",
+            "subtract": "8285.00",
+            "ratePercent": "11.44",
+            "plus": "514.19"
+          },
+          {
+            "atLeast": "10208.00",
+            "lessThan": "41444.00",
+            "subtract": "10208.00",
+            "ratePercent": "7.35",
+            "plus": "734.27"
+          }
+        ],
+        "daily": [
+          {
+            "atLeast": "0.00",
+            "lessThan": "33.00",
+            "subtract": "0.00",
+            "ratePercent": "3.9",
+            "plus": "0.00"
+          },
+          {
+            "atLeast": "33.00",
+            "lessThan": "45.00",
+            "subtract": "33.00",
+            "ratePercent": "4.4",
+            "plus": "1.28"
+          },
+          {
+            "atLeast": "45.00",
+            "lessThan": "53.00",
+            "subtract": "45.00",
+            "ratePercent": "5.15",
+            "plus": "1.82"
+          },
+          {
+            "atLeast": "53.00",
+            "lessThan": "310.00",
+            "subtract": "53.00",
+            "ratePercent": "5.4",
+            "plus": "2.25"
+          },
+          {
+            "atLeast": "310.00",
+            "lessThan": "372.00",
+            "subtract": "310.00",
+            "ratePercent": "5.9",
+            "plus": "16.12"
+          },
+          {
+            "atLeast": "372.00",
+            "lessThan": "414.00",
+            "subtract": "372.00",
+            "ratePercent": "7.03",
+            "plus": "19.78"
+          },
+          {
+            "atLeast": "414.00",
+            "lessThan": "606.00",
+            "subtract": "414.00",
+            "ratePercent": "7.53",
+            "plus": "22.72"
+          },
+          {
+            "atLeast": "606.00",
+            "lessThan": "828.00",
+            "subtract": "606.00",
+            "ratePercent": "6.4",
+            "plus": "37.20"
+          },
+          {
+            "atLeast": "828.00",
+            "lessThan": "1021.00",
+            "subtract": "828.00",
+            "ratePercent": "11.44",
+            "plus": "51.42"
+          },
+          {
+            "atLeast": "1021.00",
+            "lessThan": "4144.00",
+            "subtract": "1021.00",
+            "ratePercent": "7.35",
+            "plus": "73.43"
+          }
+        ],
+        "semimonthly": [
+          {
+            "atLeast": "0.00",
+            "lessThan": "354.00",
+            "subtract": "0.00",
+            "ratePercent": "3.9",
+            "plus": "0.00"
+          },
+          {
+            "atLeast": "354.00",
+            "lessThan": "488.00",
+            "subtract": "354.00",
+            "ratePercent": "4.4",
+            "plus": "13.83"
+          },
+          {
+            "atLeast": "488.00",
+            "lessThan": "579.00",
+            "subtract": "488.00",
+            "ratePercent": "5.15",
+            "plus": "19.67"
+          },
+          {
+            "atLeast": "579.00",
+            "lessThan": "3360.00",
+            "subtract": "579.00",
+            "ratePercent": "5.4",
+            "plus": "24.42"
+          },
+          {
+            "atLeast": "3360.00",
+            "lessThan": "4033.00",
+            "subtract": "3360.00",
+            "ratePercent": "5.9",
+            "plus": "174.58"
+          },
+          {
+            "atLeast": "4033.00",
+            "lessThan": "4485.00",
+            "subtract": "4033.00",
+            "ratePercent": "7.03",
+            "plus": "214.29"
+          },
+          {
+            "atLeast": "4485.00",
+            "lessThan": "6569.00",
+            "subtract": "4485.00",
+            "ratePercent": "7.53",
+            "plus": "246.08"
+          },
+          {
+            "atLeast": "6569.00",
+            "lessThan": "8975.00",
+            "subtract": "6569.00",
+            "ratePercent": "6.4",
+            "plus": "403.04"
+          },
+          {
+            "atLeast": "8975.00",
+            "lessThan": "11058.00",
+            "subtract": "8975.00",
+            "ratePercent": "11.44",
+            "plus": "557.04"
+          },
+          {
+            "atLeast": "11058.00",
+            "lessThan": "44898.00",
+            "subtract": "11058.00",
+            "ratePercent": "7.35",
+            "plus": "795.46"
+          }
+        ],
+        "annual": [
+          {
+            "atLeast": "0.00",
+            "lessThan": "8500.00",
+            "subtract": "0.00",
+            "ratePercent": "3.9",
+            "plus": "0.00"
+          },
+          {
+            "atLeast": "8500.00",
+            "lessThan": "11700.00",
+            "subtract": "8500.00",
+            "ratePercent": "4.4",
+            "plus": "332.00"
+          },
+          {
+            "atLeast": "11700.00",
+            "lessThan": "13900.00",
+            "subtract": "11700.00",
+            "ratePercent": "5.15",
+            "plus": "472.00"
+          },
+          {
+            "atLeast": "13900.00",
+            "lessThan": "80650.00",
+            "subtract": "13900.00",
+            "ratePercent": "5.4",
+            "plus": "586.00"
+          },
+          {
+            "atLeast": "80650.00",
+            "lessThan": "96800.00",
+            "subtract": "80650.00",
+            "ratePercent": "5.9",
+            "plus": "4190.00"
+          },
+          {
+            "atLeast": "96800.00",
+            "lessThan": "107650.00",
+            "subtract": "96800.00",
+            "ratePercent": "7.03",
+            "plus": "5143.00"
+          },
+          {
+            "atLeast": "107650.00",
+            "lessThan": "157650.00",
+            "subtract": "107650.00",
+            "ratePercent": "7.53",
+            "plus": "5906.00"
+          },
+          {
+            "atLeast": "157650.00",
+            "lessThan": "215400.00",
+            "subtract": "157650.00",
+            "ratePercent": "6.4",
+            "plus": "9673.00"
+          },
+          {
+            "atLeast": "215400.00",
+            "lessThan": "265400.00",
+            "subtract": "215400.00",
+            "ratePercent": "11.44",
+            "plus": "13369.00"
+          },
+          {
+            "atLeast": "265400.00",
+            "lessThan": "1077550.00",
+            "subtract": "265400.00",
+            "ratePercent": "7.35",
+            "plus": "19091.00"
+          }
+        ],
+        "weekly": [
+          {
+            "atLeast": "0.00",
+            "lessThan": "163.00",
+            "subtract": "0.00",
+            "ratePercent": "3.9",
+            "plus": "0.00"
+          },
+          {
+            "atLeast": "163.00",
+            "lessThan": "225.00",
+            "subtract": "163.00",
+            "ratePercent": "4.4",
+            "plus": "6.38"
+          },
+          {
+            "atLeast": "225.00",
+            "lessThan": "267.00",
+            "subtract": "225.00",
+            "ratePercent": "5.15",
+            "plus": "9.08"
+          },
+          {
+            "atLeast": "267.00",
+            "lessThan": "1551.00",
+            "subtract": "267.00",
+            "ratePercent": "5.4",
+            "plus": "11.27"
+          },
+          {
+            "atLeast": "1551.00",
+            "lessThan": "1862.00",
+            "subtract": "1551.00",
+            "ratePercent": "5.9",
+            "plus": "80.58"
+          },
+          {
+            "atLeast": "1862.00",
+            "lessThan": "2070.00",
+            "subtract": "1862.00",
+            "ratePercent": "7.03",
+            "plus": "98.90"
+          },
+          {
+            "atLeast": "2070.00",
+            "lessThan": "3032.00",
+            "subtract": "2070.00",
+            "ratePercent": "7.53",
+            "plus": "113.58"
+          },
+          {
+            "atLeast": "3032.00",
+            "lessThan": "4142.00",
+            "subtract": "3032.00",
+            "ratePercent": "6.4",
+            "plus": "186.02"
+          },
+          {
+            "atLeast": "4142.00",
+            "lessThan": "5104.00",
+            "subtract": "4142.00",
+            "ratePercent": "11.44",
+            "plus": "257.10"
+          },
+          {
+            "atLeast": "5104.00",
+            "lessThan": "20722.00",
+            "subtract": "5104.00",
+            "ratePercent": "7.35",
+            "plus": "367.13"
+          }
+        ],
+        "monthly": [
+          {
+            "atLeast": "0.00",
+            "lessThan": "708.00",
+            "subtract": "0.00",
+            "ratePercent": "3.9",
+            "plus": "0.00"
+          },
+          {
+            "atLeast": "708.00",
+            "lessThan": "975.00",
+            "subtract": "708.00",
+            "ratePercent": "4.4",
+            "plus": "27.67"
+          },
+          {
+            "atLeast": "975.00",
+            "lessThan": "1158.00",
+            "subtract": "975.00",
+            "ratePercent": "5.15",
+            "plus": "39.33"
+          },
+          {
+            "atLeast": "1158.00",
+            "lessThan": "6721.00",
+            "subtract": "1158.00",
+            "ratePercent": "5.4",
+            "plus": "48.83"
+          },
+          {
+            "atLeast": "6721.00",
+            "lessThan": "8067.00",
+            "subtract": "6721.00",
+            "ratePercent": "5.9",
+            "plus": "349.17"
+          },
+          {
+            "atLeast": "8067.00",
+            "lessThan": "8971.00",
+            "subtract": "8067.00",
+            "ratePercent": "7.03",
+            "plus": "428.58"
+          },
+          {
+            "atLeast": "8971.00",
+            "lessThan": "13138.00",
+            "subtract": "8971.00",
+            "ratePercent": "7.53",
+            "plus": "492.17"
+          },
+          {
+            "atLeast": "13138.00",
+            "lessThan": "17950.00",
+            "subtract": "13138.00",
+            "ratePercent": "6.4",
+            "plus": "806.08"
+          },
+          {
+            "atLeast": "17950.00",
+            "lessThan": "22117.00",
+            "subtract": "17950.00",
+            "ratePercent": "11.44",
+            "plus": "1114.08"
+          },
+          {
+            "atLeast": "22117.00",
+            "lessThan": "89796.00",
+            "subtract": "22117.00",
+            "ratePercent": "7.35",
+            "plus": "1590.92"
+          }
+        ]
+      },
+      "married": {
+        "biweekly": [
+          {
+            "atLeast": "0.00",
+            "lessThan": "327.00",
+            "subtract": "0.00",
+            "ratePercent": "3.9",
+            "plus": "0.00"
+          },
+          {
+            "atLeast": "327.00",
+            "lessThan": "450.00",
+            "subtract": "327.00",
+            "ratePercent": "4.4",
+            "plus": "12.77"
+          },
+          {
+            "atLeast": "450.00",
+            "lessThan": "535.00",
+            "subtract": "450.00",
+            "ratePercent": "5.15",
+            "plus": "18.15"
+          },
+          {
+            "atLeast": "535.00",
+            "lessThan": "3102.00",
+            "subtract": "535.00",
+            "ratePercent": "5.4",
+            "plus": "22.54"
+          },
+          {
+            "atLeast": "3102.00",
+            "lessThan": "3723.00",
+            "subtract": "3102.00",
+            "ratePercent": "5.9",
+            "plus": "161.15"
+          },
+          {
+            "atLeast": "3723.00",
+            "lessThan": "4140.00",
+            "subtract": "3723.00",
+            "ratePercent": "6.57",
+            "plus": "197.81"
+          },
+          {
+            "atLeast": "4140.00",
+            "lessThan": "6063.00",
+            "subtract": "4140.00",
+            "ratePercent": "7.07",
+            "plus": "225.19"
+          },
+          {
+            "atLeast": "6063.00",
+            "lessThan": "8137.00",
+            "subtract": "6063.00",
+            "ratePercent": "8.01",
+            "plus": "361.08"
+          },
+          {
+            "atLeast": "8137.00",
+            "lessThan": "12431.00",
+            "subtract": "8137.00",
+            "ratePercent": "6.4",
+            "plus": "527.23"
+          },
+          {
+            "atLeast": "12431.00",
+            "lessThan": "14354.00",
+            "subtract": "12431.00",
+            "ratePercent": "13.49",
+            "plus": "802.08"
+          },
+          {
+            "atLeast": "14354.00",
+            "lessThan": "41444.00",
+            "subtract": "14354.00",
+            "ratePercent": "7.35",
+            "plus": "1061.54"
+          },
+          {
+            "atLeast": "41444.00",
+            "lessThan": "82898.00",
+            "subtract": "41444.00",
+            "ratePercent": "7.65",
+            "plus": "3052.65"
+          }
+        ],
+        "daily": [
+          {
+            "atLeast": "0.00",
+            "lessThan": "33.00",
+            "subtract": "0.00",
+            "ratePercent": "3.9",
+            "plus": "0.00"
+          },
+          {
+            "atLeast": "33.00",
+            "lessThan": "45.00",
+            "subtract": "33.00",
+            "ratePercent": "4.4",
+            "plus": "1.28"
+          },
+          {
+            "atLeast": "45.00",
+            "lessThan": "53.00",
+            "subtract": "45.00",
+            "ratePercent": "5.15",
+            "plus": "1.82"
+          },
+          {
+            "atLeast": "53.00",
+            "lessThan": "310.00",
+            "subtract": "53.00",
+            "ratePercent": "5.4",
+            "plus": "2.25"
+          },
+          {
+            "atLeast": "310.00",
+            "lessThan": "372.00",
+            "subtract": "310.00",
+            "ratePercent": "5.9",
+            "plus": "16.12"
+          },
+          {
+            "atLeast": "372.00",
+            "lessThan": "414.00",
+            "subtract": "372.00",
+            "ratePercent": "6.57",
+            "plus": "19.78"
+          },
+          {
+            "atLeast": "414.00",
+            "lessThan": "606.00",
+            "subtract": "414.00",
+            "ratePercent": "7.07",
+            "plus": "22.52"
+          },
+          {
+            "atLeast": "606.00",
+            "lessThan": "814.00",
+            "subtract": "606.00",
+            "ratePercent": "8.01",
+            "plus": "36.11"
+          },
+          {
+            "atLeast": "814.00",
+            "lessThan": "1243.00",
+            "subtract": "814.00",
+            "ratePercent": "6.4",
+            "plus": "52.72"
+          },
+          {
+            "atLeast": "1243.00",
+            "lessThan": "1435.00",
+            "subtract": "1243.00",
+            "ratePercent": "13.49",
+            "plus": "80.21"
+          },
+          {
+            "atLeast": "1435.00",
+            "lessThan": "4144.00",
+            "subtract": "1435.00",
+            "ratePercent": "7.35",
+            "plus": "106.15"
+          },
+          {
+            "atLeast": "4144.00",
+            "lessThan": "8290.00",
+            "subtract": "4144.00",
+            "ratePercent": "7.65",
+            "plus": "305.27"
+          }
+        ],
+        "semimonthly": [
+          {
+            "atLeast": "0.00",
+            "lessThan": "354.00",
+            "subtract": "0.00",
+            "ratePercent": "3.9",
+            "plus": "0.00"
+          },
+          {
+            "atLeast": "354.00",
+            "lessThan": "488.00",
+            "subtract": "354.00",
+            "ratePercent": "4.4",
+            "plus": "13.83"
+          },
+          {
+            "atLeast": "488.00",
+            "lessThan": "579.00",
+            "subtract": "488.00",
+            "ratePercent": "5.15",
+            "plus": "19.67"
+          },
+          {
+            "atLeast": "579.00",
+            "lessThan": "3360.00",
+            "subtract": "579.00",
+            "ratePercent": "5.4",
+            "plus": "24.42"
+          },
+          {
+            "atLeast": "3360.00",
+            "lessThan": "4033.00",
+            "subtract": "3360.00",
+            "ratePercent": "5.9",
+            "plus": "174.58"
+          },
+          {
+            "atLeast": "4033.00",
+            "lessThan": "4485.00",
+            "subtract": "4033.00",
+            "ratePercent": "6.57",
+            "plus": "214.29"
+          },
+          {
+            "atLeast": "4485.00",
+            "lessThan": "6569.00",
+            "subtract": "4485.00",
+            "ratePercent": "7.07",
+            "plus": "243.96"
+          },
+          {
+            "atLeast": "6569.00",
+            "lessThan": "8815.00",
+            "subtract": "6569.00",
+            "ratePercent": "8.01",
+            "plus": "391.17"
+          },
+          {
+            "atLeast": "8815.00",
+            "lessThan": "13467.00",
+            "subtract": "8815.00",
+            "ratePercent": "6.4",
+            "plus": "571.17"
+          },
+          {
+            "atLeast": "13467.00",
+            "lessThan": "15550.00",
+            "subtract": "13467.00",
+            "ratePercent": "13.49",
+            "plus": "868.92"
+          },
+          {
+            "atLeast": "15550.00",
+            "lessThan": "44898.00",
+            "subtract": "15550.00",
+            "ratePercent": "7.35",
+            "plus": "1150.00"
+          },
+          {
+            "atLeast": "44898.00",
+            "lessThan": "89806.00",
+            "subtract": "44898.00",
+            "ratePercent": "7.65",
+            "plus": "3307.04"
+          }
+        ],
+        "annual": [
+          {
+            "atLeast": "0.00",
+            "lessThan": "8500.00",
+            "subtract": "0.00",
+            "ratePercent": "3.9",
+            "plus": "0.00"
+          },
+          {
+            "atLeast": "8500.00",
+            "lessThan": "11700.00",
+            "subtract": "8500.00",
+            "ratePercent": "4.4",
+            "plus": "332.00"
+          },
+          {
+            "atLeast": "11700.00",
+            "lessThan": "13900.00",
+            "subtract": "11700.00",
+            "ratePercent": "5.15",
+            "plus": "472.00"
+          },
+          {
+            "atLeast": "13900.00",
+            "lessThan": "80650.00",
+            "subtract": "13900.00",
+            "ratePercent": "5.4",
+            "plus": "586.00"
+          },
+          {
+            "atLeast": "80650.00",
+            "lessThan": "96800.00",
+            "subtract": "80650.00",
+            "ratePercent": "5.9",
+            "plus": "4190.00"
+          },
+          {
+            "atLeast": "96800.00",
+            "lessThan": "107650.00",
+            "subtract": "96800.00",
+            "ratePercent": "6.57",
+            "plus": "5143.00"
+          },
+          {
+            "atLeast": "107650.00",
+            "lessThan": "157650.00",
+            "subtract": "107650.00",
+            "ratePercent": "7.07",
+            "plus": "5855.00"
+          },
+          {
+            "atLeast": "157650.00",
+            "lessThan": "211550.00",
+            "subtract": "157650.00",
+            "ratePercent": "8.01",
+            "plus": "9388.00"
+          },
+          {
+            "atLeast": "211550.00",
+            "lessThan": "323200.00",
+            "subtract": "211550.00",
+            "ratePercent": "6.4",
+            "plus": "13708.00"
+          },
+          {
+            "atLeast": "323200.00",
+            "lessThan": "373200.00",
+            "subtract": "323200.00",
+            "ratePercent": "13.49",
+            "plus": "20854.00"
+          },
+          {
+            "atLeast": "373200.00",
+            "lessThan": "1077550.00",
+            "subtract": "373200.00",
+            "ratePercent": "7.35",
+            "plus": "27600.00"
+          },
+          {
+            "atLeast": "1077550.00",
+            "lessThan": "2155350.00",
+            "subtract": "1077550.00",
+            "ratePercent": "7.65",
+            "plus": "79369.00"
+          }
+        ],
+        "weekly": [
+          {
+            "atLeast": "0.00",
+            "lessThan": "163.00",
+            "subtract": "0.00",
+            "ratePercent": "3.9",
+            "plus": "0.00"
+          },
+          {
+            "atLeast": "163.00",
+            "lessThan": "225.00",
+            "subtract": "163.00",
+            "ratePercent": "4.4",
+            "plus": "6.38"
+          },
+          {
+            "atLeast": "225.00",
+            "lessThan": "267.00",
+            "subtract": "225.00",
+            "ratePercent": "5.15",
+            "plus": "9.08"
+          },
+          {
+            "atLeast": "267.00",
+            "lessThan": "1551.00",
+            "subtract": "267.00",
+            "ratePercent": "5.4",
+            "plus": "11.27"
+          },
+          {
+            "atLeast": "1551.00",
+            "lessThan": "1862.00",
+            "subtract": "1551.00",
+            "ratePercent": "5.9",
+            "plus": "80.58"
+          },
+          {
+            "atLeast": "1862.00",
+            "lessThan": "2070.00",
+            "subtract": "1862.00",
+            "ratePercent": "6.57",
+            "plus": "98.90"
+          },
+          {
+            "atLeast": "2070.00",
+            "lessThan": "3032.00",
+            "subtract": "2070.00",
+            "ratePercent": "7.07",
+            "plus": "112.60"
+          },
+          {
+            "atLeast": "3032.00",
+            "lessThan": "4068.00",
+            "subtract": "3032.00",
+            "ratePercent": "8.01",
+            "plus": "180.54"
+          },
+          {
+            "atLeast": "4068.00",
+            "lessThan": "6215.00",
+            "subtract": "4068.00",
+            "ratePercent": "6.4",
+            "plus": "263.62"
+          },
+          {
+            "atLeast": "6215.00",
+            "lessThan": "7177.00",
+            "subtract": "6215.00",
+            "ratePercent": "13.49",
+            "plus": "401.04"
+          },
+          {
+            "atLeast": "7177.00",
+            "lessThan": "20722.00",
+            "subtract": "7177.00",
+            "ratePercent": "7.35",
+            "plus": "530.77"
+          },
+          {
+            "atLeast": "20722.00",
+            "lessThan": "41449.00",
+            "subtract": "20722.00",
+            "ratePercent": "7.65",
+            "plus": "1526.33"
+          }
+        ],
+        "monthly": [
+          {
+            "atLeast": "0.00",
+            "lessThan": "708.00",
+            "subtract": "0.00",
+            "ratePercent": "3.9",
+            "plus": "0.00"
+          },
+          {
+            "atLeast": "708.00",
+            "lessThan": "975.00",
+            "subtract": "708.00",
+            "ratePercent": "4.4",
+            "plus": "27.67"
+          },
+          {
+            "atLeast": "975.00",
+            "lessThan": "1158.00",
+            "subtract": "975.00",
+            "ratePercent": "5.15",
+            "plus": "39.33"
+          },
+          {
+            "atLeast": "1158.00",
+            "lessThan": "6721.00",
+            "subtract": "1158.00",
+            "ratePercent": "5.4",
+            "plus": "48.83"
+          },
+          {
+            "atLeast": "6721.00",
+            "lessThan": "8067.00",
+            "subtract": "6721.00",
+            "ratePercent": "5.9",
+            "plus": "349.17"
+          },
+          {
+            "atLeast": "8067.00",
+            "lessThan": "8971.00",
+            "subtract": "8067.00",
+            "ratePercent": "6.57",
+            "plus": "428.58"
+          },
+          {
+            "atLeast": "8971.00",
+            "lessThan": "13138.00",
+            "subtract": "8971.00",
+            "ratePercent": "7.07",
+            "plus": "487.92"
+          },
+          {
+            "atLeast": "13138.00",
+            "lessThan": "17629.00",
+            "subtract": "13138.00",
+            "ratePercent": "8.01",
+            "plus": "782.33"
+          },
+          {
+            "atLeast": "17629.00",
+            "lessThan": "26933.00",
+            "subtract": "17629.00",
+            "ratePercent": "6.4",
+            "plus": "1142.33"
+          },
+          {
+            "atLeast": "26933.00",
+            "lessThan": "31100.00",
+            "subtract": "26933.00",
+            "ratePercent": "13.49",
+            "plus": "1737.83"
+          },
+          {
+            "atLeast": "31100.00",
+            "lessThan": "89796.00",
+            "subtract": "31100.00",
+            "ratePercent": "7.35",
+            "plus": "2300.00"
+          },
+          {
+            "atLeast": "89796.00",
+            "lessThan": "179613.00",
+            "subtract": "89796.00",
+            "ratePercent": "7.65",
+            "plus": "6614.08"
+          }
+        ]
+      }
+    },
+    "method3TopRates": {
+      "single": [
+        {
+          "atLeast": "1077550.00",
+          "lessThan": "5000000.00",
+          "ratePercent": "10.45"
+        },
+        {
+          "atLeast": "5000000.00",
+          "lessThan": "25000000.00",
+          "ratePercent": "11.10"
+        },
+        {
+          "atLeast": "25000000.00",
+          "lessThan": null,
+          "ratePercent": "11.70"
+        }
+      ],
+      "married": [
+        {
+          "atLeast": "2155350.00",
+          "lessThan": "5000000.00",
+          "ratePercent": "10.45"
+        },
+        {
+          "atLeast": "5000000.00",
+          "lessThan": "25000000.00",
+          "ratePercent": "11.10"
+        },
+        {
+          "atLeast": "25000000.00",
+          "lessThan": null,
+          "ratePercent": "11.70"
+        }
+      ]
+    },
+    "supplementalRatePercent": "11.70",
+    "cite": [
+      {
+        "source": "nys-50-t-nys",
+        "page": 3,
+        "ref": "Supplemental wage payment withholding rates (effective January 1, 2026)"
+      },
+      {
+        "source": "nys-50-t-nys",
+        "page": 14,
+        "ref": "Tables A, B, C"
+      },
+      {
+        "source": "nys-50-t-nys",
+        "page": 16,
+        "ref": "Method II single instructions"
+      },
+      {
+        "source": "nys-50-t-nys",
+        "page": 17,
+        "ref": "Method II single tables"
+      },
+      {
+        "source": "nys-50-t-nys",
+        "page": 18,
+        "ref": "Method II married instructions"
+      },
+      {
+        "source": "nys-50-t-nys",
+        "page": 19,
+        "ref": "Method II married tables"
+      },
+      {
+        "source": "nys-50-t-nys",
+        "page": 22,
+        "ref": "Method III"
+      }
+    ],
+    "rounding": "Each step's product is rounded to the nearest cent (half up), as in the booklet's worked examples."
   },
   "noCertificate": {
     "rule": "If an employee gives a 2020-or-later federal Form W-4 but no Form IT-2104, the employer may use zero allowances.",
@@ -590,6 +1815,120 @@
     "note": "DBL employee contribution limit not supplied."
   },
   "workedExamples": [
+    {
+      "source": "nys-50-t-nys",
+      "page": 16,
+      "what": "weekly 400.00, single, 3 exemptions",
+      "inputs": {
+        "period": "weekly",
+        "status": "single",
+        "exemptions": 3,
+        "wages": "400.00"
+      },
+      "published": {
+        "withholding": "8.01"
+      }
+    },
+    {
+      "source": "nys-50-t-nys",
+      "page": 16,
+      "what": "semimonthly 5000.00, single, 1 exemptions",
+      "inputs": {
+        "period": "semimonthly",
+        "status": "single",
+        "exemptions": 1,
+        "wages": "5000.00"
+      },
+      "published": {
+        "withholding": "258.51"
+      },
+      "discrepancy": "The tables give $258.50: $165.00 x 0.0753 = $12.4245, which rounds to $12.42, but the booklet shows $12.43. The other six examples round to the nearest cent, so this is a one-cent error in the booklet; the engine follows the tables."
+    },
+    {
+      "source": "nys-50-t-nys",
+      "page": 16,
+      "what": "monthly 50000.00, single, 3 exemptions",
+      "inputs": {
+        "period": "monthly",
+        "status": "single",
+        "exemptions": 3,
+        "wages": "50000.00"
+      },
+      "published": {
+        "withholding": "3576.63"
+      }
+    },
+    {
+      "source": "nys-50-t-nys",
+      "page": 16,
+      "what": "daily 750.00, single, 2 exemptions",
+      "inputs": {
+        "period": "daily",
+        "status": "single",
+        "exemptions": 2,
+        "wages": "750.00"
+      },
+      "published": {
+        "withholding": "44.10"
+      }
+    },
+    {
+      "source": "nys-50-t-nys",
+      "page": 18,
+      "what": "weekly 400.00, married, 4 exemptions",
+      "inputs": {
+        "period": "weekly",
+        "status": "married",
+        "exemptions": 4,
+        "wages": "400.00"
+      },
+      "published": {
+        "withholding": "6.69"
+      }
+    },
+    {
+      "source": "nys-50-t-nys",
+      "page": 18,
+      "what": "semimonthly 5000.00, married, 3 exemptions",
+      "inputs": {
+        "period": "semimonthly",
+        "status": "married",
+        "exemptions": 3,
+        "wages": "5000.00"
+      },
+      "published": {
+        "withholding": "248.11"
+      },
+      "discrepancy": "The tables give $248.12: $58.80 x 0.0707 = $4.157, which rounds to $4.16, but the booklet prints the rate as 0.070 and the result as $4.15. A one-cent error in the booklet; the engine follows the tables."
+    },
+    {
+      "source": "nys-50-t-nys",
+      "page": 18,
+      "what": "monthly 50000.00, married, 3 exemptions",
+      "inputs": {
+        "period": "monthly",
+        "status": "married",
+        "exemptions": 3,
+        "wages": "50000.00"
+      },
+      "published": {
+        "withholding": "3622.09"
+      }
+    },
+    {
+      "source": "nys-50-t-nys",
+      "page": 18,
+      "what": "daily 750.00, married, 2 exemptions",
+      "inputs": {
+        "period": "daily",
+        "status": "married",
+        "exemptions": 2,
+        "wages": "750.00"
+      },
+      "published": {
+        "withholding": "44.58"
+      }
+    },
     {
       "source": "nys-50-t-nyc",
       "page": 27,
