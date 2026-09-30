@@ -15,4 +15,5 @@ hard-codes these values (CLAUDE.md rule 7).
 
 Payroll files cite each value with its source document, revision date and page (`cite`), so a
 reviewer can check every figure against the publication. State payroll files go in
-`states/<state>.json` (see `docs/states.md`).
+`states/<state>.json` (see `docs/states.md`); parts not yet sourced are marked
+`"status": "pending"` and the engine must refuse to calculate them.

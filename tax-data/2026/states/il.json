@@ -1,0 +1,61 @@
+{
+  "year": 2026,
+  "state": "IL",
+  "description": "Illinois income tax withholding for wages paid in 2026 (Booklet IL-700-T automated payroll method).",
+  "sources": [
+    {
+      "id": "il-700-t",
+      "title": "Illinois Department of Revenue, Booklet IL-700-T, Illinois Withholding Tax Tables (2026)",
+      "revision": "R-12/25",
+      "effective": "2026-01-01",
+      "url": "https://tax.illinois.gov/content/dam/soi/en/web/tax/forms/withholding/documents/currentyear/il-700-t.pdf"
+    }
+  ],
+  "incomeTaxWithholding": {
+    "method": "Automated payroll method: 4.95% x (wages - (Line 1 allowances x $2,925 + Line 2 allowances x $1,000) / pay periods per year), plus the IL-W-4 Line 3 additional amount.",
+    "ratePercent": "4.95",
+    "line1AllowanceAnnual": "2925.00",
+    "line2AllowanceAnnual": "1000.00",
+    "negativeTaxableIsZero": true,
+    "cite": [
+      {
+        "source": "il-700-t",
+        "page": 3,
+        "ref": "How do I calculate the amount to withhold?"
+      },
+      {
+        "source": "il-700-t",
+        "page": 4,
+        "ref": "Automated payroll method"
+      }
+    ]
+  },
+  "unemployment": {
+    "status": "pending",
+    "note": "IDES 2026 taxable wage base and new-employer rate not yet supplied. The employer's own rate comes from its IDES notice (entered in Payroll > Setup)."
+  },
+  "noCertificate": {
+    "status": "pending",
+    "note": "What to withhold when no IL-W-4 is on file is in the IL-W-4 instructions / Publication 130, not supplied."
+  },
+  "workedExamples": [
+    {
+      "source": "il-700-t",
+      "page": 4,
+      "what": "Weekly $800, IL-W-4 Line 1 = 2, Line 2 = 2 (automated method)",
+      "published": {
+        "withholding": "32.13"
+      }
+    },
+    {
+      "source": "il-700-t",
+      "page": 3,
+      "what": "Weekly $300, Line 1 = 2, Line 2 = 1 (wage bracket table)",
+      "published": {
+        "withholding": "8.38"
+      }
+    }
+  ],
+  "reviewedBy": null,
+  "note": "Pending sign-off."
+}

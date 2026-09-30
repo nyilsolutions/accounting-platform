@@ -168,17 +168,19 @@ Add new questions here instead of guessing.
 
 ## Payroll setup (Phase 8)
 
-44. **Federal tax data:** `tax-data/2026/federal.json` is built from the 2026 Pub. 15-T, Pub. 15
-    and the SSA wage base you supplied, and waits for your sign-off before any tax code is
-    written. Still needed:
-    - **IRS Publication 15-B (2026)**, for the taxability of cafeteria plan, health FSA, dependent
-      care, employer health and Roth items (marked `pending` in the file);
-    - the **state publications** for the state files: IL-700-T, EDD DE 44 and the California UI,
-      ETT and SDI rates, NYS-50-T-NYS, NYS-50-T-NYC, NYS-50-T-Y and NYS-50 (with PFL and DBL), and
-      the 2026 unemployment wage bases and new-employer rates for Texas (TWC), Florida and
-      Illinois (IDES);
-    - the **2026 FUTA credit reduction states**, which the Department of Labor announces in
-      November 2026.
+44. **Payroll tax data:** `tax-data/2026/federal.json`, `states/il.json` and `states/ny.json` are
+    built from the documents you supplied (Pub. 15-T, 15, 15-B, SSA, IL-700-T, NYS-50-T-NYC,
+    NYS-50) and wait for your sign-off before any tax code is written. Still needed:
+    - **New York State**: NYS-50-T-NYS (state tables and supplemental rate) and NYS-50-T-Y
+      (Yonkers); Paid Family Leave 2026 rate and cap; Disability Benefits employee limit;
+      Publication 420 (MCTMT rates);
+    - **California**: EDD DE 44 (2026) with the UI, ETT and SDI rates and wage bases;
+    - **Texas, Florida and Illinois unemployment**: 2026 taxable wage bases and new-employer
+      rates (TWC, Florida reemployment tax, IDES);
+    - **Illinois**: what to withhold when no IL-W-4 is on file (IL-W-4 instructions);
+    - **Roth 401(k)/403(b)**: a citation that designated Roth contributions are wages (Form W-2
+      instructions or Pub. 525);
+    - the **2026 FUTA credit reduction states** (Department of Labor, November 2026).
 45. **Your direct deposit bank (ODFI):** which bank will originate the ACH files? Banks differ on:
     - a balanced file (an offsetting debit to your account) or credits only (built today);
     - line endings (CRLF today) and the immediate origin and company ID they assign;

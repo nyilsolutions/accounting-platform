@@ -21,6 +21,13 @@
       "title": "SSA FAQ: What is the current maximum amount of taxable earnings for Social Security?",
       "revision": "2026-01-02",
       "url": "https://faq.ssa.gov/en-us/Topic/article/KA-02386"
+    },
+    {
+      "id": "p15b",
+      "title": "IRS Publication 15-B (2026), Employer's Tax Guide to Fringe Benefits",
+      "catalog": "29744N",
+      "revision": "2025-12-23",
+      "url": "https://www.irs.gov/pub/irs-pdf/p15b.pdf"
     }
   ],
   "socialSecurity": {
@@ -662,7 +669,7 @@
     ]
   },
   "taxabilityByItemKind": {
-    "note": "How each payroll item kind is taxed. 'exempt'/'taxable' per federal income tax withholding (fit), social security and Medicare (fica) and FUTA (futa). Kinds marked pending need IRS Publication 15-B (Employer's Tax Guide to Fringe Benefits), which has not been provided.",
+    "note": "How each payroll item kind is taxed for federal income tax withholding (fit), social security and Medicare (fica) and FUTA (futa). Kinds marked pending still need a citation.",
     "kinds": {
       "traditional_401k": {
         "fit": "exempt",
@@ -699,9 +706,19 @@
             "source": "p15",
             "page": 20,
             "ref": "Section 5, Health savings accounts (salary reduction under a section 125 cafeteria plan)"
+          },
+          {
+            "source": "p15b",
+            "page": 17,
+            "ref": "Health Savings Accounts, Employer contributions (2026 limits)"
           }
         ],
-        "note": "Only when contributed through a section 125 cafeteria plan (as this item kind is defined); payroll-deduction HSA contributions outside a cafeteria plan are fully taxable."
+        "note": "Only when contributed through a section 125 cafeteria plan (as this item kind is defined); payroll-deduction HSA contributions outside a cafeteria plan are fully taxable. The limits cover employer and employee (cafeteria plan) contributions together.",
+        "annualLimit": {
+          "selfOnly": "4400.00",
+          "family": "8750.00",
+          "catchUpAge55": "1000.00"
+        }
       },
       "employer_hsa": {
         "fit": "exempt",
@@ -712,9 +729,19 @@
             "source": "p15",
             "page": 20,
             "ref": "Section 5, Health savings accounts"
+          },
+          {
+            "source": "p15b",
+            "page": 17,
+            "ref": "Health Savings Accounts, Employer contributions (2026 limits)"
           }
         ],
-        "note": "If it is reasonable to believe the contributions are excludable from the employee's income."
+        "note": "If it is reasonable to believe the contributions are excludable from the employee's income.",
+        "annualLimit": {
+          "selfOnly": "4400.00",
+          "family": "8750.00",
+          "catchUpAge55": "1000.00"
+        }
       },
       "retirement_match": {
         "fit": "exempt",
@@ -754,36 +781,113 @@
         ]
       },
       "section_125": {
-        "status": "pending",
-        "note": "Cafeteria plan benefits are treated as if provided outside the plan (Pub. 15 p. 47); the treatment of health premiums is in Pub. 15-B."
+        "fit": "exempt",
+        "fica": "exempt",
+        "futa": "exempt",
+        "cite": [
+          {
+            "source": "p15b",
+            "page": 4,
+            "ref": "Cafeteria Plans, Qualified benefits"
+          },
+          {
+            "source": "p15b",
+            "page": 6,
+            "ref": "Table 2-1, Accident and health benefits"
+          }
+        ],
+        "note": "For health (accident and health) premiums paid through a section 125 cafeteria plan. Not for 2% shareholder-employees of an S corporation (income tax applies). Long-term care insurance can't be offered through a cafeteria plan."
       },
       "health_fsa": {
-        "status": "pending",
-        "note": "Pub. 15-B."
+        "fit": "exempt",
+        "fica": "exempt",
+        "futa": "exempt",
+        "annualLimit": "3400.00",
+        "cite": [
+          {
+            "source": "p15b",
+            "page": 4,
+            "ref": "Cafeteria Plans, Contribution limit on a health FSA"
+          },
+          {
+            "source": "p15b",
+            "page": 6,
+            "ref": "Table 2-1, Accident and health benefits"
+          }
+        ],
+        "note": "Salary reduction contributions are limited to $3,400 for plan years beginning in 2026."
       },
       "dependent_care_fsa": {
-        "status": "pending",
-        "note": "Exempt to the extent excludable under section 129 (Pub. 15 p. 47); the 2026 annual limit is in Pub. 15-B."
+        "fit": "exempt",
+        "fica": "exempt",
+        "futa": "exempt",
+        "annualLimit": "7500.00",
+        "annualLimitMarriedFilingSeparately": "3750.00",
+        "cite": [
+          {
+            "source": "p15b",
+            "page": 6,
+            "ref": "Table 2-1, Dependent care assistance"
+          }
+        ],
+        "note": "Exempt up to $7,500 ($3,750 for a married employee filing a separate return); amounts above the limit are wages. Not for highly compensated employees under a plan that favors them."
       },
       "roth_401k": {
         "status": "pending",
-        "note": "Designated Roth contributions are not excluded from wages; confirm the citation (Pub. 15-B / Form W-2 instructions)."
+        "note": "Designated Roth contributions are included in wages; Pub. 15 and Pub. 15-B don't state it. Needs the Form W-2 instructions or Pub. 525 as the citation."
       },
       "roth_403b": {
         "status": "pending",
         "note": "As for roth_401k."
       },
       "employer_health": {
-        "status": "pending",
-        "note": "Pub. 15-B (accident and health benefits)."
+        "fit": "exempt",
+        "fica": "exempt",
+        "futa": "exempt",
+        "cite": [
+          {
+            "source": "p15b",
+            "page": 6,
+            "ref": "Table 2-1, Accident and health benefits"
+          },
+          {
+            "source": "p15b",
+            "page": 7,
+            "ref": "Accident and Health Benefits"
+          }
+        ],
+        "note": "Exempt except for 2% shareholder-employees of an S corporation (subject to income tax withholding, not FICA/FUTA)."
       },
       "reimbursement": {
-        "status": "pending",
-        "note": "Accountable-plan reimbursements are not wages; non-accountable are supplemental wages (Pub. 15 section 5)."
+        "fit": "exempt",
+        "fica": "exempt",
+        "futa": "exempt",
+        "cite": [
+          {
+            "source": "p15",
+            "page": 19,
+            "ref": "Section 5, Accountable plan"
+          },
+          {
+            "source": "p15",
+            "page": 20,
+            "ref": "Nonaccountable plan"
+          }
+        ],
+        "note": "Only for reimbursements under an accountable plan. Payments under a nonaccountable plan are supplemental wages, fully taxable: pay those with the 'other_earning' or 'fringe_benefit' kind."
       },
       "fringe_benefit": {
-        "status": "pending",
-        "note": "Pub. 15-B."
+        "fit": "taxable",
+        "fica": "taxable",
+        "futa": "taxable",
+        "cite": [
+          {
+            "source": "p15b",
+            "page": 3,
+            "ref": "Fringe Benefits: any fringe benefit is taxable unless the law specifically excludes it"
+          }
+        ],
+        "note": "This kind is for taxable fringe benefits; excluded benefits use their own kinds."
       }
     }
   },
@@ -821,5 +925,5 @@
     }
   ],
   "reviewedBy": null,
-  "note": "Built from the documents the user supplied on 2026-09-30. The worked examples use the wage bracket method; the percentage method used by the app can differ by a dollar or so, so golden tests compare within the wage bracket's rounding. Pending CPA or payroll specialist review."
+  "note": "Built from the documents the user supplied on 2026-09-30 (Pub. 15-T, Pub. 15, Pub. 15-B, SSA). The worked examples use the wage bracket method; the percentage method used by the app can differ by a dollar or so, so golden tests compare within the wage bracket's rounding. Pending sign-off."
 }
