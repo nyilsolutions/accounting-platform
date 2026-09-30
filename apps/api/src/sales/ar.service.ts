@@ -1,5 +1,5 @@
 import { Inject, Injectable, NotFoundException } from '@nestjs/common';
-import { sql, withTenant, type Db } from '@acct/db';
+import { sql, withTenant, type Db, type Tx } from '@acct/db';
 import {
   addDays,
   moneyToString,
@@ -13,6 +13,7 @@ import {
   type StatementDto,
 } from '@acct/shared';
 import type { AuthContext, CompanyContext } from '../common/request';
+import { partyCurrency } from '../currency/fx';
 import { DB } from '../db/db.module';
 import { agingDto, agingOf, arOpenItems, balancesOf } from './ar-ledger';
 import {
@@ -50,6 +51,8 @@ export class ArService {
           'c.display_name',
           't.due_date',
           't.total',
+          't.currency',
+          't.home_total',
           't.status',
           't.memo',
         ])
@@ -119,6 +122,8 @@ export class ArService {
           dueDate: r.due_date,
           total: moneyToString(total),
           balance: moneyToString(r.status === 'void' ? 0n : balance),
+          currency: r.currency,
+          homeTotal: r.home_total === null ? null : moneyToString(parseMoney(r.home_total)),
           paymentStatus: paymentStatus(
             r.txn_type,
             r.status,
@@ -155,10 +160,18 @@ export class ArService {
       const items = await arOpenItems(tx, ctx.companyId, '2199-12-31', customerId);
       const by = balancesOf(items, today);
       if (customerId && !by.has(customerId))
-        by.set(customerId, { open: 0n, overdue: 0n, credit: 0n });
+        by.set(customerId, {
+          open: 0n,
+          overdue: 0n,
+          credit: 0n,
+          homeOpen: 0n,
+          currency: await partyCurrency(tx, ctx.companyId, 'customer', customerId),
+        });
       return [...by.entries()].map(([id, b]) => ({
         customerId: id,
+        currency: b.currency,
         openBalance: moneyToString(b.open),
+        homeOpenBalance: moneyToString(b.homeOpen),
         overdueBalance: moneyToString(b.overdue),
         availableCredit: moneyToString(b.credit),
       }));
@@ -199,6 +212,10 @@ export class ArService {
         .executeTakeFirstOrThrow();
 
       // A/R activity for the customer from the general ledger (every source, not just documents).
+      // A foreign-currency customer's statement is in their currency, from the documents and
+      // payments themselves (ADR 0020); revaluations change nothing in their currency.
+      if (customer.currency)
+        return foreignStatement(tx, ctx.companyId, customer, company, from, to);
       const activity = await sql<{
         id: string;
         txn_type: string;
@@ -238,27 +255,13 @@ export class ArService {
       }
       if (rows.length === 0) running = opening;
       const items = await arOpenItems(tx, ctx.companyId, to, customerId);
-      const address = [
-        company.address_line1,
-        company.address_line2,
-        [company.city, company.state, company.postal_code].filter(Boolean).join(', '),
-      ]
-        .filter(Boolean)
-        .join('\n');
       return {
         companyName: company.dba_name ?? company.legal_name,
-        companyAddress: address || null,
+        companyAddress: companyAddress(company),
         customerId,
         customerName: customer.display_name,
-        billTo:
-          [
-            customer.company_name ?? customer.display_name,
-            customer.address_line1,
-            customer.address_line2,
-            [customer.city, customer.state, customer.postal_code].filter(Boolean).join(', '),
-          ]
-            .filter(Boolean)
-            .join('\n') || null,
+        currency: null,
+        billTo: billTo(customer),
         from,
         to,
         openingBalance: moneyToString(opening),
@@ -268,6 +271,105 @@ export class ArService {
       };
     });
   }
+}
+
+type StatementCompany = {
+  legal_name: string;
+  dba_name: string | null;
+  address_line1: string | null;
+  address_line2: string | null;
+  city: string | null;
+  state: string | null;
+  postal_code: string | null;
+};
+type StatementCustomer = {
+  id: string;
+  display_name: string;
+  company_name: string | null;
+  address_line1: string | null;
+  address_line2: string | null;
+  city: string | null;
+  state: string | null;
+  postal_code: string | null;
+  currency: string | null;
+};
+
+function companyAddress(c: StatementCompany): string | null {
+  return (
+    [c.address_line1, c.address_line2, [c.city, c.state, c.postal_code].filter(Boolean).join(', ')]
+      .filter(Boolean)
+      .join('\n') || null
+  );
+}
+
+function billTo(c: StatementCustomer): string | null {
+  return (
+    [
+      c.company_name ?? c.display_name,
+      c.address_line1,
+      c.address_line2,
+      [c.city, c.state, c.postal_code].filter(Boolean).join(', '),
+    ]
+      .filter(Boolean)
+      .join('\n') || null
+  );
+}
+
+/**
+ * A foreign-currency customer's statement, in their currency: every invoice, credit and payment
+ * (their amounts in the currency) with a running balance, and the aging of what is open.
+ */
+async function foreignStatement(
+  tx: Tx,
+  companyId: string,
+  customer: StatementCustomer,
+  company: StatementCompany,
+  from: string,
+  to: string,
+): Promise<StatementDto> {
+  const items = await arOpenItems(tx, companyId, to, customer.id);
+  let opening = 0n;
+  let running = 0n;
+  const rows: StatementDto['rows'] = [];
+  for (const i of items) {
+    const amount = i.foreignAmount ?? 0n;
+    if (amount === 0n) continue;
+    if (i.txnDate < from) {
+      opening += amount;
+      continue;
+    }
+    if (rows.length === 0) running = opening;
+    running += amount;
+    rows.push({
+      txnId: i.txnId,
+      txnType: i.txnType,
+      txnDate: i.txnDate,
+      number: i.number,
+      description: `${TXN_TYPE_LABELS[i.txnType] ?? i.txnType}${i.number ? ` #${i.number}` : ''}`,
+      amount: moneyToString(amount),
+      balance: moneyToString(running),
+    });
+  }
+  if (rows.length === 0) running = opening;
+  return {
+    companyName: company.dba_name ?? company.legal_name,
+    companyAddress: companyAddress(company),
+    customerId: customer.id,
+    customerName: customer.display_name,
+    currency: customer.currency,
+    billTo: billTo(customer),
+    from,
+    to,
+    openingBalance: moneyToString(opening),
+    rows,
+    endingBalance: moneyToString(running),
+    aging: agingDto(
+      agingOf(
+        items.map((i) => ({ ...i, open: i.foreignOpen ?? 0n })),
+        to,
+      ),
+    ),
+  };
 }
 
 export function defaultStatementRange(): { from: string; to: string } {

@@ -64,6 +64,7 @@ export class AccountsService {
         .where('company_id', '=', ctx.companyId)
         .execute();
       const balances = await this.balancesAsOf(tx, ctx.companyId, todayIso());
+      const foreign = await this.foreignBalancesAsOf(tx, ctx.companyId, todayIso());
       const used = new Set(
         (
           await sql<{ account_id: string }>`
@@ -96,11 +97,16 @@ export class AccountsService {
           const info = ACCOUNT_TYPE_INFO[n.item.account_type as AccountType];
           const net = rolled.get(n.item.id) ?? 0n;
           const signed = info.normalBalance === 'debit' ? net : -net;
+          const f = foreign.get(n.item.id) ?? 0n;
           return {
             ...toDto(n.item, n.fullName, n.depth),
             balance:
               showBalances && info.statement === 'balance_sheet' ? moneyToString(signed) : null,
             hasTransactions: used.has(n.item.id),
+            foreignBalance:
+              showBalances && n.item.currency
+                ? moneyToString(info.normalBalance === 'debit' ? f : -f)
+                : null,
           };
         });
     });
@@ -304,6 +310,18 @@ export class AccountsService {
   }
 
   /** Net (debit − credit) of posted, current-version lines through `asOf`, per account. */
+  /** Foreign-currency accounts' balances in their currency (debit − credit), ADR 0020. */
+  async foreignBalancesAsOf(tx: Tx, companyId: string, asOf: string): Promise<Map<string, Money>> {
+    const rows = await sql<{ account_id: string; net: string }>`
+      select l.account_id, sum(l.foreign_debit - l.foreign_credit) as net
+      from journal_lines l
+      join transactions t on t.id = l.transaction_id and t.version = l.version
+      where l.company_id = ${companyId} and t.status = 'posted' and l.txn_date <= ${asOf}
+        and l.foreign_debit is not null
+      group by l.account_id`.execute(tx);
+    return new Map(rows.rows.map((r) => [r.account_id, parseMoney(r.net)]));
+  }
+
   async balancesAsOf(
     tx: Tx,
     companyId: string,
@@ -336,6 +354,7 @@ export class AccountsService {
     ).find((n) => n.item.id === id)!;
     const info = ACCOUNT_TYPE_INFO[node.item.account_type as AccountType];
     const own = (await this.balancesAsOf(tx, companyId, todayIso(), [id])).get(id) ?? 0n;
+    const f = (await this.foreignBalancesAsOf(tx, companyId, todayIso())).get(id) ?? 0n;
     return {
       ...toDto(node.item, node.fullName, node.depth),
       balance:
@@ -343,6 +362,9 @@ export class AccountsService {
           ? moneyToString(info.normalBalance === 'debit' ? own : -own)
           : null,
       hasTransactions: await this.hasPostings(tx, id),
+      foreignBalance: node.item.currency
+        ? moneyToString(info.normalBalance === 'debit' ? f : -f)
+        : null,
     };
   }
 
@@ -399,7 +421,7 @@ function toDto(
   a: Account,
   fullName: string,
   depth: number,
-): Omit<AccountDto, 'balance' | 'hasTransactions'> {
+): Omit<AccountDto, 'balance' | 'hasTransactions' | 'foreignBalance'> {
   return {
     id: a.id,
     number: a.number,
@@ -412,6 +434,7 @@ function toDto(
     description: a.description,
     systemRole: a.system_role as SystemRole | null,
     isActive: a.is_active,
+    currency: a.currency,
   };
 }
 

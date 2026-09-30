@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { MAX_AMOUNT, moneyToString, parseMoney, tryParseMoney, type Money } from './money';
+import { optExchangeRate } from './currency';
 import { isoDate, optDate, optText, positiveAmount, qtyRate, signedAmount } from './fields';
 
 // ---------------------------------------------------------------------------------------------
@@ -48,6 +49,7 @@ export const TXN_TYPE_LABELS: Record<string, string> = {
   inventory_adjustment: 'Inventory Qty Adjust',
   inventory_build: 'Build Assembly',
   inventory_opening: 'Inventory Starting Value',
+  currency_revaluation: 'Currency Revaluation',
 };
 
 /** Every transaction type that posts to the ledger. */
@@ -73,6 +75,7 @@ export const POSTING_TXN_TYPES = [
   'inventory_adjustment',
   'inventory_build',
   'inventory_opening',
+  'currency_revaluation',
 ] as const;
 export type PostingTxnType = (typeof POSTING_TXN_TYPES)[number];
 
@@ -165,6 +168,8 @@ export const salesDocumentInputSchema = z
     taxRateId: z.uuid().nullable().optional(),
     /** Overrides the calculated tax (e.g. entering a paper invoice); split across the components. */
     taxAmount: taxAmountOverride,
+    /** Foreign-currency customers: US dollars per unit; omitted uses the rate on file. */
+    exchangeRate: optExchangeRate,
     lines: z.array(salesLineInputSchema).min(1, 'Add at least one line').max(1000),
     closingPassword: z.string().max(128).optional(),
     version: z.number().int().min(1).optional(),
@@ -248,6 +253,10 @@ export interface SalesDocumentDto {
   paymentMethodId: string | null;
   reference: string | null;
   depositAccountId: string | null;
+  /** The customer's currency (null: US dollars); amounts are in it (ADR 0020). */
+  currency: string | null;
+  /** US dollars per unit of the currency, for foreign-currency documents. */
+  exchangeRate: string | null;
   lines: SalesLineDto[];
   /** Sum of the lines, before tax. */
   subtotal: string;
@@ -260,6 +269,9 @@ export interface SalesDocumentDto {
   total: string;
   /** Amount still owed (invoice) or still available (credit memo); 0 for receipts. */
   balance: string;
+  /** Foreign-currency documents: the total and balance in US dollars. */
+  homeTotal: string | null;
+  homeBalance: string | null;
   status: DocumentStatus;
   paymentStatus: PaymentStatus;
   applied: AppliedDto[];
@@ -283,6 +295,8 @@ export const paymentInputSchema = z
     /** Undeposited Funds by default, or a bank account. */
     depositAccountId: z.uuid().nullable().optional(),
     memo: optText(4000),
+    /** Foreign-currency customers: US dollars per unit; omitted uses the rate on file. */
+    exchangeRate: optExchangeRate,
     applications: z
       .array(z.object({ targetId: z.uuid(), amount: positiveAmount }))
       .max(1000)
@@ -327,6 +341,10 @@ export interface OpenItemDto {
   total: string;
   /** Open balance before this payment. */
   open: string;
+  /** The customer's currency (null: US dollars). */
+  currency: string | null;
+  /** Foreign-currency documents: the open balance's US dollar value in the books. */
+  homeOpen: string | null;
 }
 
 export interface PaymentDto {
@@ -339,7 +357,15 @@ export interface PaymentDto {
   reference: string | null;
   depositAccountId: string | null;
   memo: string | null;
-  applications: Array<AppliedDto & { targetType: string }>;
+  /** The customer's currency (null: US dollars); amounts are in it (ADR 0020). */
+  currency: string | null;
+  /** US dollars per unit of the currency, for foreign-currency payments. */
+  exchangeRate: string | null;
+  /** Foreign-currency payments: the US dollars received, and the realized exchange gain (+) or
+   * loss (−) against the rates of what it paid. */
+  homeAmount: string | null;
+  exchangeGainLoss: string | null;
+  applications: Array<AppliedDto & { targetType: string; homeAmount: string | null }>;
   /** Overpayment held as a customer credit. */
   unapplied: string;
   depositId: string | null;
@@ -396,7 +422,11 @@ export interface PendingDepositDto {
   customerName: string | null;
   paymentMethodId: string | null;
   reference: string | null;
+  /** In US dollars. */
   amount: string;
+  /** Foreign-currency payments and receipts: the amount in the currency. */
+  currency: string | null;
+  foreignAmount: string | null;
 }
 
 export interface DepositLineDto {
@@ -469,6 +499,8 @@ export interface EstimateDto {
   number: string | null;
   customerId: string;
   customerName: string;
+  /** The customer's currency (null: US dollars). */
+  currency: string | null;
   txnDate: string;
   expirationDate: string | null;
   status: EstimateStatus;
@@ -554,8 +586,12 @@ export interface SalesTransactionDto {
   customerId: string | null;
   customerName: string | null;
   dueDate: string | null;
+  /** In the customer's currency. */
   total: string;
   balance: string;
+  currency: string | null;
+  /** Foreign-currency transactions: the total in US dollars. */
+  homeTotal: string | null;
   paymentStatus: PaymentStatus;
   status: DocumentStatus;
   memo: string | null;
@@ -568,7 +604,11 @@ export interface SalesTransactionPageDto {
 
 export interface CustomerBalanceDto {
   customerId: string;
+  /** In the customer's currency. */
+  currency: string | null;
   openBalance: string;
+  /** The open balance's US dollar value in the books. */
+  homeOpenBalance: string;
   overdueBalance: string;
   /** Unused credit memos and unapplied payments (shown as a positive amount). */
   availableCredit: string;
@@ -584,6 +624,8 @@ export interface StatementDto {
   companyAddress: string | null;
   customerId: string;
   customerName: string;
+  /** Amounts are in the customer's currency (null: US dollars). */
+  currency: string | null;
   billTo: string | null;
   from: string;
   to: string;

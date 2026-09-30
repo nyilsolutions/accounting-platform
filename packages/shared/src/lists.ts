@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { decimalPlaces, parseMoney, tryParseMoney } from './money';
 import { US_STATES } from './company';
+import { partyCurrency } from './currency';
 import { isIsoDate } from './dates';
 import { EXEMPTION_REASONS, type ExemptionReason } from './sales-tax';
 
@@ -63,6 +64,8 @@ export const customerInputSchema = z.object({
   taxRateId: z.uuid().nullable().optional(),
   taxExemptionReason: z.enum(EXEMPTION_REASONS).nullable().optional(),
   taxExemptionNumber: optText(50),
+  /** Foreign currency (multi-currency, ADR 0020); fixed once the customer has transactions. */
+  currency: partyCurrency,
   ...contactFields,
 });
 export type CustomerInput = z.input<typeof customerInputSchema>;
@@ -96,6 +99,8 @@ export interface CustomerDto extends ContactDto {
   taxRateId: string | null;
   taxExemptionReason: ExemptionReason | null;
   taxExemptionNumber: string | null;
+  /** null: US dollars. */
+  currency: string | null;
 }
 
 // ---- Vendors ----------------------------------------------------------------------------------
@@ -126,6 +131,8 @@ export const vendorInputSchema = z.object({
     .or(z.literal('').transform(() => null)),
   /** The IRS told you to backup withhold (B-notice), or the contractor gave no TIN. */
   backupWithholding: z.boolean().optional(),
+  /** Foreign currency (multi-currency, ADR 0020); fixed once the vendor has transactions. */
+  currency: partyCurrency,
 });
 export type VendorInput = z.input<typeof vendorInputSchema>;
 export const vendorUpdateSchema = vendorInputSchema
@@ -143,6 +150,8 @@ export interface VendorDto extends ContactDto {
   defaultExpenseAccountId: string | null;
   w9ReceivedOn: string | null;
   backupWithholding: boolean;
+  /** null: US dollars. */
+  currency: string | null;
 }
 
 export function maskTin(type: string | null, last4: string | null): string | null {

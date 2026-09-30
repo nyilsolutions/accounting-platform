@@ -111,7 +111,11 @@ export async function recognitions(
 ): Promise<Recognition[]> {
   // Every application up to `to` is needed, even before `from`, to allocate cumulatively.
   const apps = await sql<Application>`
-    select pa.target_id, pa.payment_id, pa.amount, greatest(p.txn_date, t.txn_date) as eff_date,
+    select pa.target_id, pa.payment_id,
+           -- Foreign-currency documents: what the application is worth in US dollars at the
+           -- document's rate (ADR 0020), so a settled document is recognised in full.
+           coalesce(pa.home_amount, pa.amount) as amount,
+           greatest(p.txn_date, t.txn_date) as eff_date,
            t.txn_type
     from payment_applications pa
     join transactions p on p.id = pa.payment_id and p.status = 'posted'
@@ -212,5 +216,14 @@ export async function cashRecognition(
   return out;
 }
 
-/** Document types whose postings are replaced by recognitions on the cash basis. */
-export const ACCRUAL_ONLY_TYPES = ['invoice', 'credit_memo', 'bill', 'vendor_credit'] as const;
+/**
+ * Document types whose postings are replaced by recognitions on the cash basis. Currency
+ * revaluations (unrealized gains and losses on open balances) have no place on a cash basis.
+ */
+export const ACCRUAL_ONLY_TYPES = [
+  'invoice',
+  'credit_memo',
+  'bill',
+  'vendor_credit',
+  'currency_revaluation',
+] as const;

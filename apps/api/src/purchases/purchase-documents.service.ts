@@ -10,7 +10,10 @@ import {
   dueDateFromTerms,
   moneyToString,
   parseMoney,
+  parseRate,
+  rateToString,
   resolveLineAmount,
+  toHome,
   TXN_TYPE_LABELS,
   type Money,
   type PrintStatus,
@@ -24,7 +27,8 @@ import type { AuthContext, CompanyContext, RequestMeta } from '../common/request
 import { DB } from '../db/db.module';
 import { InventoryService, type ProposedMove } from '../inventory/inventory.service';
 import { PostingService, type PostingLine } from '../ledger/posting.service';
-import { systemAccount, validationError } from '../sales/sales-common';
+import { controlAccount, documentCurrency } from '../currency/fx';
+import { validationError } from '../sales/sales-common';
 import { paymentStatus } from '../sales/sales-documents.service';
 import { nextCheckNumber } from './purchases-common';
 
@@ -133,11 +137,13 @@ export class PurchaseDocumentsService {
         validationError([{ path: 'vendorId', message: 'Choose a vendor' }]),
       );
     }
-    let vendor: { id: string; is_active: boolean; terms_id: string | null } | undefined;
+    let vendor:
+      | { id: string; is_active: boolean; terms_id: string | null; currency: string | null }
+      | undefined;
     if (input.vendorId) {
       vendor = await tx
         .selectFrom('vendors')
-        .select(['id', 'is_active', 'terms_id'])
+        .select(['id', 'is_active', 'terms_id', 'currency'])
         .where('id', '=', input.vendorId)
         .where('company_id', '=', companyId)
         .executeTakeFirst();
@@ -148,12 +154,23 @@ export class PurchaseDocumentsService {
       }
     }
 
+    // --- Currency (ADR 0020): the vendor's; amounts are in it, the books in US dollars -------
+    const fx = await documentCurrency(
+      tx,
+      companyId,
+      vendor?.currency ?? null,
+      input.txnDate,
+      input.exchangeRate,
+      before,
+    );
+    const toBooks = (m: Money): Money => (fx ? toHome(m, fx.rate) : m);
+
     // --- Payment account (cash purchases) ----------------------------------------------------
     const totalSide = TOTAL_SIDE[type];
     let totalAccount: string;
     let paymentAccountId: string | null = null;
     if (totalSide.account === 'ap') {
-      totalAccount = await systemAccount(tx, companyId, 'accounts_payable');
+      totalAccount = await controlAccount(tx, companyId, 'ap', fx?.currency ?? null);
     } else {
       paymentAccountId = input.paymentAccountId ?? before?.paymentAccountId ?? null;
       const allowed = PAYMENT_ACCOUNT_TYPES[type]!;
@@ -204,6 +221,15 @@ export class PurchaseDocumentsService {
         if (input.vendorId !== before.vendorId) {
           throw new ConflictException(
             'The vendor cannot change once payments or credits are applied.',
+          );
+        }
+        // What was applied is valued at the document's rate (ADR 0020).
+        if (
+          before.currency &&
+          (total !== parseMoney(before.total) || fx?.rateText !== before.exchangeRate)
+        ) {
+          throw new ConflictException(
+            `The total and exchange rate of a ${before.currency} document can't change once payments or credits are applied. Remove them from the payment first.`,
           );
         }
       }
@@ -263,12 +289,17 @@ export class PurchaseDocumentsService {
       ...extra,
     });
     const totalIsDebit = totalSide.side === 'debit';
-    const journal: PostingLine[] = [line(totalAccount, total, !totalIsDebit)];
+    // Foreign-currency documents convert line by line; the total is the sum of the converted
+    // lines, so the entry balances in US dollars.
+    const costLines: PostingLine[] = [];
+    let homeTotal = 0n;
     for (const l of lines) {
-      if (l.amount === 0n) continue;
-      const credit = totalIsDebit ? l.amount > 0n : l.amount < 0n;
-      journal.push(
-        line(l.accountId, l.amount < 0n ? -l.amount : l.amount, credit, {
+      const amount = toBooks(l.amount);
+      if (amount === 0n) continue;
+      homeTotal += amount;
+      const credit = totalIsDebit ? amount > 0n : amount < 0n;
+      costLines.push(
+        line(l.accountId, amount < 0n ? -amount : amount, credit, {
           description: l.description,
           // A journal line names one party: the job's customer when the cost is for a customer
           // (the vendor is still on the header and on the A/P or payment line).
@@ -278,6 +309,21 @@ export class PurchaseDocumentsService {
         }),
       );
     }
+    if (homeTotal <= 0n)
+      throw new BadRequestException(
+        validationError([
+          { path: 'lines', message: 'The total is too small to convert to US dollars' },
+        ]),
+      );
+    const journal: PostingLine[] = [
+      line(totalAccount, homeTotal, !totalIsDebit, {
+        foreign:
+          fx && totalSide.account === 'ap'
+            ? { debit: totalIsDebit ? total : 0n, credit: totalIsDebit ? 0n : total }
+            : null,
+      }),
+      ...costLines,
+    ];
 
     const header = {
       txnType: type,
@@ -294,6 +340,9 @@ export class PurchaseDocumentsService {
         printStatus,
         mailingAddress: type === 'check' ? (input.mailingAddress ?? null) : null,
         total: moneyToString(total, 2),
+        currency: fx?.currency ?? null,
+        exchangeRate: fx?.rateText ?? null,
+        homeTotal: fx ? moneyToString(homeTotal, 2) : null,
       },
     };
     const postingCtx = { companyId, userId: auth.userId, closingPassword: input.closingPassword };
@@ -310,7 +359,8 @@ export class PurchaseDocumentsService {
         lineNo: i + 1,
         kind: inward ? 'purchase' : 'purchase_return',
         quantity: inward ? qty : -qty,
-        fixedCost: inward ? l.amount : null,
+        // In US dollars, as the line posts.
+        fixedCost: inward ? toBooks(l.amount) : null,
         counterAccountId: inward ? null : l.cogsAccountId,
         classId: l.classId,
       });
@@ -434,7 +484,7 @@ export class PurchaseDocumentsService {
     const applied = await tx
       .selectFrom('payment_applications as pa')
       .innerJoin('transactions as p', 'p.id', 'pa.payment_id')
-      .select(['p.id', 'p.txn_type', 'p.txn_number', 'p.txn_date', 'pa.amount'])
+      .select(['p.id', 'p.txn_type', 'p.txn_number', 'p.txn_date', 'pa.amount', 'pa.home_amount'])
       .where('pa.target_id', '=', id)
       .where('p.status', '=', 'posted')
       .orderBy('p.txn_date')
@@ -442,6 +492,13 @@ export class PurchaseDocumentsService {
     const total = parseMoney(t.total ?? '0');
     const appliedSum = applied.reduce((s, a) => s + parseMoney(a.amount), 0n);
     const balance = type === 'bill' || type === 'vendor_credit' ? total - appliedSum : 0n;
+    const homeTotal = t.home_total !== null ? parseMoney(t.home_total) : null;
+    const homeBalance =
+      homeTotal === null
+        ? null
+        : type === 'bill' || type === 'vendor_credit'
+          ? homeTotal - applied.reduce((s, a) => s + parseMoney(a.home_amount ?? a.amount), 0n)
+          : 0n;
     return {
       id: t.id,
       txnType: type,
@@ -456,6 +513,8 @@ export class PurchaseDocumentsService {
       printStatus: t.print_status as PrintStatus | null,
       mailingAddress: t.mailing_address,
       memo: t.memo,
+      currency: t.currency,
+      exchangeRate: t.exchange_rate === null ? null : rateToString(parseRate(t.exchange_rate)),
       lines: lines.map((l) => ({
         lineNo: l.line_no,
         itemId: l.item_id,
@@ -470,6 +529,8 @@ export class PurchaseDocumentsService {
       })),
       total: moneyToString(total),
       balance: moneyToString(balance),
+      homeTotal: homeTotal === null ? null : moneyToString(homeTotal),
+      homeBalance: homeBalance === null ? null : moneyToString(homeBalance),
       status: t.status === 'void' ? 'void' : 'posted',
       paymentStatus: purchaseStatus(type, t.status, total, balance, t.due_date),
       applied: applied.map((a) => ({

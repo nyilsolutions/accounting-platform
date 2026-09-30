@@ -68,6 +68,8 @@ export class DepositsService {
         't.payment_method_id',
         't.reference',
         't.total',
+        't.currency',
+        't.home_total',
         'dl.deposit_id',
       ])
       .where('t.company_id', '=', companyId)
@@ -92,7 +94,10 @@ export class DepositsService {
       customerName: r.display_name,
       paymentMethodId: r.payment_method_id,
       reference: r.reference,
-      amount: moneyToString(parseMoney(r.total ?? '0')),
+      // Deposited in US dollars: a foreign-currency payment's value at its rate (ADR 0020).
+      amount: moneyToString(parseMoney(r.home_total ?? r.total ?? '0')),
+      currency: r.currency,
+      foreignAmount: r.currency ? moneyToString(parseMoney(r.total ?? '0')) : null,
     }));
   }
 
