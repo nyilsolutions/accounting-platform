@@ -217,7 +217,7 @@ function federalEffect(
   }
 }
 
-function stateWages(
+export function stateWages(
   fed: FederalTaxData,
   rule: StateWageRule | undefined,
   items: PaycheckTaxInput['items'],
@@ -339,6 +339,13 @@ function federalSupplemental(fed: FederalTaxData, wages: Q, ytdSupplemental: Mon
 }
 
 // ---- Illinois (IL-700-T automated payroll method) ----------------------------------------------
+
+const NO_IL_ALLOWANCES: IlW4Fields = {
+  basicAllowances: 0,
+  additionalAllowances: 0,
+  additionalWithholding: '0',
+  exempt: false,
+};
 
 function illinoisIncomeTax(il: IlWithholding, cert: IlW4Fields, periods: number, wages: Q): Q {
   if (cert.exempt) return Q0;
@@ -662,25 +669,29 @@ function stateIncomeTax(
   }
   if (state === 'IL') {
     const il = sd.incomeTaxWithholding as IlWithholding;
-    if (!cert || cert.state !== 'IL') {
-      refuse.push(
-        "Illinois income tax: there is no IL-W-4 on file, and what to withhold without one isn't sourced yet.",
-      );
-      return;
-    }
     if (input.supplemental) {
       refuse.push(
         "Illinois income tax: the rule for supplemental wages paid separately isn't sourced yet.",
       );
       return;
     }
-    line(
-      'state_income',
-      'employee',
-      wages,
-      illinoisIncomeTax(il, cert.fields, periods, wages),
-      state,
-    );
+    // Pub. 130: without an IL-W-4, or when it must be disregarded (it claims exemption but the
+    // federal Form W-4 doesn't), withhold with no allowances.
+    let fields: IlW4Fields | null = cert?.state === 'IL' ? cert.fields : null;
+    if (fields?.exempt && !input.w4?.exempt) fields = null;
+    if (!fields) {
+      if (
+        sd.noCertificate &&
+        'rule' in sd.noCertificate &&
+        sd.noCertificate.rule === 'withhold_with_no_allowances'
+      ) {
+        fields = NO_IL_ALLOWANCES;
+      } else {
+        refuse.push("Illinois income tax: what to withhold without an IL-W-4 isn't sourced yet.");
+        return;
+      }
+    }
+    line('state_income', 'employee', wages, illinoisIncomeTax(il, fields, periods, wages), state);
     return;
   }
   if (state === 'NY') {

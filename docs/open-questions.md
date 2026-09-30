@@ -175,13 +175,17 @@ Add new questions here instead of guessing.
     - **New York**: Paid Family Leave 2026 rate and cap (every New York paycheck waits on this);
       Disability Benefits employee limit; Publication 420 (MCTMT rates); which table applies to
       IT-2104 "Married, but withhold at higher single rate" (expected: single); how employee
-      pre-tax deductions (401(k), cafeteria plan, FSA, HSA) count for unemployment;
+      pre-tax deductions (401(k), cafeteria plan, FSA, HSA) count for unemployment (withholding
+      is settled: it follows federal wages, TSB-M-84(7)I);
     - **California**: the 2026 California Employer's Guide (DE 44) for income tax withholding
-      (every California paycheck waits on this), and how pre-tax deductions count for SDI and
-      unemployment;
-    - **Illinois**: what to withhold when no IL-W-4 is on file; the rule for bonuses paid
-      separately; how pre-tax deductions and company contributions count for withholding and
-      unemployment;
+      (every California paycheck waits on this). Which pay counts for income tax, SDI and
+      unemployment is now sourced (DE 231A, DE 231EB). One conflict for the reviewer: DE 231EB
+      (2017) shows employer 401(k) contributions as subject to unemployment and SDI, the newer
+      DE 231A (2023) says they are not; payroll follows DE 231A;
+    - **Illinois**: the rule for bonuses paid separately (Pub. 130 doesn't cover it); how
+      pre-tax deductions and company contributions count for unemployment. Withholding without
+      an IL-W-4 (no allowances) and which wages count (federal wages) are now sourced
+      (Pub. 130);
     - **Texas and Florida**: how pre-tax deductions, tips, reimbursements and company
       contributions count for unemployment; the Texas new-employer rate;
     - **Roth 401(k)/403(b)**: a citation that designated Roth contributions are wages (Form W-2
@@ -189,8 +193,9 @@ Add new questions here instead of guessing.
     - the **2026 FUTA credit reduction states** (Department of Labor, November 2026). Paychecks
       use the 0.6% net rate; a credit reduction is added on Form 940 at year end.
 
-    Until the state treatment of pre-tax deductions is sourced, paychecks with a 401(k),
-    cafeteria plan, FSA or HSA deduction are refused in every state.
+    Until the unemployment treatment of pre-tax deductions is sourced for Illinois, New York,
+    Texas and Florida, paychecks with a 401(k), cafeteria plan, FSA or HSA deduction are refused
+    in those states.
 
 45. **Your direct deposit bank (ODFI):** which bank will originate the ACH files? Banks differ on:
     - a balanced file (an offsetting debit to your account) or credits only (built today);

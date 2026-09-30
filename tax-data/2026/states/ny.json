@@ -30,6 +30,20 @@
       "revision": "12/25",
       "url": "https://www.tax.ny.gov/forms/html-instructions/nys-50/nys-50-employers-guide.htm",
       "pageNote": "HTML page; cites name the section."
+    },
+    {
+      "id": "tsb-m-84-7-i",
+      "title": "NYS Tax Department TSB-M-84(7)I, Cafeteria Plans and Section 401(k) Plans",
+      "revision": "May 4, 1984",
+      "url": null,
+      "urlNote": "The supplied copy does not show its own address; publisher site tax.ny.gov."
+    },
+    {
+      "id": "nys-414h-125",
+      "title": "NYS Tax Department, Public employee 414(h) retirement contributions and New York City flexible benefits program (IRC 125)",
+      "revision": "page updated July 24, 2026",
+      "url": null,
+      "urlNote": "The supplied page copy does not include its address; publisher site tax.ny.gov."
     }
   ],
   "stateIncomeTaxWithholding": {
@@ -2311,8 +2325,23 @@
           "source": "nys-50",
           "page": "Part 3",
           "ref": "E. Income subject to withholding: \"Compensation that is considered as wages for federal income tax withholding purposes, including tips... is generally considered wages for purposes of withholding New York State income tax, New York City income tax, Yonkers resident tax surcharge, and Yonkers nonresident earnings tax\""
+        },
+        {
+          "source": "tsb-m-84-7-i",
+          "page": 1,
+          "ref": "\"Contributions to a qualified cash or deferred salary profit-sharing or stock bonus plan which are excluded from an employee's income for federal income tax purposes are also excluded from income for New York State and City of New York income tax purposes. Accordingly, such contributions are not subject to New York State or City of New York income tax withholding.\""
         }
-      ]
+      ],
+      "publicEmployees": {
+        "note": "Public employees' 414(h) retirement contributions and New York City's own flexible benefits program (IRC 125) are added back on the employee's New York return. Payroll has no item kinds for these public-employer plans, so they are not supported.",
+        "cite": [
+          {
+            "source": "nys-414h-125",
+            "page": null,
+            "ref": "414(h) contributions and NYC flexible benefits program amounts are reported as addition modifications on Form IT-201/IT-203"
+          }
+        ]
+      }
     },
     "unemployment": {
       "regularWages": "taxable",

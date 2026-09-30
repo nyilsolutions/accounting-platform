@@ -9,6 +9,7 @@ import {
   calculatePaycheckTaxes,
   federalIncomeTax,
   federalWages,
+  stateWages,
   newYorkCityTax,
   newYorkStateTax,
   yonkersNonresidentTax,
@@ -410,34 +411,86 @@ describe('a paycheck', () => {
     ]);
   });
 
-  it('refuses Illinois without an IL-W-4, and for supplemental checks', () => {
-    expect(
-      refusal(() =>
-        calculatePaycheckTaxes(data, { ...baseInput('IL'), items: items(['salary', '2000']) }),
-      ),
-    ).toEqual([
-      "Illinois income tax: there is no IL-W-4 on file, and what to withhold without one isn't sourced yet.",
-    ]);
+  it('Illinois without an IL-W-4 withholds with no allowances (Pub. 130); supplemental is refused', () => {
+    const r = calculatePaycheckTaxes(data, {
+      ...baseInput('IL'),
+      items: items(['salary', '2000']),
+    });
+    // 4.95% of $2,000 with no allowances.
+    expect(str(line(r, 'state_income').amount)).toBe('99.00');
+    // An IL-W-4 claiming exemption is disregarded unless the federal W-4 is exempt too.
+    const exemptIl = {
+      state: 'IL' as const,
+      fields: {
+        basicAllowances: 1,
+        additionalAllowances: 0,
+        additionalWithholding: '0',
+        exempt: true,
+      } as never,
+    };
+    const disregarded = calculatePaycheckTaxes(data, {
+      ...baseInput('IL'),
+      items: items(['salary', '2000']),
+      stateCertificate: exemptIl,
+    });
+    expect(str(line(disregarded, 'state_income').amount)).toBe('99.00');
+    const honored = calculatePaycheckTaxes(data, {
+      ...baseInput('IL'),
+      w4: w4({ exempt: true }),
+      items: items(['salary', '2000']),
+      stateCertificate: exemptIl,
+    });
+    expect(line(honored, 'state_income').amount).toBe(0n);
     expect(
       refusal(() =>
         calculatePaycheckTaxes(data, {
           ...baseInput('IL'),
           supplemental: true,
           items: items(['bonus', '1000']),
-          stateCertificate: {
-            state: 'IL',
-            fields: {
-              basicAllowances: 1,
-              additionalAllowances: 0,
-              additionalWithholding: '0',
-              exempt: false,
-            } as never,
-          },
         }),
       ),
     ).toEqual([
       "Illinois income tax: the rule for supplemental wages paid separately isn't sourced yet.",
     ]);
+  });
+
+  it('Illinois withholding follows federal wages: a 401(k) reduces it (unemployment still pending)', () => {
+    const reasons = refusal(() =>
+      calculatePaycheckTaxes(data, {
+        ...baseInput('IL'),
+        items: items(['salary', '2000'], ['traditional_401k', '200']),
+      }),
+    );
+    expect(reasons).toEqual([
+      "Illinois unemployment tax: the treatment of 401(k) isn't sourced yet.",
+    ]);
+  });
+
+  it('California: pay-type rules from DE 231A and DE 231EB (income tax itself still waits on DE 44)', () => {
+    const ca = data.states.CA!;
+    const pay = items(
+      ['salary', '3000'],
+      ['traditional_401k', '300'],
+      ['section_125', '100'],
+      ['hsa', '50'],
+      ['retirement_match', '150'],
+      ['employer_hsa', '25'],
+      ['reimbursement', '40'],
+    );
+    const refuse: string[] = [];
+    const fit = federalWages(fed, pay, 'fit', refuse);
+    // PIT: 401(k) and cafeteria plan excluded; HSA (both sides) included; reimbursement excluded.
+    expect(str(toCents(stateWages(fed, ca.taxableWages.incomeTax, pay, fit, 'CA', refuse)))).toBe(
+      '2625.00',
+    );
+    // UI and SDI: 401(k) included; cafeteria plan excluded; HSA included; match excluded.
+    expect(
+      str(toCents(stateWages(fed, ca.taxableWages.unemployment, pay, fit, 'CA', refuse))),
+    ).toBe('2925.00');
+    expect(str(toCents(stateWages(fed, ca.taxableWages.sdi, pay, fit, 'CA', refuse)))).toBe(
+      '2925.00',
+    );
+    expect(refuse).toEqual([]);
   });
 
   it('Illinois: 4.95% after allowances, plus the IL-W-4 extra amount, and IL unemployment', () => {

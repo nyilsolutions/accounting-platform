@@ -15,6 +15,13 @@
       "title": "Illinois Department of Employment Security, EA-50, 2026 State Experience Factor and Employers' UI Contribution Rates",
       "revision": "11/2025",
       "url": "https://ides.illinois.gov/"
+    },
+    {
+      "id": "il-pub-130",
+      "title": "Illinois Department of Revenue Publication 130, Who is Required to Withhold Illinois Income Tax",
+      "revision": "PUB-130 (R-02/26)",
+      "url": null,
+      "urlNote": "The supplied copy does not show its own address; publisher site tax.illinois.gov."
     }
   ],
   "incomeTaxWithholding": {
@@ -68,8 +75,15 @@
     ]
   },
   "noCertificate": {
-    "status": "pending",
-    "note": "What to withhold when no IL-W-4 is on file is in the IL-W-4 instructions / Publication 130, not supplied."
+    "rule": "withhold_with_no_allowances",
+    "note": "Without a completed IL-W-4, or when the IL-W-4 must be disregarded, withhold with no allowances. An IL-W-4 claiming total exemption is disregarded unless the employee's federal Form W-4 also claims total exemption.",
+    "cite": [
+      {
+        "source": "il-pub-130",
+        "page": 7,
+        "ref": "\"If a completed Form IL-W-4 is not filed, or you are required to disregard Form IL-W-4, you must withhold Illinois Income Tax with no allowances.\" Form IL-W-4 is disregarded when \"An employee claims total exemption from Illinois Income Tax withholding, but has not filed a federal Form W-4... claiming total exemption.\""
+      }
+    ]
   },
   "workedExamples": [
     {
@@ -98,10 +112,25 @@
   ],
   "taxableWages": {
     "incomeTax": {
-      "regularWages": "taxable",
-      "kinds": {},
-      "otherKinds": "pending",
-      "note": "Pay for services is subject to state withholding. Which pre-tax deductions and company contributions reduce or add to withholding wages is not in the supplied documents; paychecks with them are refused until sourced."
+      "basis": "federal_fit",
+      "note": "Illinois withholding follows federal income tax withholding: compensation paid in Illinois is subject when federal tax is withheld from it, and the Illinois wages reported equal federal Box 1 wages. Retirement income and compensation exempt from federal withholding are not subject.",
+      "cite": [
+        {
+          "source": "il-pub-130",
+          "page": 4,
+          "ref": "\"You must withhold Illinois Income Tax when you withhold federal income tax from compensation you paid in Illinois.\""
+        },
+        {
+          "source": "il-pub-130",
+          "page": 7,
+          "ref": "Not required: \"compensation paid to an employee whose compensation is exempt from federal withholding requirements\"; \"compensation that will not be included in the recipient's base income\""
+        },
+        {
+          "source": "il-pub-130",
+          "page": 9,
+          "ref": "Form W-2: \"Make sure that the sum of the state wages in Box 16 are equal to Box 1.\""
+        }
+      ]
     },
     "unemployment": {
       "regularWages": "taxable",
