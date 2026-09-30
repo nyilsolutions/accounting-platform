@@ -16,11 +16,13 @@ import { z } from 'zod';
 import {
   REPORT_FORMATS,
   priorPayrollInputSchema,
+  priorTaxDepositInputSchema,
   taxFilingInputSchema,
   taxFormQuerySchema,
   type FederalQuarterDto,
   type FutaAnnualDto,
   type PriorPayrollDto,
+  type PriorTaxDepositDto,
   type StateQuarterDto,
   type TaxFilingDto,
   type W2FormsDto,
@@ -113,6 +115,52 @@ export class PayrollFormsController {
     @Meta() meta: RequestMeta,
   ): Promise<void> {
     await this.prior.remove(a, c, id, meta);
+  }
+
+  // --- Deposits made before payroll started here --------------------------------------------
+  @Get('prior-deposits')
+  @RequirePermission('payroll.view')
+  listDeposits(
+    @CurrentAuth() a: AuthContext,
+    @CurrentCompany() c: CompanyContext,
+    @Query(new ZodPipe(yearSchema)) q: Parsed<typeof yearSchema>,
+  ): Promise<PriorTaxDepositDto[]> {
+    return this.prior.listDeposits(a, c, q.year ?? null);
+  }
+
+  @Post('prior-deposits')
+  @RequirePermission('payroll.manage')
+  createDeposit(
+    @CurrentAuth() a: AuthContext,
+    @CurrentCompany() c: CompanyContext,
+    @Body(new ZodPipe(priorTaxDepositInputSchema)) body: Parsed<typeof priorTaxDepositInputSchema>,
+    @Meta() meta: RequestMeta,
+  ): Promise<PriorTaxDepositDto> {
+    return this.prior.saveDeposit(a, c, null, body, meta);
+  }
+
+  @Put('prior-deposits/:id')
+  @RequirePermission('payroll.manage')
+  updateDeposit(
+    @CurrentAuth() a: AuthContext,
+    @CurrentCompany() c: CompanyContext,
+    @Param('id', UuidPipe) id: string,
+    @Body(new ZodPipe(priorTaxDepositInputSchema)) body: Parsed<typeof priorTaxDepositInputSchema>,
+    @Meta() meta: RequestMeta,
+  ): Promise<PriorTaxDepositDto> {
+    return this.prior.saveDeposit(a, c, id, body, meta);
+  }
+
+  @Delete('prior-deposits/:id')
+  @HttpCode(204)
+  @RequirePermission('payroll.manage')
+  async deleteDeposit(
+    @CurrentAuth() a: AuthContext,
+    @CurrentCompany() c: CompanyContext,
+    @Param('id', UuidPipe) id: string,
+    @Meta() meta: RequestMeta,
+  ): Promise<void> {
+    await this.prior.removeDeposit(a, c, id, meta);
   }
 
   // --- Forms ------------------------------------------------------------------------------------

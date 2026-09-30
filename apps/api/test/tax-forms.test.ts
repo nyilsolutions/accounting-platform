@@ -6,6 +6,7 @@ import {
   type PayRunDto,
   type PayrollItemDto,
   type PriorPayrollDto,
+  type PriorTaxDepositDto,
   type StateQuarterDto,
   type StateRegistrationDto,
   type TaxFilingDto,
@@ -32,6 +33,7 @@ let items: PayrollItemDto[];
 let ana: EmployeeDto;
 let prior: PriorPayrollDto;
 let run: PayRunDto;
+let deposit: PriorTaxDepositDto;
 
 const base = () => `/companies/${companyId}/payroll`;
 const acct = (name: string) => accounts.find((a) => a.name === name)!.id;
@@ -176,6 +178,49 @@ describe('prior payroll', () => {
     await outsider.agent.get(`${base()}/prior-payroll`).expect(404);
   });
 
+  it("the old service's deposits for quarters before the switch count on Form 941", async () => {
+    const q1Deposit = {
+      agency: 'federal_941',
+      taxYear: 2026,
+      quarter: 1,
+      // Paid after the switch, for March.
+      paymentDate: '2026-04-15',
+      amount: '918.00',
+      memo: 'EFTPS by the old service',
+    };
+    await owner.agent
+      .post(`${base()}/prior-deposits`)
+      .send({ ...q1Deposit, quarter: 2 })
+      .expect(400);
+    await owner.agent
+      .post(`${base()}/prior-deposits`)
+      .send({ ...q1Deposit, amount: '0' })
+      .expect(400);
+    deposit = (
+      await owner.agent.post(`${base()}/prior-deposits`).send(q1Deposit).expect(status(201))
+    ).body;
+    expect(deposit).toMatchObject({
+      agencyLabel: 'Form 941 taxes',
+      amount: '918.00',
+      lockedBy: null,
+    });
+    const fq1: FederalQuarterDto = (
+      await owner.agent.get(`${base()}/forms/federal-quarterly?year=2026&quarter=1`).expect(200)
+    ).body;
+    expect(fq1).toMatchObject({
+      totalTaxes: '1418.00',
+      deposits: '918.00',
+      priorDeposits: '918.00',
+      balanceDue: '500.00',
+    });
+    expect(fq1.notes[0]).toMatch(/deposits entered under Prior payroll/);
+    const list: PriorTaxDepositDto[] = (
+      await owner.agent.get(`${base()}/prior-deposits?year=2026`).expect(200)
+    ).body;
+    expect(list.map((d) => d.id)).toEqual([deposit.id]);
+    await standard.agent.get(`${base()}/prior-deposits`).expect(403);
+  });
+
   it('counts toward wage bases: FUTA stops at $7,000 on the first paycheck here', async () => {
     run = (
       await owner.agent
@@ -305,6 +350,16 @@ describe('tax forms', () => {
     await owner.agent
       .post(`${base()}/forms/filings`)
       .send({ form: 'form_941', taxYear: 2026, quarter: 1, filedOn: '2026-04-28', method: 'paper' })
+      .expect(409);
+    await owner.agent
+      .put(`${base()}/prior-deposits/${deposit.id}`)
+      .send({
+        agency: 'federal_941',
+        taxYear: 2026,
+        quarter: 1,
+        paymentDate: '2026-04-15',
+        amount: '900',
+      })
       .expect(409);
     const locked = (await owner.agent.get(`${base()}/prior-payroll/${prior.id}`).expect(200)).body;
     expect(locked.lockedBy).toBe('Form 941 for Q1 2026');

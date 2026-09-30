@@ -282,7 +282,10 @@ Add new questions here instead of guessing.
       IRS.gov, and it is optional for employers filing fewer than 250 W-2s;
     - **Dependent care:** the W-2 instructions mention the $5,000 exclusion, Pub. 15-B says
       $7,500 for 2026 (see `federal.json`).
-59. **Deposits made before the first payroll here:** Form 941's deposits line needs them for a
-    company that starts mid-quarter. Add a prior deposits entry next to prior payroll?
-60. **Corrections:** a filed form lists what changed since filing. Should payroll prepare Forms
-    W-2c/W-3c and 941-X (their instructions are needed), or is the list enough for now?
+59. **Deposits made before the first payroll here:** decided 2026-09-30 ("go with your
+    recommendations"). Prior payroll takes federal Form 941 and 940 deposits the old service made
+    for quarters that began before the first payroll here (paid before or after the switch). They
+    count on the Form 941 and 940 summaries, aren't posted to the books, and lock once the form is
+    filed (migration 0017).
+60. **Corrections:** decided 2026-09-30. A filed form lists what changed since filing, and that is
+    enough for now. Forms W-2c/W-3c and 941-X are prepared once their instructions are supplied.

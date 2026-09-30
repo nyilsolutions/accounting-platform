@@ -114,3 +114,23 @@ export function changedFigures(filed: unknown, now: unknown): string[] {
   }
   return out;
 }
+
+/** The filed Form 941 for the quarter (or Form 940 for the year), if any, as its label. */
+export async function formFiled(
+  tx: Tx,
+  companyId: string,
+  form: 'form_941' | 'form_940',
+  year: number,
+  quarter: number,
+): Promise<string | null> {
+  let q = tx
+    .selectFrom('tax_filings')
+    .select(['form', 'tax_year', 'quarter', 'state'])
+    .where('company_id', '=', companyId)
+    .where('status', '=', 'filed')
+    .where('form', '=', form)
+    .where('tax_year', '=', year);
+  if (form === 'form_941') q = q.where('quarter', '=', quarter);
+  const row = await q.executeTakeFirst();
+  return row ? filingLabel(row) : null;
+}

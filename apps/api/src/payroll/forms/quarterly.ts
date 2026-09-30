@@ -45,6 +45,8 @@ export interface FederalQuarterFacts {
   records: PayRecord[];
   /** Form 941 deposits recorded for periods in the quarter. */
   deposits: Money;
+  /** Form 941 deposits for the quarter made before payroll started here. */
+  priorDeposits: Money;
   hasPriorPayroll: boolean;
 }
 
@@ -92,8 +94,11 @@ export function buildFederalQuarter(
   const notes: string[] = [];
   if (f.hasPriorPayroll)
     notes.push(
-      'Prior payroll is included. Deposits made before your first payroll here are not; add them to the deposits when you file.',
+      f.priorDeposits > ZERO
+        ? 'Prior payroll is included, and the deposits entered under Prior payroll.'
+        : 'Prior payroll is included. Enter the deposits your old payroll service made for this quarter under Prior payroll.',
     );
+  const deposits = f.deposits + f.priorDeposits;
   return {
     taxYear: f.taxYear,
     quarter: f.quarter,
@@ -115,8 +120,9 @@ export function buildFederalQuarter(
     dailyLiability: [...daily.entries()]
       .sort((a, b) => a[0].localeCompare(b[0]))
       .map(([date, amount]) => ({ date, amount: m(amount) })),
-    deposits: m(f.deposits),
-    balanceDue: m(total - f.deposits),
+    deposits: m(deposits),
+    priorDeposits: m(f.priorDeposits),
+    balanceDue: m(total - deposits),
     notes,
   };
 }
@@ -129,6 +135,7 @@ export interface FutaAnnualFacts {
   /** Each employee's work state, for FUTA wages by state. */
   workStates: Map<string, string>;
   deposits: Money;
+  priorDeposits: Money;
 }
 
 export function buildFutaAnnual(
@@ -160,8 +167,9 @@ export function buildFutaAnnual(
       .sort((a, b) => a[0].localeCompare(b[0]))
       .map(([state, wages]) => ({ state, taxableWages: m(wages) })),
     quarterlyLiability: quarterly.map(m),
-    deposits: m(f.deposits),
-    balanceDue: m(tax - f.deposits),
+    deposits: m(f.deposits + f.priorDeposits),
+    priorDeposits: m(f.priorDeposits),
+    balanceDue: m(tax - f.deposits - f.priorDeposits),
     notes: [
       `FUTA is figured at the ${f.netRatePercent}% net rate. Credit reduction states for ${f.taxYear} are published by the Department of Labor in November and added on Form 940 (Schedule A).`,
     ],

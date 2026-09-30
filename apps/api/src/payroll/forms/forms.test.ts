@@ -282,6 +282,7 @@ describe('quarterly and annual summaries', () => {
       depositSchedule: 'semiweekly',
       records: quarterRecords,
       deposits: m('300'),
+      priorDeposits: 0n,
       hasPriorPayroll: false,
     });
     expect(q).toMatchObject({
@@ -318,6 +319,7 @@ describe('quarterly and annual summaries', () => {
       records: recs,
       workStates: new Map([['e1', 'TX']]),
       deposits: ZERO_DEPOSITS,
+      priorDeposits: m('12.60'),
     });
     expect(f).toMatchObject({
       subjectWages: '11100.00',
@@ -326,7 +328,10 @@ describe('quarterly and annual summaries', () => {
       tax: '42.00',
       byState: [{ state: 'TX', taxableWages: '7000.00' }],
       quarterlyLiability: ['12.60', '0.00', '29.40', '0.00'],
-      balanceDue: '42.00',
+      // $12.60 deposited through the old payroll service.
+      deposits: '12.60',
+      priorDeposits: '12.60',
+      balanceDue: '29.40',
     });
   });
 

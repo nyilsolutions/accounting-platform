@@ -713,3 +713,32 @@ describe('prior payroll and tax filings (migration 0016)', () => {
     await expect(set('101 203 305')).rejects.toThrow(/check constraint/);
   });
 });
+
+describe('deposits made before payroll started here (migration 0017)', () => {
+  it('are federal Form 941 or 940 deposits for a quarter, invisible to other companies', async () => {
+    const values = (agency: string, amount = '100') => ({
+      company_id: A,
+      agency,
+      tax_year: 2026,
+      quarter: 1,
+      payment_date: '2026-04-15',
+      amount,
+    });
+    await expect(
+      asA((tx) =>
+        tx.insertInto('prior_tax_deposits').values(values('state_withholding:IL')).execute(),
+      ),
+    ).rejects.toThrow(/check constraint/);
+    await expect(
+      asA((tx) => tx.insertInto('prior_tax_deposits').values(values('federal_941', '0')).execute()),
+    ).rejects.toThrow(/check constraint/);
+    await asA((tx) => tx.insertInto('prior_tax_deposits').values(values('federal_941')).execute());
+    await asA((tx) => tx.insertInto('prior_tax_deposits').values(values('federal_940')).execute());
+    expect(await asB((tx) => tx.selectFrom('prior_tax_deposits').select('id').execute())).toEqual(
+      [],
+    );
+    const r = await sql<{ relrowsecurity: boolean }>`
+      select relrowsecurity from pg_class where relname = 'prior_tax_deposits'`.execute(db);
+    expect(r.rows[0]!.relrowsecurity).toBe(true);
+  });
+});

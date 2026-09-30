@@ -114,6 +114,16 @@ test('tax forms: enter prior payroll, check the quarter and the W-2s, mark a For
   const prior = page.getByTestId('prior-payroll');
   await expect(prior.getByRole('row', { name: /Ana Ruiz/ })).toContainText('$6,000.00');
 
+  // The old service's Form 941 deposit for March, paid after the switch.
+  const deposits = page.getByTestId('prior-deposits');
+  await deposits.getByRole('button', { name: 'Add deposit' }).click();
+  const depositDialog = page.getByRole('dialog');
+  await depositDialog.getByLabel('Payment date').fill('2026-04-15');
+  await depositDialog.getByLabel('Amount').fill('918');
+  await depositDialog.getByRole('button', { name: 'Save deposit' }).click();
+  await expect(depositDialog).toHaveCount(0);
+  await expect(deposits.getByRole('row', { name: /Form 941 taxes/ })).toContainText('$918.00');
+
   // --- The first payroll here --------------------------------------------------------------
   const run = await api<{ id: string }>(page, 'POST', `${p}/pay-runs`, {
     kind: 'regular',
@@ -133,6 +143,9 @@ test('tax forms: enter prior payroll, check the quarter and the W-2s, mark a For
   await expect(federal).toContainText('Federal quarterly summary (Form 941), Q1 2026');
   await expect(federal).toContainText('$6,000.00');
   await expect(federal).toContainText('$1,418.00');
+  await expect(
+    federal.locator('div', { has: page.getByText('Balance due', { exact: true }) }).last(),
+  ).toContainText('$500.00');
   const ilQuarter = page.getByTestId('state-quarter-IL');
   await expect(ilQuarter.getByRole('table', { name: 'IL withholding' })).toContainText('$297.00');
   await expect(ilQuarter.getByRole('table', { name: 'IL unemployment wages' })).toContainText(
@@ -177,6 +190,9 @@ test('tax forms: enter prior payroll, check the quarter and the W-2s, mark a For
     .getByRole('link', { name: 'Prior payroll' })
     .click();
   await expect(prior.getByRole('row', { name: /Ana Ruiz/ })).toContainText(
+    'Form 941 for Q1 2026 filed',
+  );
+  await expect(deposits.getByRole('row', { name: /Form 941 taxes/ })).toContainText(
     'Form 941 for Q1 2026 filed',
   );
   await shot(page, '92-prior-payroll');

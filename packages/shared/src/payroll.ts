@@ -1746,7 +1746,10 @@ export interface FederalQuarterDto extends FormFilingState {
   roundingDifference: string;
   monthlyLiability: string[];
   dailyLiability: { date: string; amount: string }[];
+  /** All deposits for the quarter: recorded here plus those made before payroll started here. */
   deposits: string;
+  /** The part of deposits made before payroll started here (Prior payroll). */
+  priorDeposits: string;
   balanceDue: string;
   notes: string[];
 }
@@ -1760,6 +1763,7 @@ export interface FutaAnnualDto extends FormFilingState {
   byState: { state: string; taxableWages: string }[];
   quarterlyLiability: string[];
   deposits: string;
+  priorDeposits: string;
   balanceDue: string;
   notes: string[];
 }
@@ -1804,3 +1808,37 @@ export const taxFormQuerySchema = z.object({
   state: z.enum(PAYROLL_STATES).optional(),
 });
 export type TaxFormQuery = z.input<typeof taxFormQuerySchema>;
+
+// ---------------------------------------------------------------------------------------------
+// Deposits made before payroll started here (Phase 9, open question 59)
+// ---------------------------------------------------------------------------------------------
+export const PRIOR_DEPOSIT_AGENCIES = ['federal_941', 'federal_940'] as const;
+export type PriorDepositAgency = (typeof PRIOR_DEPOSIT_AGENCIES)[number];
+export const PRIOR_DEPOSIT_AGENCY_LABELS: Record<PriorDepositAgency, string> = {
+  federal_941: 'Form 941 taxes',
+  federal_940: 'FUTA (Form 940)',
+};
+
+export const priorTaxDepositInputSchema = z.object({
+  agency: z.enum(PRIOR_DEPOSIT_AGENCIES),
+  taxYear: z.number().int().min(2000).max(2199),
+  /** The quarter the deposit paid tax for. */
+  quarter: z.number().int().min(1).max(4),
+  paymentDate: isoDate,
+  amount: money.refine((v) => parseMoney(v) > 0n, 'Enter the amount deposited'),
+  memo: optText(200),
+});
+export type PriorTaxDepositInput = z.input<typeof priorTaxDepositInputSchema>;
+
+export interface PriorTaxDepositDto {
+  id: string;
+  agency: PriorDepositAgency;
+  agencyLabel: string;
+  taxYear: number;
+  quarter: number;
+  paymentDate: string;
+  amount: string;
+  memo: string | null;
+  /** Why it can't change (a filed form covers its period), or null. */
+  lockedBy: string | null;
+}

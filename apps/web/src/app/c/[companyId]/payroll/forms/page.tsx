@@ -93,7 +93,8 @@ function FederalQuarter({
               ['Tax at the full rates', q.data.taxAtRates],
               ['Fractions of cents', q.data.roundingDifference],
               ['Total taxes', q.data.totalTaxes],
-              ['Deposits recorded', q.data.deposits],
+              ['Deposits', q.data.deposits],
+              ['…made before payroll here', q.data.priorDeposits],
               ['Balance due', q.data.balanceDue],
             ]}
           />

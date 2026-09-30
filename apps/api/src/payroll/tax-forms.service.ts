@@ -385,6 +385,7 @@ export class TaxFormsService {
         depositSchedule: 'monthly',
         records,
         deposits: ZERO,
+        priorDeposits: ZERO,
         hasPriorPayroll: false,
       });
       const row = {
@@ -442,6 +443,7 @@ export class TaxFormsService {
       depositSchedule: settings.deposit_schedule as 'monthly' | 'semiweekly',
       records,
       deposits: await this.deposits(tx, companyId, 'federal_941', start, end),
+      priorDeposits: await this.priorDeposits(tx, companyId, 'federal_941', year, quarter),
       hasPriorPayroll: records.some((r) => r.source === 'prior'),
     });
     return {
@@ -465,6 +467,7 @@ export class TaxFormsService {
       records,
       workStates: new Map(states.map((s) => [s.id, s.work_state])),
       deposits: await this.deposits(tx, companyId, 'federal_940', `${year}-01-01`, `${year}-12-31`),
+      priorDeposits: await this.priorDeposits(tx, companyId, 'federal_940', year, null),
     });
     return {
       ...dto,
@@ -552,6 +555,24 @@ export class TaxFormsService {
       .where('period_start', '<=', to)
       .execute();
     return rows.reduce((a, r) => a + parseMoney(r.amount), ZERO);
+  }
+
+  /** Deposits made before payroll started here, for a quarter (or the whole year). */
+  private async priorDeposits(
+    tx: Tx,
+    companyId: string,
+    agency: 'federal_941' | 'federal_940',
+    year: number,
+    quarter: number | null,
+  ): Promise<Money> {
+    let q = tx
+      .selectFrom('prior_tax_deposits')
+      .select('amount')
+      .where('company_id', '=', companyId)
+      .where('agency', '=', agency)
+      .where('tax_year', '=', year);
+    if (quarter !== null) q = q.where('quarter', '=', quarter);
+    return (await q.execute()).reduce((a, r) => a + parseMoney(r.amount), ZERO);
   }
 
   private async stateIds(tx: Tx, companyId: string): Promise<Record<string, string | null>> {

@@ -12,6 +12,7 @@ import type {
   FederalQuarterDto,
   FutaAnnualDto,
   PriorPayrollDto,
+  PriorTaxDepositDto,
   StateQuarterDto,
   TaxFilingDto,
   W2FormsDto,
@@ -322,6 +323,13 @@ export function usePriorPayroll(id: string, year: number) {
   return useQuery({
     queryKey: [...keys.payroll(id), 'prior-payroll', year],
     queryFn: payrollGet<PriorPayrollDto[]>(id, `/prior-payroll?year=${year}`),
+  });
+}
+
+export function usePriorDeposits(id: string, year: number) {
+  return useQuery({
+    queryKey: [...keys.payroll(id), 'prior-deposits', year],
+    queryFn: payrollGet<PriorTaxDepositDto[]>(id, `/prior-deposits?year=${year}`),
   });
 }
 

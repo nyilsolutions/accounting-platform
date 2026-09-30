@@ -24,6 +24,9 @@ now, and a prior payroll entry.
   pay. It is included on every form.
 - It isn't posted to the books, because the old system's pay is already there.
 - It is locked once a filed form covers its period.
+- **Deposits made before payroll here:** Form 941 and FUTA deposits your old service made for
+  quarters before the switch (even if paid after it), so the Form 941 and 940 summaries show
+  everything deposited.
 
 ### Quarterly (Payroll › Tax forms › Quarterly)
 
@@ -87,16 +90,15 @@ Screenshots: `docs/screenshots/90-quarterly-forms.png`, `91-w2-forms.png`, `92-p
 
 ## Tests
 
-| Suite                   | Count | Highlights                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
-| ----------------------- | ----- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `packages/db`           | 83    | +3: prior payroll per employee and pay date, isolated by company, lines checked; one filed form per period, filings never deleted; tipped occupation codes                                                                                                                                                                                                                                                                                                 |
-| `apps/api`              | 428   | +20. **Golden tests from the W-2 instructions:** boxes 3 and 5 at $199,750 (p.19), Alex's deferrals in box 12 (p.21), tips in box 7, code TT, the reconciliation rules (p.26), W-3 totals. **Summaries:** the federal quarter, FUTA year and state quarter. **End to end:** prior payroll rules and FUTA stopping at $7,000, W-2s adding prior payroll, the SSN export's permission and audit, filing locks, changes after filing, exports and permissions |
-| `apps/web` (Playwright) | 12    | +1: enter prior payroll, check the quarter and state wage detail, mark Form 941 filed, check the W-2 and FUTA, and see prior payroll locked                                                                                                                                                                                                                                                                                                                |
+| Suite                   | Count | Highlights                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| ----------------------- | ----- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `packages/db`           | 84    | +4: prior payroll per employee and pay date, isolated by company, lines checked; earlier deposits (Form 941 or 940 only, isolated); one filed form per period, filings never deleted; tipped occupation codes                                                                                                                                                                                                                                                                                                                     |
+| `apps/api`              | 429   | +21. **Golden tests from the W-2 instructions:** boxes 3 and 5 at $199,750 (p.19), Alex's deferrals in box 12 (p.21), tips in box 7, code TT, the reconciliation rules (p.26), W-3 totals. **Summaries:** the federal quarter, FUTA year and state quarter. **End to end:** prior payroll rules and FUTA stopping at $7,000, earlier deposits lowering the Form 941 balance and locking once filed, W-2s adding prior payroll, the SSN export's permission and audit, filing locks, changes after filing, exports and permissions |
+| `apps/web` (Playwright) | 12    | +1: enter prior payroll and the old service's deposit, check the quarter (balance due after deposits) and state wage detail, mark Form 941 filed, check the W-2 and FUTA, and see prior payroll locked                                                                                                                                                                                                                                                                                                                            |
 
 ## Not in this part
 
 - The official Forms 941, 944, 940, W-2 and W-3 filled in, and the EFW2 file (item 57).
 - 1099-NEC, 1099-MISC, 1096 and the IRIS file (item 57, and questions 17 and 20).
 - State return layouts and upload formats (item 57).
-- Deposits made before the first payroll here (59).
-- Corrections: W-2c and 941-X (60).
+- Corrections: W-2c and 941-X, once their instructions are supplied (60).

@@ -55,6 +55,14 @@ upload files follow as their documents arrive.
 - It is **not posted to the books**, because the old system's pay is already in them. It adds no
   liabilities, because the old system's deposits paid them.
 - It **can change until a filed form covers its period**, then it is locked.
+- **Deposits made before payroll started here** (`prior_tax_deposits`, migration 0017, open
+  question 59): federal Form 941 and 940 deposits the old service made for quarters that began
+  before the first payroll here. They may be paid after the switch, since the old service pays its
+  last period's taxes later.
+  - They add to the Form 941 and 940 summaries' deposits (shown separately as
+    `priorDeposits`).
+  - Like prior payroll, they aren't posted to the books, touch no liabilities, and lock once
+    their Form 941 (quarter) or Form 940 (year) is filed.
 
 ### Form W-2 and W-3 (`forms/w2.ts`)
 
@@ -142,7 +150,7 @@ The W-2 worksheet exports to PDF, Excel and CSV through the report renderer.
   - 1099-NEC/MISC, 1096 and IRIS (1099 instructions, Pub. 5717, IRIS schemas);
   - state return layouts.
 - **Not done yet:**
-  - deposits made before the first payroll here (for Form 941's deposits line);
-  - corrections (W-2c, 941-X) beyond listing what changed;
+  - corrections (W-2c, 941-X) beyond listing what changed: decided to wait for their
+    instructions (question 60);
   - box 12 DD (health coverage cost), whose reporting rules the instructions leave to IRS.gov;
   - local tax names in box 20 beyond "NYC" and "YONKERS".

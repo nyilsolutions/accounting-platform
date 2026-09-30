@@ -4,12 +4,15 @@ import { useParams } from 'next/navigation';
 import { useState, type FormEvent } from 'react';
 import {
   PAYROLL_STATES,
+  PRIOR_DEPOSIT_AGENCIES,
+  PRIOR_DEPOSIT_AGENCY_LABELS,
   PAYROLL_TAX_CODES,
   PAYROLL_TAX_LABELS,
   PAYROLL_TAX_STATES,
   formatDate,
   type PayrollTaxCode,
   type PriorPayrollDto,
+  type PriorTaxDepositDto,
 } from '@acct/shared';
 import { usd } from '@/components/payroll/pay-run-ui';
 import {
@@ -28,6 +31,7 @@ import {
   useEmployees,
   usePayrollItems,
   usePayrollSettings,
+  usePriorDeposits,
   usePriorPayroll,
 } from '@/lib/queries';
 
@@ -135,6 +139,7 @@ export default function PriorPayrollPage() {
           </Table>
         )}
       </Section>
+      {s.payrollStartDate && <PriorDeposits companyId={companyId} year={year} manage={manage} />}
       {editing && (
         <PriorEditor
           companyId={companyId}
@@ -359,5 +364,166 @@ function PriorEditor({
         </div>
       </form>
     </Dialog>
+  );
+}
+
+/** Federal deposits the old payroll service made for quarters before the switch. */
+function PriorDeposits({
+  companyId,
+  year,
+  manage,
+}: {
+  companyId: string;
+  year: number;
+  manage: boolean;
+}) {
+  const deposits = usePriorDeposits(companyId, year);
+  const m = usePayrollMutation(companyId);
+  const [editing, setEditing] = useState<PriorTaxDepositDto | 'new' | null>(null);
+
+  async function submit(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const f = new FormData(e.currentTarget);
+    const ok = await m.run(
+      editing && editing !== 'new' ? `/prior-deposits/${editing.id}` : '/prior-deposits',
+      editing && editing !== 'new' ? 'PUT' : 'POST',
+      {
+        agency: formField(f, 'agency'),
+        taxYear: Number(formField(f, 'taxYear')),
+        quarter: Number(formField(f, 'quarter')),
+        paymentDate: formField(f, 'paymentDate'),
+        amount: formField(f, 'amount'),
+        memo: formField(f, 'memo'),
+      },
+    );
+    if (ok) setEditing(null);
+  }
+
+  const value = editing && editing !== 'new' ? editing : null;
+  return (
+    <Section
+      title="Deposits made before payroll here"
+      description="Federal deposits your old payroll service made for quarters before the switch, so Forms 941 and 940 show everything deposited. They aren't posted to the books."
+      actions={
+        manage ? (
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={() => {
+              m.setError(null);
+              setEditing('new');
+            }}
+          >
+            Add deposit
+          </Button>
+        ) : undefined
+      }
+      testId="prior-deposits"
+    >
+      {m.error && !editing && <Alert>{errText(m.error)}</Alert>}
+      {(deposits.data ?? []).length === 0 ? (
+        <Muted>No earlier deposits for {year}.</Muted>
+      ) : (
+        <Table
+          label="Deposits made before payroll here"
+          headers={['Paid', 'For', 'Quarter', 'Amount', '']}
+        >
+          {deposits.data!.map((d) => (
+            <tr key={d.id}>
+              <td className="px-2 py-2">{formatDate(d.paymentDate)}</td>
+              <td className="px-2 py-2">
+                {d.agencyLabel}
+                {d.memo && <p className="text-xs text-gray-500">{d.memo}</p>}
+              </td>
+              <td className="px-2 py-2">
+                Q{d.quarter} {d.taxYear}
+              </td>
+              <td className="px-2 py-2">{usd(d.amount)}</td>
+              <td className="px-2 py-2 text-right">
+                {d.lockedBy ? (
+                  <Badge tone="gray">{d.lockedBy} filed</Badge>
+                ) : (
+                  manage && (
+                    <>
+                      <Button size="sm" variant="ghost" onClick={() => setEditing(d)}>
+                        Edit
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => {
+                          if (window.confirm('Delete this deposit?'))
+                            void m.run(`/prior-deposits/${d.id}`, 'DELETE');
+                        }}
+                      >
+                        Delete
+                      </Button>
+                    </>
+                  )
+                )}
+              </td>
+            </tr>
+          ))}
+        </Table>
+      )}
+      {editing && (
+        <Dialog
+          open
+          onClose={() => setEditing(null)}
+          title={value ? 'Edit deposit' : 'Add a deposit made before payroll here'}
+        >
+          <form onSubmit={submit} className="space-y-4" aria-label="Earlier deposit">
+            {m.error && <Alert>{errText(m.error)}</Alert>}
+            <Select
+              label="Deposit for"
+              name="agency"
+              defaultValue={value?.agency ?? 'federal_941'}
+              options={PRIOR_DEPOSIT_AGENCIES.map((a) => ({
+                value: a,
+                label: PRIOR_DEPOSIT_AGENCY_LABELS[a],
+              }))}
+            />
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Select
+                label="Tax year"
+                name="taxYear"
+                defaultValue={String(value?.taxYear ?? year)}
+                options={YEARS.map((y) => ({ value: String(y), label: String(y) }))}
+              />
+              <Select
+                label="Quarter"
+                name="quarter"
+                defaultValue={String(value?.quarter ?? 1)}
+                options={[1, 2, 3, 4].map((q) => ({ value: String(q), label: `Q${q}` }))}
+                error={m.fieldError('quarter')}
+              />
+            </div>
+            <TextInput
+              label="Payment date"
+              name="paymentDate"
+              type="date"
+              defaultValue={value?.paymentDate ?? ''}
+              error={m.fieldError('paymentDate')}
+            />
+            <TextInput
+              label="Amount"
+              name="amount"
+              inputMode="decimal"
+              defaultValue={value?.amount ?? ''}
+              error={m.fieldError('amount')}
+            />
+            <TextInput label="Memo" name="memo" defaultValue={value?.memo ?? ''} />
+            <div className="flex justify-end gap-2">
+              <Button type="button" variant="secondary" onClick={() => setEditing(null)}>
+                Cancel
+              </Button>
+              <Button type="submit" loading={m.busy}>
+                Save deposit
+              </Button>
+            </div>
+          </form>
+        </Dialog>
+      )}
+    </Section>
   );
 }

@@ -1103,6 +1103,17 @@ export interface PriorPayrollLinesTable {
   subject_wages: Numeric | null;
 }
 
+export interface PriorTaxDepositsTable extends Audited {
+  id: Generated<string>;
+  company_id: string;
+  agency: string;
+  tax_year: number;
+  quarter: number;
+  payment_date: DateCol;
+  amount: Numeric;
+  memo: string | null;
+}
+
 export interface TaxFilingsTable {
   id: Generated<string>;
   company_id: string;
@@ -1199,6 +1210,7 @@ export interface Database {
   payroll_liability_payments: PayrollLiabilityPaymentsTable;
   prior_payroll_entries: PriorPayrollEntriesTable;
   prior_payroll_lines: PriorPayrollLinesTable;
+  prior_tax_deposits: PriorTaxDepositsTable;
   tax_filings: TaxFilingsTable;
 }
 

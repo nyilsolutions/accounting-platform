@@ -230,7 +230,8 @@ function FutaSection({ companyId, year }: { companyId: string; year: number }) {
           ['Wages over the FUTA wage base', d.wagesOverBase],
           ['Taxable FUTA wages', d.taxableWages],
           ['FUTA tax', d.tax],
-          ['Deposits recorded', d.deposits],
+          ['Deposits', d.deposits],
+          ['…made before payroll here', d.priorDeposits],
           ['Balance due', d.balanceDue],
           ...d.quarterlyLiability.map((v, i) => [`Liability Q${i + 1}`, v] as [string, string]),
           ...d.byState.map(
