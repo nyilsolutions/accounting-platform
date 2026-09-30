@@ -1,0 +1,60 @@
+{
+  "year": 2026,
+  "state": "TX",
+  "description": "Texas payroll figures for 2026. Texas has no state personal income tax; employers pay unemployment insurance (UI) tax to the Texas Workforce Commission.",
+  "sources": [
+    {
+      "id": "twc-2026-rates",
+      "title": "Texas Workforce Commission, Your 2026 Tax Rates",
+      "revision": "page text captured 2026-09-29 and supplied 2026-09-30 (no revision date shown)",
+      "url": "https://www.twc.texas.gov/programs/unemployment-tax/your-tax-rates"
+    }
+  ],
+  "incomeTaxWithholding": {
+    "none": true,
+    "note": "Texas has no state personal income tax."
+  },
+  "unemployment": {
+    "wageBase": "9000.00",
+    "minimumRatePercent": "0.32",
+    "maximumRatePercent": "6.32",
+    "paidBy": "employer",
+    "effectiveRate": {
+      "note": "The effective rate is the sum of five components. The employer's own effective rate comes from its TWC rate notice (entered in Payroll > Setup); these components explain it and are not used to compute it.",
+      "components": {
+        "generalTaxRate": {
+          "replenishmentRatioPercent": "1.20",
+          "note": "Benefit ratio (chargebacks / taxable wages, Q4 2022 through Q3 2025 for 2026) times the replenishment ratio; 0.00% with no chargebacks."
+        },
+        "replenishmentTaxRatePercent": "0.21",
+        "obligationAssessmentRatePercent": "0.00",
+        "interestTaxRatePercent": "0.01",
+        "deficitTaxRatePercent": "0.00",
+        "employmentAndTrainingInvestmentAssessmentPercent": "0.10"
+      },
+      "check": "Minimum 0.32% = GTR 0.00 + RTR 0.21 + OA 0.00 + interest 0.01 + DTR 0.00 + ETIA 0.10."
+    },
+    "newEmployerRatePercent": null,
+    "newEmployerRateStatus": "pending",
+    "newEmployerRateNote": "The supplied page does not state the new-employer rate. Until it is sourced, a new Texas employer must enter the rate from its TWC notice.",
+    "cite": [
+      {
+        "source": "twc-2026-rates",
+        "page": null,
+        "ref": "\"You pay unemployment tax on the first $9,000 that each employee earns during the calendar year.\""
+      },
+      {
+        "source": "twc-2026-rates",
+        "page": null,
+        "ref": "\"The minimum tax rate for 2026 is 0.32 percent. The maximum tax rate for 2026 is 6.32 percent.\""
+      },
+      {
+        "source": "twc-2026-rates",
+        "page": null,
+        "ref": "Components: replenishment ratio 1.20%; RTR 0.21% (reduced by 0.10% to offset the ETIA); no Bond Obligation Assessment Rate for 2026; Interest Tax Rate 0.01%; no Deficit Tax Rate for 2026; ETIA 0.10%"
+      }
+    ]
+  },
+  "reviewedBy": null,
+  "note": "Pending sign-off. The source is page text you supplied (the TWC site blocks downloads), not the page itself."
+}

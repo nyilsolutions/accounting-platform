@@ -168,14 +168,15 @@ Add new questions here instead of guessing.
 
 ## Payroll setup (Phase 8)
 
-44. **Payroll tax data:** `tax-data/2026/federal.json` and `states/{il,ny,ca,fl}.json` are built
+44. **Payroll tax data:** `tax-data/2026/federal.json` and `states/{il,ny,ca,fl,tx}.json` are built
     from the documents you supplied and wait for your sign-off before any tax code is written.
     Still needed:
     - **New York**: Paid Family Leave 2026 rate and cap; Disability Benefits employee limit;
       Publication 420 (MCTMT rates); which table applies to IT-2104 "Married, but withhold at
       higher single rate" (expected: single);
     - **California**: the 2026 California Employer's Guide (DE 44) for income tax withholding;
-    - **Texas**: TWC 2026 taxable wage base and new-employer rate (Texas has no income tax);
+    - **Texas**: the 2026 new-employer rate (the TWC page you supplied gives the $9,000 wage base
+      and the 0.32%–6.32% range, but not the rate for new employers);
     - **Illinois**: what to withhold when no IL-W-4 is on file (IL-W-4 instructions);
     - **Roth 401(k)/403(b)**: a citation that designated Roth contributions are wages (Form W-2
       instructions or Pub. 525);
