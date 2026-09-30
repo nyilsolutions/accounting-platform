@@ -378,6 +378,50 @@ export function trialBalance(
   return { rows, totalDebit, totalCredit };
 }
 
+/**
+ * Adjusted trial balance: for each account, the trial balance before adjusting entries, the
+ * adjusting entries, and after them, each in debit and credit columns (so each pair balances).
+ */
+export function adjustedTrialBalance(
+  accounts: ReportAccount[],
+  sets: [Map<string, Money>, Map<string, Money>, Map<string, Money>],
+  priorYearsIncome: [Money, Money, Money],
+  opts: LayoutOptions,
+): ReportRow[] {
+  const re = accounts.find((a) => a.system_role === 'retained_earnings');
+  const adjusted = sets.map((net, i) => {
+    const m = new Map(net);
+    if (re) m.set(re.id, (m.get(re.id) ?? 0n) - priorYearsIncome[i]!);
+    return m;
+  });
+  const totals = [0n, 0n, 0n, 0n, 0n, 0n];
+  const cellsOf = (vs: Money[]) =>
+    vs.flatMap((v, i) => {
+      if (v > 0n) totals[i * 2]! += v;
+      if (v < 0n) totals[i * 2 + 1]! += -v;
+      return v > 0n ? [fmt(v), null] : v < 0n ? [null, fmt(-v)] : [null, null];
+    });
+  const rows: ReportRow[] = [];
+  for (const { account, fullName } of accountRowsFlat(accounts, opts)) {
+    const vs = adjusted.map((m) => m.get(account.id) ?? 0n);
+    if (vs.every((v) => v === 0n)) continue;
+    rows.push({
+      kind: 'account',
+      label: label({ ...account, name: fullName }, opts),
+      depth: 0,
+      accountId: account.id,
+      amounts: cellsOf(vs),
+    });
+  }
+  if (!re) {
+    const vs = priorYearsIncome.map((p) => -p);
+    if (vs.some((v) => v !== 0n))
+      rows.push({ kind: 'calculated', label: 'Retained Earnings', depth: 0, amounts: cellsOf(vs) });
+  }
+  rows.push({ kind: 'grand_total', label: 'TOTAL', depth: 0, amounts: totals.map(fmt) });
+  return rows;
+}
+
 /** Accounts in chart-of-accounts order (by type, then number/name, parents before children). */
 export function accountRowsFlat(
   accounts: ReportAccount[],

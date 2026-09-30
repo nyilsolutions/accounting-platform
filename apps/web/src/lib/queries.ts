@@ -84,6 +84,8 @@ export const keys = {
   time: (id: string) => ['company', id, 'time'] as const,
   /** Multi-currency: settings, currencies, rates and revaluations. */
   currencies: (id: string) => ['company', id, 'currencies'] as const,
+  /** Accountant tools: close checklist, client changes, reclassify, write-offs. */
+  accountant: (id: string) => ['company', id, 'accountant'] as const,
 };
 
 /** Invalidates everything derived from the ledger (balances, lists of entries, reports). */

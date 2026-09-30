@@ -128,6 +128,37 @@ export interface PostingContext {
   closingPassword?: string;
 }
 
+/** A stored journal line as a PostingLine (to copy it into a new version). */
+function rowToLine(r: {
+  account_id: string;
+  debit: string;
+  credit: string;
+  description: string | null;
+  customer_id: string | null;
+  vendor_id: string | null;
+  class_id: string | null;
+  location_id: string | null;
+  role: string | null;
+  foreign_debit: string | null;
+  foreign_credit: string | null;
+}): PostingLine {
+  return {
+    accountId: r.account_id,
+    debit: parseMoney(r.debit),
+    credit: parseMoney(r.credit),
+    description: r.description,
+    customerId: r.customer_id,
+    vendorId: r.vendor_id,
+    classId: r.class_id,
+    locationId: r.location_id,
+    role: (r.role as 'inventory' | null) ?? null,
+    foreign:
+      r.foreign_debit !== null
+        ? { debit: parseMoney(r.foreign_debit), credit: parseMoney(r.foreign_credit ?? '0') }
+        : null,
+  };
+}
+
 /**
  * The single path by which anything reaches the general ledger. Every future document type
  * (invoices, bills, checks, paychecks…) turns itself into a header plus balanced lines and calls
@@ -238,21 +269,7 @@ export class PostingService {
       .where('version', '=', current.version)
       .orderBy('line_no')
       .execute();
-    const toLine = (r: (typeof existing)[number]): PostingLine => ({
-      accountId: r.account_id,
-      debit: parseMoney(r.debit),
-      credit: parseMoney(r.credit),
-      description: r.description,
-      customerId: r.customer_id,
-      vendorId: r.vendor_id,
-      classId: r.class_id,
-      locationId: r.location_id,
-      role: (r.role as 'inventory' | null) ?? null,
-      foreign:
-        r.foreign_debit !== null
-          ? { debit: parseMoney(r.foreign_debit), credit: parseMoney(r.foreign_credit ?? '0') }
-          : null,
-    });
+    const toLine = rowToLine;
     const key = (l: PostingLine) =>
       [l.accountId, l.debit, l.credit, l.customerId, l.vendorId, l.classId, l.locationId].join('|');
     const before = existing.filter((r) => r.role === role).map(toLine);
@@ -274,6 +291,48 @@ export class PostingService {
       ...after,
     ]);
     return true;
+  }
+
+  /**
+   * Moves lines of a posted transaction to another account and/or class, as a new version with
+   * every amount unchanged (reclassify, ADR 0021). The caller decides which lines may move and
+   * keeps any document detail in step. The closing date still applies.
+   */
+  async reclassifyLines(
+    tx: Tx,
+    ctx: PostingContext,
+    txnId: string,
+    changes: Map<number, { accountId?: string; classId?: string | null }>,
+  ): Promise<void> {
+    const current = await this.lockTransaction(tx, ctx.companyId, txnId);
+    if (current.status !== 'posted')
+      throw new ConflictException(`A ${current.status} transaction cannot be reclassified`);
+    const existing = await tx
+      .selectFrom('journal_lines')
+      .selectAll()
+      .where('transaction_id', '=', txnId)
+      .where('version', '=', current.version)
+      .orderBy('line_no')
+      .execute();
+    const lines = existing.map((r) => {
+      const l = rowToLine(r);
+      const c = changes.get(r.line_no);
+      if (!c) return l;
+      return {
+        ...l,
+        accountId: c.accountId ?? l.accountId,
+        classId: c.classId === undefined ? l.classId : c.classId,
+      };
+    });
+    await this.validateLines(tx, ctx.companyId, lines);
+    await this.guardClosingDate(tx, ctx, [current.txn_date]);
+    const version = current.version + 1;
+    await tx
+      .updateTable('transactions')
+      .set({ version, updated_by: ctx.userId })
+      .where('id', '=', txnId)
+      .execute();
+    await this.insertLines(tx, ctx.companyId, txnId, version, current.txn_date, lines);
   }
 
   /** Voids (keeps the record, removes it from balances) or deletes (hides it) a transaction. */

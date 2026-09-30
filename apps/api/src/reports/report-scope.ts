@@ -32,6 +32,8 @@ export type Basis = 'accrual' | 'cash';
 
 export interface NetFilter extends CashFilter {
   basis?: Basis;
+  /** Only adjusting entries (true), or everything but them (false). */
+  adjusting?: boolean;
 }
 
 export async function loadScope(tx: Tx, companyId: string, userId: string): Promise<ReportScope> {
@@ -77,10 +79,12 @@ export async function ledgerNet(
       ${dimension('l.location_id', f.locationId)}
       ${dimension('l.customer_id', f.customerId)}
       ${dimension('l.vendor_id', f.vendorId)}
+      ${f.adjusting !== undefined ? sql`and t.is_adjusting = ${f.adjusting}` : sql``}
       ${cash ? sql`and t.txn_type not in (${sql.join([...ACCRUAL_ONLY_TYPES])})` : sql``}
     group by l.account_id`.execute(tx);
   const out = new Map(rows.rows.map((r) => [r.account_id, parseMoney(r.net)]));
-  if (cash) {
+  // Recognitions come from documents and payments, which are never adjusting entries.
+  if (cash && f.adjusting !== true) {
     for (const [accountId, v] of await cashRecognition(tx, companyId, f)) {
       out.set(accountId, (out.get(accountId) ?? 0n) + v);
     }

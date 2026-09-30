@@ -184,6 +184,7 @@ export const ACCOUNT_TYPE_INFO: Record<AccountType, AccountTypeInfo> = {
     detailTypes: [
       'Advertising/Promotional',
       'Auto',
+      'Bad Debts',
       'Bank Charges',
       'Dues & Subscriptions',
       'Entertainment Meals',
