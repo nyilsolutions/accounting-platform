@@ -4,8 +4,9 @@ import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useState, type FormEvent } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { formatMoney, type VendorBalanceDto, type VendorDto } from '@acct/shared';
+import { formatCurrency, formatMoney, type VendorBalanceDto, type VendorDto } from '@acct/shared';
 import { AccountSelect } from '@/components/ledger/pickers';
+import { PartyCurrencyField } from '@/components/currency/currency-fields';
 import { ContactFields, contactFromForm } from '@/components/lists/contact-fields';
 import { ListTable } from '@/components/lists/list-table';
 import {
@@ -50,9 +51,7 @@ export default function VendorsPage() {
     enabled: access.can('purchases.view'),
   });
   const balances = new Map(
-    (balanceQuery.data ?? [])
-      .filter((b) => b.openBalance !== '0.00')
-      .map((b) => [b.vendorId, b.openBalance]),
+    (balanceQuery.data ?? []).filter((b) => b.openBalance !== '0.00').map((b) => [b.vendorId, b]),
   );
 
   if (vendors.isPending) return <Spinner />;
@@ -88,6 +87,7 @@ export default function VendorsPage() {
         : {}),
       defaultExpenseAccountId: String(f.get('defaultExpenseAccountId') ?? '') || null,
       ...contactFromForm(f),
+      ...(f.has('currency') ? { currency: String(f.get('currency')) } : {}),
     };
     setError(null);
     try {
@@ -154,7 +154,10 @@ export default function VendorsPage() {
             className: 'text-right tabular-nums',
             cell: (v) => {
               const b = balances.get(v.id);
-              return b ? formatMoney(b) : '';
+              if (!b) return '';
+              return b.currency
+                ? formatCurrency(b.openBalance, b.currency)
+                : formatMoney(b.openBalance);
             },
           },
         ]}
@@ -187,6 +190,11 @@ export default function VendorsPage() {
             />
           </div>
           <ContactFields initial={current} terms={terms.data ?? []} error={error} />
+          <PartyCurrencyField
+            companyId={companyId}
+            current={current?.currency}
+            error={error?.fieldError('currency')}
+          />
           <Field label="Default expense account" htmlFor="defaultExpenseAccountId">
             <AccountSelect
               id="defaultExpenseAccountId"

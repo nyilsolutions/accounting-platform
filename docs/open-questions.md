@@ -302,3 +302,25 @@ Add new questions here instead of guessing.
     - transactions before the cut-over stay as QuickBooks posted them.
 
     See ADR 0018 and migration 0019.
+
+## Multi-currency (Phase 10c)
+
+62. **Foreign-currency bank and credit card accounts:** decided 2026-09-30. They come in a
+    follow-up part (10c-2): bank and card accounts in a currency, their registers and
+    reconciliation in it, and transfers between currencies. In 10c, money for foreign-currency
+    customers and vendors moves through US dollar accounts at the day's rate.
+63. **Sales tax on foreign-currency invoices:** open. US sales tax can apply to a customer billed
+    in another currency (for example, a Canadian company taking delivery in New York). 10c
+    refuses a tax rate on foreign-currency documents rather than guess. The options:
+    - **(a) Recommended:** calculate the tax in the document's currency, record each agency's
+      tax in US dollars at the document's rate (so the liability report ties to Sales Tax
+      Payable), and show both on the invoice.
+    - **(b)** Keep refusing: such sales are invoiced in US dollars.
+64. **QuickBooks companies with multi-currency on:** open. The QuickBooks import reads document
+    amounts as US dollars. For a QuickBooks company with foreign-currency customers or vendors,
+    those amounts are in the other currency. The tie-out's true-ups keep the books equal to
+    QuickBooks', but the subledger would be wrong. The options:
+    - **(a) Recommended:** once a sample multi-currency company file or export is available,
+      map QuickBooks' currencies, rates and home amounts onto 10c's model.
+    - **(b)** Until then, refuse to import a multi-currency QuickBooks company, with a clear
+      message.

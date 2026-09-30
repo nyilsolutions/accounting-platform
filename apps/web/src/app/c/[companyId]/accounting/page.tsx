@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { ACCOUNT_TYPE_INFO, formatMoney, type AccountDto } from '@acct/shared';
+import { ACCOUNT_TYPE_INFO, formatCurrency, formatMoney, type AccountDto } from '@acct/shared';
 import { AccountForm } from '@/components/ledger/account-form';
 import { Alert, Badge, Button, Card, Dialog, Spinner } from '@/components/ui';
 import { api, errorMessage } from '@/lib/api';
@@ -126,6 +126,11 @@ export default function ChartOfAccountsPage() {
                   <td className="px-4 py-2 text-gray-600">{a.detailType}</td>
                   <td className="px-4 py-2 text-right tabular-nums">
                     {a.balance !== null ? formatMoney(a.balance) : ''}
+                    {a.foreignBalance !== null && (
+                      <div className="text-xs text-gray-500">
+                        {formatCurrency(a.foreignBalance, a.currency)}
+                      </div>
+                    )}
                   </td>
                   <td className="whitespace-nowrap px-4 py-2 text-right">
                     {canReport && (

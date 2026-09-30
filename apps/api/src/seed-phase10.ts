@@ -8,12 +8,20 @@ import {
   timesheetInputSchema,
   weekOf,
   inventoryBuildInputSchema,
+  billPaymentInputSchema,
+  customerInputSchema,
   itemInputSchema,
+  paymentInputSchema,
   PERMISSIONS,
+  vendorInputSchema,
   purchaseDocumentInputSchema,
   salesDocumentInputSchema,
 } from '@acct/shared';
 import { AppModule } from './app.module';
+import { CurrencyService } from './currency/currency.service';
+import { CustomersService, VendorsService } from './lists/customers-vendors.service';
+import { PaymentsService } from './sales/payments.service';
+import { BillPaymentsService } from './purchases/bill-payments.service';
 import type { AuthContext, CompanyContext, RequestMeta } from './common/request';
 import type { AppConfig } from './config';
 import { InventoryDocumentsService } from './inventory/inventory-documents.service';
@@ -368,6 +376,176 @@ export async function seedPhase10b(
       ctx,
       estimate.id,
       progressInvoiceSchema.parse({ txnDate: `${year}-09-10`, mode: 'percent', percent: '40' }),
+      meta,
+    );
+  } finally {
+    await app.close();
+  }
+}
+
+/**
+ * Demo of Phase 10c multi-currency in Sample Landscaping Co. (multi-currency on, CAD and EUR):
+ * - rates for the end of August and through September;
+ * - Maple Leaf Gardens Ltd. (Canadian dollars): two September invoices, the first paid at a
+ *   better rate (a realized gain), the second open;
+ * - Hortus Seeds B.V. (euros): a bill for bulbs, paid at a worse rate (a realized loss).
+ * Revaluing at September 30 then shows the open Canadian invoice's unrealized gain or loss.
+ */
+export async function seedPhase10c(
+  db: Db,
+  config: AppConfig,
+  userId: string,
+  companyId: string,
+): Promise<void> {
+  const lookup = await withTenant(db, { userId, companyId }, async (tx) => ({
+    done: await tx
+      .selectFrom('company_currencies')
+      .select('currency')
+      .where('company_id', '=', companyId)
+      .executeTakeFirst(),
+    accounts: await tx
+      .selectFrom('accounts')
+      .select(['id', 'name'])
+      .where('company_id', '=', companyId)
+      .execute(),
+    lawn: await tx
+      .selectFrom('items')
+      .select('id')
+      .where('company_id', '=', companyId)
+      .where('name', '=', 'Weekly lawn service')
+      .executeTakeFirst(),
+  }));
+  if (lookup.done || !lookup.lawn) return;
+  const acct = (name: string) => lookup.accounts.find((a) => a.name === name)!.id;
+
+  const app = await NestFactory.createApplicationContext(
+    AppModule.forRoot({ ...config, REPORT_SCHEDULER: 'off' }),
+    { logger: ['error'] },
+  );
+  try {
+    const auth: AuthContext = {
+      sessionId: 'seed',
+      userId,
+      email: 'demo@example.com',
+      fullName: 'Demo Owner',
+      mfaEnrolled: true,
+      mfaVerified: true,
+    };
+    const ctx: CompanyContext = { companyId, role: 'owner', permissions: PERMISSIONS };
+    const meta: RequestMeta = { ip: null, userAgent: 'seed', requestId: null };
+    const year = new Date().getFullYear();
+    const currencies = app.get(CurrencyService);
+    await currencies.enable(auth, ctx, meta);
+    await currencies.addCurrency(auth, ctx, 'CAD', meta);
+    await currencies.addCurrency(auth, ctx, 'EUR', meta);
+    // Illustrative rates (US dollars per unit), entered by hand.
+    const rates: Array<[string, string, string]> = [
+      ['CAD', `${year}-08-31`, '0.7310'],
+      ['CAD', `${year}-09-15`, '0.7385'],
+      ['CAD', `${year}-09-30`, '0.7342'],
+      ['EUR', `${year}-08-31`, '1.0820'],
+      ['EUR', `${year}-09-15`, '1.0905'],
+      ['EUR', `${year}-09-30`, '1.0870'],
+    ];
+    for (const [currency, rateDate, rate] of rates)
+      await currencies.saveRate(auth, ctx, { currency, rateDate, rate }, meta);
+
+    const maple = await app.get(CustomersService).save(
+      auth,
+      ctx,
+      null,
+      customerInputSchema.parse({
+        displayName: 'Maple Leaf Gardens Ltd.',
+        companyName: 'Maple Leaf Gardens Ltd.',
+        city: 'Windsor',
+        state: null,
+        currency: 'CAD',
+      }),
+      meta,
+    );
+    const hortus = await app.get(VendorsService).save(
+      auth,
+      ctx,
+      null,
+      vendorInputSchema.parse({
+        displayName: 'Hortus Seeds B.V.',
+        companyName: 'Hortus Seeds B.V.',
+        currency: 'EUR',
+      }),
+      meta,
+    );
+
+    const sales = app.get(SalesDocumentsService);
+    const invoice = (date: string, number: string, amount: string) =>
+      sales.save(
+        auth,
+        ctx,
+        'invoice',
+        null,
+        salesDocumentInputSchema.parse({
+          customerId: maple.id,
+          txnDate: date,
+          number,
+          lines: [
+            {
+              itemId: lookup.lawn!.id,
+              description: 'Grounds maintenance, Windsor site',
+              amount,
+            },
+          ],
+        }),
+        meta,
+      );
+    const first = await invoice(`${year}-09-01`, 'CA-1001', '2400');
+    await invoice(`${year}-09-16`, 'CA-1002', '1850');
+    await app.get(PaymentsService).save(
+      auth,
+      ctx,
+      null,
+      paymentInputSchema.parse({
+        customerId: maple.id,
+        txnDate: `${year}-09-20`,
+        amount: '2400',
+        exchangeRate: '0.7402',
+        depositAccountId: acct('Checking'),
+        reference: 'EFT 55821',
+        applications: [{ targetId: first.id, amount: '2400' }],
+      }),
+      meta,
+    );
+
+    const purchases = app.get(PurchaseDocumentsService);
+    const bill = await purchases.save(
+      auth,
+      ctx,
+      'bill',
+      null,
+      purchaseDocumentInputSchema.parse({
+        vendorId: hortus.id,
+        txnDate: `${year}-09-02`,
+        number: 'HS-3391',
+        lines: [
+          {
+            accountId: acct('Cost of Goods Sold'),
+            description: 'Tulip bulbs, 20 crates',
+            amount: '1500',
+          },
+        ],
+      }),
+      meta,
+    );
+    await app.get(BillPaymentsService).save(
+      auth,
+      ctx,
+      null,
+      billPaymentInputSchema.parse({
+        vendorId: hortus.id,
+        txnDate: `${year}-09-25`,
+        paymentAccountId: acct('Checking'),
+        number: 'WIRE-0925',
+        exchangeRate: '1.0935',
+        applications: [{ targetId: bill.id, amount: '1500' }],
+      }),
       meta,
     );
   } finally {

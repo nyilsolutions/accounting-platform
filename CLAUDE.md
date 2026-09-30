@@ -52,7 +52,10 @@ A single package: `pnpm --filter @acct/api test`, `pnpm --filter @acct/db test`,
   `InventoryService` for movements and recosting, adjustments, builds and starting values in
   `inventory-documents.service.ts`, reports in `reports/inventory-reports.ts`), time (entries,
   weekly timesheets and approvals in `time/time.service.ts`; progress invoicing in
-  `sales/progress.ts`; reports in `reports/time-reports.ts`).
+  `sales/progress.ts`; reports in `reports/time-reports.ts`), currency (settings, currencies and
+  rates in `currency.service.ts`, the European Central Bank behind `ExchangeRateProvider` in
+  `currency/rates-provider.ts`, document helpers in `currency/fx.ts`, revaluation in
+  `revaluation.service.ts`).
   The A/R and A/P subledgers share one engine: `ledger/subledger.ts`.
 - `apps/desktop-agent`: QuickBooks Desktop migration agent (C#/.NET 8; `Core` is portable and
   tested on Linux with `dotnet test`, `Windows` is the WinForms wizard and QBXMLRP2 session).
@@ -168,6 +171,17 @@ A single package: `pnpm --filter @acct/api test`, `pnpm --filter @acct/db test`,
   employee's manager. What an estimate line has invoiced is always computed from posted invoice
   lines (`estimate_id`, `estimate_line_no`); call `refreshEstimate` after anything that changes
   them.
+- Multi-currency (ADR 0020): the home currency is US dollars and journal lines are always in
+  dollars. A foreign-currency document keeps its amounts in the party's currency
+  (`transactions.total`, `currency`, `exchange_rate`, `home_total`) and converts line by line
+  (`toHome`); its control line (A/R or A/P in the currency) is the sum of the converted lines and
+  carries `foreign_debit`/`foreign_credit`. Get the currency and rate with `documentCurrency` and
+  the control account with `controlAccount` (`currency/fx.ts`), never `systemAccount`, for A/R
+  and A/P. Payment applications of foreign payments store `home_amount` (`relievedHome`); the
+  difference from the money moved is the realized gain or loss. Anything that reads document
+  totals as money in the books uses `home_total` (or `round(amount * exchange_rate, 2)` per
+  line). Open items must tie to each control account in dollars and in the currency (tests
+  check both). Rates are exact (`parseRate`), never numbers.
 - Database errors map to HTTP in `common/pg-error.filter.ts`; add friendly messages for new unique
   indexes there.
 
@@ -183,6 +197,6 @@ A single package: `pnpm --filter @acct/api test`, `pnpm --filter @acct/db test`,
 - [x] Phase 7: Reports suite, sales tax, budgets (columns/comparisons, cash flow, detail reports, custom builder, PDF/Excel/CSV, memorized + scheduled, sales tax, budgets)
 - [x] Phase 8: Payroll core (setup, employees, tax engine with golden tests, pay runs, pay stubs, direct deposit, liabilities + EFTPS, payroll reports; tax data owner-approved, awaiting professional review)
 - [ ] Phase 9: Payroll and 1099 tax forms (part 1 done: prior payroll, W-2/W-3 figures, quarterly and FUTA summaries, state reports, filings; official PDFs, EFW2, 1099/IRIS and state layouts wait on documents)
-- [ ] Phase 10: Advanced, in six parts (10a inventory done: items and assemblies, FIFO/average costing with backdated recosting, no negative stock, adjustments, builds, valuation and stock status reports, QuickBooks cut-over; 10b time tracking done: timesheets, approvals, paychecks and invoices from approved time, progress invoicing; next multi-currency, accountant tools, Stripe payments, portals)
+- [ ] Phase 10: Advanced, in six parts (10a inventory done: items and assemblies, FIFO/average costing with backdated recosting, no negative stock, adjustments, builds, valuation and stock status reports, QuickBooks cut-over; 10b time tracking done: timesheets, approvals, paychecks and invoices from approved time, progress invoicing; 10c multi-currency done: foreign-currency customers, vendors, documents and payments, rates by hand or from the ECB, realized and unrealized gains and losses; next accountant tools, Stripe payments, portals)
 - [ ] Phase 11: E-file and partners
 - [ ] Phase 12: Hardening and launch

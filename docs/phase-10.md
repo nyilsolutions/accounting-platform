@@ -6,7 +6,7 @@ Phase 10 comes in six parts, each its own pull request, in this order (decided 2
 | ---- | --------------------------------------------- | ------- |
 | 10a  | Inventory                                     | This PR |
 | 10b  | Time tracking and progress invoicing          | This PR |
-| 10c  | Multi-currency                                | Planned |
+| 10c  | Multi-currency                                | This PR |
 | 10d  | Accountant tools                              | Planned |
 | 10e  | Card and bank payments through Stripe Connect | Planned |
 | 10f  | Customer, employee and contractor portals     | Planned |
@@ -154,3 +154,76 @@ Screenshots: `docs/screenshots/104-timesheet.png`, `105-approve-time.png`,
 - Overtime calculated from hours worked (FLSA weekly, California daily): time is paid as the
   payroll item it was entered as.
 - A start/stop timer, billable expenses, and time entry by employees themselves (portals, 10f).
+
+## 10c: Multi-currency (ADR 0020)
+
+### Delivered
+
+- **Company settings › Currencies:**
+  - turn on multi-currency (it can't be turned off; the home currency stays US dollars);
+  - add currencies, each with its own Accounts Receivable and Accounts Payable account;
+  - Exchange Gain or Loss is created.
+- **Accounting › Currencies**, exchange rates in US dollars per unit:
+  - entered by hand for a date;
+  - or **Get today's rates from the European Central Bank**, which keeps any rate entered by
+    hand for that date.
+- **Customers and vendors** have a currency. It can't change once they have transactions.
+- **Documents** in the party's currency:
+  - invoices, sales receipts, credit memos, refund receipts, bills, vendor credits, checks and
+    expenses;
+  - the exchange rate comes from the rate on file for the date, or is typed on the document;
+  - the form shows the US dollar value;
+  - each line posts in US dollars to the currency's A/R or A/P.
+- **Payments and bill payments** in the party's currency, at the payment's rate:
+  - what each invoice or bill is worth at its own rate is relieved;
+  - the difference is the **realized exchange gain or loss**, shown on the payment.
+- **Money moves in dollars:**
+  - deposits take foreign payments at their US dollar value;
+  - checks print the dollars paid;
+  - pay bills uses the rate on file for the payment date.
+- **Balances in the party's currency:**
+  - customer and vendor lists show balances in their currency, with the US dollar value;
+  - statements are in the customer's currency;
+  - the chart of accounts shows A/R and A/P (currency) in the currency too.
+- **Reports stay in US dollars:** P&L, balance sheet, aging, sales by customer and item,
+  expenses by vendor, and the cash basis (which recognizes a paid invoice at its rate plus the
+  gain or loss).
+- **Revalue currencies:**
+  - previews each party's open foreign balance at a date's rate against its value in the books;
+  - posts the unrealized gain or loss to Exchange Gain or Loss;
+  - reverses it the next day;
+  - voiding it voids both.
+
+### Demo script
+
+1. In Sample Landscaping Co., open **Company settings › Currencies**: CAD and EUR, with rates for
+   late August and September.
+2. **Accounting › Currencies**: the rates.
+   - **Get today's rates from the European Central Bank** needs network access to the ECB.
+3. **Maple Leaf Gardens Ltd.** (Canadian dollars):
+   - invoice CA-1001 for C$2,400.00 at 0.7310 ($1,754.40), paid at 0.7402 ($1,776.48): a
+     $22.08 gain on the payment;
+   - CA-1002 for C$1,850.00 is open.
+4. **Hortus Seeds B.V.** (euros): bill HS-3391 for €1,500.00 at 1.0820 ($1,623.00), paid at
+   1.0935 ($1,640.25): a $17.25 loss.
+5. **Revalue currencies** as of September 30: CA-1002 at 0.7342, a small loss.
+   - Post it, then look at the balance sheet on September 30 and October 1.
+
+Screenshots: `docs/screenshots/107-exchange-rates.png`, `108-foreign-invoice.png`,
+`109-revaluation.png`.
+
+### Tests
+
+| Suite                   | Count | Highlights                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| ----------------------- | ----- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `packages/db`           | 97    | +6: multi-currency can't be turned off, currency codes, one positive rate per currency and date, foreign currencies only on one A/R and A/P each and never changed, a rate with every currency, isolation by company                                                                                                                                                                                                                                                                                                                                                                                                       |
+| `packages/shared`       | 153   | +7: exact rates, conversion to the cent (with a property test against exact arithmetic), shares of a document's value, ECB cross rates, formatting, schemas                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| `apps/api`              | 509   | +20. **ECB (fixtures, no network):** daily and 90-day files, cross rates, weekends, failures. **End to end:** turning on and adding currencies; rates by hand, by lookup and from the feed (hand-entered kept); party currencies fixed once used; invoices booked line by line; realized gains on full, partial and over-payments, credit memos and bills; voiding a payment; balances, statements and aging; deposits in dollars; journal entries refused; sales tax refused; revaluation and its reversal; the cash basis; checks in dollars; a property test keeping every control account tied in dollars and in euros |
+| `apps/web` (Playwright) | 15    | +1: turn on multi-currency, add EUR, enter a rate, a euro customer, an invoice with the rate filled in and its dollar value, a payment at a better rate with its $15 gain, a month-end revaluation, the chart of accounts in euros                                                                                                                                                                                                                                                                                                                                                                                         |
+
+### Not in this part
+
+- Foreign-currency bank and credit card accounts and transfers between currencies (10c-2,
+  question 62).
+- Sales tax on foreign-currency documents (question 63).
+- Importing QuickBooks companies with multi-currency on (question 64).

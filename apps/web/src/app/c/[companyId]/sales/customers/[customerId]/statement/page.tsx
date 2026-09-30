@@ -4,7 +4,14 @@ import Link from 'next/link';
 import { useParams, useSearchParams } from 'next/navigation';
 import { Suspense } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { addDays, formatDate, formatMoney, todayIso, type StatementDto } from '@acct/shared';
+import {
+  addDays,
+  currencyInfo,
+  formatDate,
+  formatMoney,
+  todayIso,
+  type StatementDto,
+} from '@acct/shared';
 import { Alert, Button, Card, Spinner } from '@/components/ui';
 import { api, errorMessage } from '@/lib/api';
 import { txnHref } from '@/lib/links';
@@ -62,6 +69,11 @@ function Statement() {
             <div className="mt-1 text-gray-600">
               {formatDate(s.from)} – {formatDate(s.to)}
             </div>
+            {s.currency && (
+              <div className="mt-1 text-gray-600" data-testid="statement-currency">
+                Amounts in {currencyInfo(s.currency).name} ({s.currency})
+              </div>
+            )}
           </div>
         </div>
         <div className="mt-6">

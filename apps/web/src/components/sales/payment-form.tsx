@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
+  formatCurrency,
   formatDate,
   formatMoney,
   moneyToString,
@@ -14,6 +15,7 @@ import {
   type PaymentDto,
   type PaymentInput,
 } from '@acct/shared';
+import { ExchangeRateField } from '@/components/currency/currency-fields';
 import { AccountSelect, OptionSelect } from '@/components/ledger/pickers';
 import { Alert, Button, cx } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
@@ -58,6 +60,7 @@ export function PaymentForm({
     initial?.depositAccountId ?? undeposited?.id ?? '',
   );
   const [memo, setMemo] = useState(initial?.memo ?? '');
+  const [exchangeRate, setExchangeRate] = useState(initial?.exchangeRate ?? '');
   const [applied, setApplied] = useState<Record<string, string>>(() =>
     Object.fromEntries((initial?.applications ?? []).map((a) => [a.txnId, a.amount])),
   );
@@ -88,6 +91,9 @@ export function PaymentForm({
     }
   }, [open.data, defaultInvoiceId]);
 
+  // Foreign-currency customers (ADR 0020): amounts are in their currency.
+  const currency =
+    lookups.customers.find((c) => c.id === customerId)?.currency ?? initial?.currency ?? null;
   const invoicesPaid = invoices.reduce((s, i) => s + amt(applied[i.id]), 0n);
   const creditsUsed = credits.reduce((s, i) => s + amt(applied[i.id]), 0n);
   const received = amt(amount);
@@ -148,6 +154,7 @@ export function PaymentForm({
           reference,
           depositAccountId: depositAccountId || null,
           memo,
+          exchangeRate: currency ? exchangeRate.trim() || null : null,
           applications: Object.entries(applied)
             .filter(([, v]) => amt(v) > 0n)
             .map(([targetId, v]) => ({ targetId, amount: moneyToString(amt(v)) })),
@@ -181,8 +188,12 @@ export function PaymentForm({
               <th className="w-10 px-3 py-2" />
               <th className="px-3 py-2">Description</th>
               <th className="px-3 py-2">Due date</th>
-              <th className="px-3 py-2 text-right">Original amount</th>
-              <th className="px-3 py-2 text-right">Open balance</th>
+              <th className="px-3 py-2 text-right">
+                Original amount{currency ? ` (${currency})` : ''}
+              </th>
+              <th className="px-3 py-2 text-right">
+                Open balance{currency ? ` (${currency})` : ''}
+              </th>
               <th className="w-36 px-3 py-2 text-right">Payment</th>
             </tr>
           </thead>
@@ -327,6 +338,19 @@ export function PaymentForm({
               title={fieldError('depositAccountId')}
             />
           </label>
+          {currency && (
+            <div className="md:col-span-2">
+              <ExchangeRateField
+                companyId={companyId}
+                currency={currency}
+                date={txnDate}
+                value={exchangeRate}
+                onChange={setExchangeRate}
+                amount={amount}
+                error={fieldError('exchangeRate')}
+              />
+            </div>
+          )}
         </div>
 
         {customerId && open.isSuccess && (
@@ -374,6 +398,20 @@ export function PaymentForm({
                 <dt>Unapplied (saved)</dt>
                 <dd className="tabular-nums">{formatMoney(initial.unapplied)}</dd>
               </div>
+            )}
+            {initial?.homeAmount && (
+              <>
+                <div className="flex justify-between text-gray-600">
+                  <dt>Received in US dollars</dt>
+                  <dd className="tabular-nums">{formatCurrency(initial.homeAmount, null)}</dd>
+                </div>
+                <div className="flex justify-between text-gray-600">
+                  <dt>Exchange gain (loss)</dt>
+                  <dd className="tabular-nums" data-testid="exchange-gain-loss">
+                    {formatCurrency(initial.exchangeGainLoss ?? '0', null)}
+                  </dd>
+                </div>
+              </>
             )}
           </dl>
         </div>

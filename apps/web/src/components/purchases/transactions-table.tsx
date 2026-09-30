@@ -6,6 +6,7 @@ import { useState } from 'react';
 import { useInfiniteQuery } from '@tanstack/react-query';
 import {
   formatDate,
+  formatCurrency,
   formatMoney,
   TXN_TYPE_LABELS,
   type PurchaseTransactionPageDto,
@@ -154,10 +155,14 @@ export function PurchaseTransactionsTable({
                     <td className="px-4 py-2">{t.dueDate ? formatDate(t.dueDate) : ''}</td>
                     <td className="px-4 py-2 text-right tabular-nums">
                       {t.txnType === 'bill' || t.txnType === 'vendor_credit'
-                        ? formatMoney(t.balance)
+                        ? t.currency
+                          ? formatCurrency(t.balance, t.currency)
+                          : formatMoney(t.balance)
                         : ''}
                     </td>
-                    <td className="px-4 py-2 text-right tabular-nums">{formatMoney(t.total)}</td>
+                    <td className="px-4 py-2 text-right tabular-nums">
+                      {t.currency ? formatCurrency(t.total, t.currency) : formatMoney(t.total)}
+                    </td>
                     <td className="px-4 py-2">
                       <PaymentStatusBadge status={t.paymentStatus} />
                     </td>
