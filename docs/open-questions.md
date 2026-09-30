@@ -229,11 +229,9 @@ Add new questions here instead of guessing.
 
 ## Pay runs (Phase 8, part 2)
 
-51. **Pay before payroll starts here:** wage bases and caps (social security, FUTA, state
-    unemployment, Paid Family Leave, 401(k) limits) use year-to-date wages from paychecks posted
-    here. A company that starts mid-year needs its earlier 2026 pay entered. Should we add a
-    "prior payroll" entry (year-to-date totals per employee as of the start date), or import it
-    from QuickBooks (Phase 6 doesn't carry paychecks)?
+51. **Pay before payroll starts here:** decided 2026-09-30. Payroll › Tax forms › Prior payroll
+    takes totals per employee and pay date before the first payroll here; wage bases, limits and
+    the tax forms include them (ADR 0017). Importing them from QuickBooks is not built.
 52. **Garnishment limits:** a garnishment is taken as entered, up to its total owed. The Consumer
     Credit Protection Act caps most garnishments at a share of disposable earnings (and child
     support at 50–65%), and states have their own limits. Should payroll enforce them? If so, the
@@ -260,3 +258,34 @@ Add new questions here instead of guessing.
 56. **Florida company HSA contributions:** decided 2026-09-30. The item is split into "HSA
     (company contribution through the cafeteria plan)", excluded from Florida reemployment wages,
     and "HSA (company contribution outside a cafeteria plan)", which counts.
+
+## Payroll tax forms (Phase 9)
+
+57. **Documents for the forms themselves** (the IRS, SSA and state sites are blocked here):
+    - Forms 941 with Schedule B, 944, and 940 with Schedule A: the 2026 fillable PDFs and their
+      instructions, to fill them line by line;
+    - Forms W-2 and W-3: the 2026 fillable PDFs (employee copies) and SSA Publication 42-007
+      (EFW2) for the SSA upload file;
+    - Forms 1099-NEC, 1099-MISC and 1096 with their instructions, and IRS Publication 5717 with
+      the 2026 IRIS schemas;
+    - the state returns and their instructions: IL-941, IDES UI-3/40, NYS-45, DE 9 and DE 9C,
+      Texas C-3, Florida RT-6.
+58. **Readings in the W-2 figures, for the CPA to confirm:**
+    - **Code TP (tips):** payroll counts card tips paid through payroll as well as cash tips
+      reported by the employee;
+    - **Code TT (qualified overtime):** the half-time premium of overtime items for non-exempt
+      employees, amount × min(M − 1, 0.5) ÷ M; double time isn't counted;
+    - **Box 14a:** CA SDI, NY PFL and NY DBL are shown, labeled;
+    - **Boxes 15–20:** state wages are the state income tax wages; NYC and Yonkers use the
+      locality names "NYC" and "YONKERS";
+    - **Code DD** (cost of health coverage) isn't reported. The instructions leave the rules to
+      IRS.gov, and it is optional for employers filing fewer than 250 W-2s;
+    - **Dependent care:** the W-2 instructions mention the $5,000 exclusion, Pub. 15-B says
+      $7,500 for 2026 (see `federal.json`).
+59. **Deposits made before the first payroll here:** decided 2026-09-30 ("go with your
+    recommendations"). Prior payroll takes federal Form 941 and 940 deposits the old service made
+    for quarters that began before the first payroll here (paid before or after the switch). They
+    count on the Form 941 and 940 summaries, aren't posted to the books, and lock once the form is
+    filed (migration 0017).
+60. **Corrections:** decided 2026-09-30. A filed form lists what changed since filing, and that is
+    enough for now. Forms W-2c/W-3c and 941-X are prepared once their instructions are supplied.

@@ -93,6 +93,7 @@ export function EmployeeForm({
       payMethod: text('payMethod'),
       overtimeExempt: f.get('overtimeExempt') === 'on',
       nyDblExempt: f.get('nyDblExempt') === 'on',
+      tippedOccupationCodes: formField(f, 'tippedOccupationCodes'),
       workersCompClassId: text('workersCompClassId') || null,
       classId: text('classId') || null,
       locationId: text('locationId') || null,
@@ -318,6 +319,13 @@ export function EmployeeForm({
               defaultChecked={e?.overtimeExempt ?? false}
             />
           </div>
+          <TextInput
+            label="Tipped occupation code(s)"
+            name="tippedOccupationCodes"
+            defaultValue={e?.tippedOccupationCodes ?? ''}
+            hint="For W-2 box 14b when the employee reports tips. From IRS.gov/TippedOccupations."
+            error={err('tippedOccupationCodes')}
+          />
           <div className="flex items-end pb-2">
             <Checkbox
               label="New York: no DBL contribution (Form DB-130 filed)"

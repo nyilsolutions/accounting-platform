@@ -939,6 +939,7 @@ export class PayRunsService {
             rate: l.rate,
             amount: moneyToString(l.amount, 4),
             taxable_wages: l.taxableWages === null ? null : moneyToString(l.taxableWages, 4),
+            subject_wages: l.subjectWages === null ? null : moneyToString(l.subjectWages, 4),
             description: l.description,
           })),
         )
@@ -1081,7 +1082,19 @@ export class PayRunsService {
       .where('p.id', '<>', paycheckId)
       .where('l.payroll_item_id', '=', itemId);
     if (since) q = q.where('p.pay_date', '>=', since);
-    return parseMoney((await q.executeTakeFirstOrThrow()).total);
+    // Pay from before payroll started here counts toward limits and totals owed too.
+    let prior = tx
+      .selectFrom('prior_payroll_lines as l')
+      .innerJoin('prior_payroll_entries as e', 'e.id', 'l.entry_id')
+      .select(sql<string>`coalesce(sum(l.amount), 0)`.as('total'))
+      .where('l.company_id', '=', companyId)
+      .where('e.employee_id', '=', employeeId)
+      .where('l.payroll_item_id', '=', itemId);
+    if (since) prior = prior.where('e.pay_date', '>=', since);
+    return (
+      parseMoney((await q.executeTakeFirstOrThrow()).total) +
+      parseMoney((await prior.executeTakeFirstOrThrow()).total)
+    );
   }
 
   /** Taxable wages already taxed this calendar year (posted paychecks up to this pay date). */
@@ -1113,8 +1126,26 @@ export class PayRunsService {
       .where('p.pay_date', '<=', payDate)
       .groupBy(['l.tax_code', 'l.state', 'p.supplemental'])
       .execute();
+    // Pay from before payroll started here (entered as prior payroll; never supplemental).
+    const prior = await tx
+      .selectFrom('prior_payroll_lines as l')
+      .innerJoin('prior_payroll_entries as e', 'e.id', 'l.entry_id')
+      .select([
+        'l.tax_code',
+        'l.state',
+        sql<boolean>`false`.as('supplemental'),
+        sql<string>`sum(l.taxable_wages)`.as('wages'),
+        sql<string>`sum(l.amount)`.as('amount'),
+      ])
+      .where('l.company_id', '=', companyId)
+      .where('l.line_type', '=', 'tax')
+      .where('e.employee_id', '=', employeeId)
+      .where('e.pay_date', '>=', yearStart)
+      .where('e.pay_date', '<=', payDate)
+      .groupBy(['l.tax_code', 'l.state'])
+      .execute();
     const ytd: YtdWages = { ...NO_YTD };
-    for (const r of rows) {
+    for (const r of [...rows, ...prior]) {
       const wages = parseMoney(r.wages);
       switch (r.tax_code) {
         case 'social_security_employee':

@@ -907,6 +907,7 @@ export interface EmployeesTable extends Audited {
   pay_method: Generated<string>;
   overtime_exempt: Generated<boolean>;
   ny_dbl_exempt: Generated<boolean>;
+  tipped_occupation_codes: string | null;
   workers_comp_class_id: string | null;
   class_id: string | null;
   location_id: string | null;
@@ -1056,6 +1057,8 @@ export interface PaycheckLinesTable {
   rate: Numeric | null;
   amount: Numeric;
   taxable_wages: Numeric | null;
+  /** Wages subject to the tax before any wage base (migration 0016; null on older lines). */
+  subject_wages: Numeric | null;
   description: string | null;
 }
 
@@ -1071,6 +1074,58 @@ export interface PayrollLiabilityPaymentsTable {
   reference: string | null;
   status: Generated<string>;
   transaction_id: string;
+  created_by: string | null;
+  created_at: Generated<Date>;
+  voided_by: string | null;
+  voided_at: Date | null;
+}
+
+export interface PriorPayrollEntriesTable extends Audited {
+  id: Generated<string>;
+  company_id: string;
+  employee_id: string;
+  pay_date: DateCol;
+  memo: string | null;
+}
+
+export interface PriorPayrollLinesTable {
+  id: Generated<string>;
+  company_id: string;
+  entry_id: string;
+  line_no: number;
+  line_type: string;
+  payroll_item_id: string | null;
+  tax_code: string | null;
+  payer: string | null;
+  state: string | null;
+  amount: Numeric;
+  taxable_wages: Numeric | null;
+  subject_wages: Numeric | null;
+}
+
+export interface PriorTaxDepositsTable extends Audited {
+  id: Generated<string>;
+  company_id: string;
+  agency: string;
+  tax_year: number;
+  quarter: number;
+  payment_date: DateCol;
+  amount: Numeric;
+  memo: string | null;
+}
+
+export interface TaxFilingsTable {
+  id: Generated<string>;
+  company_id: string;
+  form: string;
+  tax_year: number;
+  quarter: number | null;
+  state: string | null;
+  filed_on: DateCol;
+  method: string;
+  confirmation: string | null;
+  snapshot: ColumnType<unknown, string, never>;
+  status: Generated<string>;
   created_by: string | null;
   created_at: Generated<Date>;
   voided_by: string | null;
@@ -1153,6 +1208,10 @@ export interface Database {
   paychecks: PaychecksTable;
   paycheck_lines: PaycheckLinesTable;
   payroll_liability_payments: PayrollLiabilityPaymentsTable;
+  prior_payroll_entries: PriorPayrollEntriesTable;
+  prior_payroll_lines: PriorPayrollLinesTable;
+  prior_tax_deposits: PriorTaxDepositsTable;
+  tax_filings: TaxFilingsTable;
 }
 
 export type User = Selectable<UsersTable>;
