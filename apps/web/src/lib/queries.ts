@@ -9,6 +9,12 @@ import type {
   CustomerDto,
   EmployeeDto,
   EmployeeSummaryDto,
+  FederalQuarterDto,
+  FutaAnnualDto,
+  PriorPayrollDto,
+  StateQuarterDto,
+  TaxFilingDto,
+  W2FormsDto,
   ItemDto,
   LedgerSettingsDto,
   MeDto,
@@ -308,5 +314,54 @@ export function usePayrollLiabilityPayments(id: string) {
   return useQuery({
     queryKey: [...keys.payroll(id), 'liability-payments'],
     queryFn: payrollGet<PayrollLiabilityPaymentDto[]>(id, '/liabilities/payments'),
+  });
+}
+
+// --- Payroll tax forms (Phase 9) -------------------------------------------------------------
+export function usePriorPayroll(id: string, year: number) {
+  return useQuery({
+    queryKey: [...keys.payroll(id), 'prior-payroll', year],
+    queryFn: payrollGet<PriorPayrollDto[]>(id, `/prior-payroll?year=${year}`),
+  });
+}
+
+export function useW2Forms(id: string, year: number) {
+  return useQuery({
+    queryKey: [...keys.payroll(id), 'forms', 'w2', year],
+    queryFn: payrollGet<W2FormsDto>(id, `/forms/w2?year=${year}`),
+  });
+}
+
+export function useFederalQuarter(id: string, year: number, quarter: number) {
+  return useQuery({
+    queryKey: [...keys.payroll(id), 'forms', 'federal', year, quarter],
+    queryFn: payrollGet<FederalQuarterDto>(
+      id,
+      `/forms/federal-quarterly?year=${year}&quarter=${quarter}`,
+    ),
+  });
+}
+
+export function useFutaAnnual(id: string, year: number) {
+  return useQuery({
+    queryKey: [...keys.payroll(id), 'forms', 'futa', year],
+    queryFn: payrollGet<FutaAnnualDto>(id, `/forms/futa-annual?year=${year}`),
+  });
+}
+
+export function useStateQuarter(id: string, year: number, quarter: number, state: string) {
+  return useQuery({
+    queryKey: [...keys.payroll(id), 'forms', 'state', year, quarter, state],
+    queryFn: payrollGet<StateQuarterDto>(
+      id,
+      `/forms/state-quarterly?year=${year}&quarter=${quarter}&state=${state}`,
+    ),
+  });
+}
+
+export function useTaxFilings(id: string, year: number) {
+  return useQuery({
+    queryKey: [...keys.payroll(id), 'forms', 'filings', year],
+    queryFn: payrollGet<TaxFilingDto[]>(id, `/forms/filings?year=${year}`),
   });
 }

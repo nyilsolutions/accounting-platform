@@ -838,7 +838,8 @@
             "ref": "Table 2-1, Dependent care assistance"
           }
         ],
-        "note": "Exempt up to $7,500 ($3,750 for a married employee filing a separate return); amounts above the limit are wages. Not for highly compensated employees under a plan that favors them."
+        "note": "Exempt up to $7,500 ($3,750 for a married employee filing a separate return); amounts above the limit are wages. Not for highly compensated employees under a plan that favors them.",
+        "discrepancy": "The 2026 W-2 instructions (box 10, p.19) still speak of the \"$5,000 exclusion\"; Pub. 15-B Table 2-1 (2026) gives $7,500. Payroll follows Pub. 15-B; the reviewer should confirm. Box 10 reports all dependent care benefits either way."
       },
       "roth_401k": {
         "fit": "taxable",
@@ -1076,5 +1077,40 @@
     "scope": "Figures checked as copied from the supplied documents, for building and testing the tax calculations. Not a professional review: reviewedBy stays null until a CPA or payroll specialist signs off, which is required before real paychecks."
   },
   "reviewedBy": null,
-  "note": "Built from the documents the user supplied on 2026-09-30 (Pub. 15-T, Pub. 15, Pub. 15-B, SSA). The worked examples use the wage bracket method; see workedExamplesMethod for how the golden tests reproduce them with the percentage method."
+  "note": "Built from the documents the user supplied on 2026-09-30 (Pub. 15-T, Pub. 15, Pub. 15-B, SSA). The worked examples use the wage bracket method; see workedExamplesMethod for how the golden tests reproduce them with the percentage method.",
+  "forms": {
+    "w2": {
+      "fileAndFurnishBy": "2027-02-01",
+      "socialSecurityWagesAndTipsMax": "184500.00",
+      "note": "Copies B, C and 2 go to employees, and Copy A with Form W-3 to the SSA, by February 1, 2027. Boxes 3 and 7 together can't exceed the social security wage base; box 5 can't be less than boxes 3 and 7.",
+      "cite": [
+        {
+          "source": "w2-instructions",
+          "page": 7,
+          "ref": "When to file: \"Mail or electronically file Copy A of Form(s) W-2 and Form W-3 with the SSA by February 1, 2027.\""
+        },
+        {
+          "source": "w2-instructions",
+          "page": 7,
+          "ref": "Furnishing Copies B, C, and 2 to employees: \"you must furnish Copies B, C, and 2 of Form W-2 to your employees by February 1, 2027.\""
+        },
+        {
+          "source": "w2-instructions",
+          "page": 26,
+          "ref": "Reconciling Forms W-2, W-3, 941...: do not report a nonzero box 4 if boxes 3 and 7 are both zero, a nonzero box 6 if box 5 is zero, or a box 5 less than boxes 3 and 7; social security wages may not exceed $184,500 for 2026."
+        }
+      ]
+    }
+  },
+  "retirementPlans": {
+    "electiveDeferralLimit": "24500.00",
+    "note": "The 2026 limit for elective deferrals and designated Roth contributions together (section 402(g)); catch-up contributions are not modeled.",
+    "cite": [
+      {
+        "source": "w2-instructions",
+        "page": 21,
+        "ref": "Code D example: \"the 2026 limit for elective deferrals and designated Roth contributions is $24,500\""
+      }
+    ]
+  }
 }

@@ -605,3 +605,111 @@ describe('payroll liability payments (migration 0013)', () => {
     expect(r.rows[0]!.relrowsecurity).toBe(true);
   });
 });
+
+describe('prior payroll and tax filings (migration 0016)', () => {
+  it('prior payroll is per employee and pay date, and invisible to other companies', async () => {
+    const entry = await asA((tx) =>
+      tx
+        .insertInto('prior_payroll_entries')
+        .values({ company_id: A, employee_id: employeeA, pay_date: '2026-01-15' })
+        .returning('id')
+        .executeTakeFirstOrThrow(),
+    );
+    await asA((tx) =>
+      tx
+        .insertInto('prior_payroll_lines')
+        .values({
+          company_id: A,
+          entry_id: entry.id,
+          line_no: 1,
+          line_type: 'tax',
+          tax_code: 'social_security_employee',
+          payer: 'employee',
+          amount: '62',
+          taxable_wages: '1000',
+          subject_wages: '1000',
+        })
+        .execute(),
+    );
+    // A tax line names its tax; one entry per employee and pay date.
+    await expect(
+      asA((tx) =>
+        tx
+          .insertInto('prior_payroll_lines')
+          .values({ company_id: A, entry_id: entry.id, line_no: 2, line_type: 'tax', amount: '1' })
+          .execute(),
+      ),
+    ).rejects.toThrow(/check constraint/);
+    await expect(
+      asA((tx) =>
+        tx
+          .insertInto('prior_payroll_entries')
+          .values({ company_id: A, employee_id: employeeA, pay_date: '2026-01-15' })
+          .execute(),
+      ),
+    ).rejects.toThrow(/duplicate key/);
+    expect(await asB((tx) => tx.selectFrom('prior_payroll_lines').select('id').execute())).toEqual(
+      [],
+    );
+    expect(
+      await asB((tx) => tx.selectFrom('prior_payroll_entries').select('id').execute()),
+    ).toEqual([]);
+    // Deleting the entry removes its lines.
+    await asA((tx) => tx.deleteFrom('prior_payroll_entries').where('id', '=', entry.id).execute());
+    expect(await asA((tx) => tx.selectFrom('prior_payroll_lines').select('id').execute())).toEqual(
+      [],
+    );
+  });
+
+  it('one filed form per period; filings are voided, never deleted', async () => {
+    const filing = (quarter: number | null, form = 'form_941') => ({
+      company_id: A,
+      form,
+      tax_year: 2026,
+      quarter,
+      filed_on: '2026-04-30',
+      method: 'electronic',
+      snapshot: JSON.stringify({ wages: '100.00' }),
+    });
+    // A quarterly form needs its quarter; an annual one has none.
+    await expect(
+      asA((tx) => tx.insertInto('tax_filings').values(filing(null)).execute()),
+    ).rejects.toThrow(/check constraint/);
+    await expect(
+      asA((tx) => tx.insertInto('tax_filings').values(filing(1, 'form_940')).execute()),
+    ).rejects.toThrow(/check constraint/);
+    const f = await asA((tx) =>
+      tx.insertInto('tax_filings').values(filing(1)).returning('id').executeTakeFirstOrThrow(),
+    );
+    await expect(
+      asA((tx) => tx.insertInto('tax_filings').values(filing(1)).execute()),
+    ).rejects.toThrow(/duplicate key/);
+    await expect(
+      asA((tx) => tx.deleteFrom('tax_filings').where('id', '=', f.id).execute()),
+    ).rejects.toThrow(/permission denied/);
+    // Voiding frees the period for a new filing.
+    await asA((tx) =>
+      tx
+        .updateTable('tax_filings')
+        .set({ status: 'void', voided_at: new Date(), voided_by: userId })
+        .where('id', '=', f.id)
+        .execute(),
+    );
+    await asA((tx) => tx.insertInto('tax_filings').values(filing(1)).execute());
+    expect(await asB((tx) => tx.selectFrom('tax_filings').select('id').execute())).toEqual([]);
+  });
+
+  it('an employee has at most two three-digit tipped occupation codes', async () => {
+    const set = (codes: string) =>
+      asA((tx) =>
+        tx
+          .updateTable('employees')
+          .set({ tipped_occupation_codes: codes })
+          .where('id', '=', employeeA)
+          .execute(),
+      );
+    await set('101 203');
+    await expect(set('1010')).rejects.toThrow(/check constraint/);
+    await expect(set('101 203 305')).rejects.toThrow(/check constraint/);
+  });
+});

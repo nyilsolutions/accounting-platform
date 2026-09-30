@@ -89,6 +89,7 @@ export interface LineDraft {
   rate: string | null;
   amount: Money;
   taxableWages: Money | null;
+  subjectWages: Money | null;
   description: string | null;
 }
 
@@ -151,6 +152,7 @@ export function buildPaycheck(f: PaycheckFacts): PaycheckResult {
     rate,
     amount,
     taxableWages: null,
+    subjectWages: null,
     description: item.name,
   });
 
@@ -267,6 +269,7 @@ export function buildPaycheck(f: PaycheckFacts): PaycheckResult {
           rate: null,
           amount: t.amount,
           taxableWages: t.taxableWages,
+          subjectWages: t.subjectWages,
           description: null,
         });
         if (t.payer === 'employee') employeeTaxes += t.amount;

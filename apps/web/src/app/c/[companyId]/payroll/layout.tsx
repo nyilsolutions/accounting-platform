@@ -19,6 +19,7 @@ export default function PayrollLayout({ children }: { children: ReactNode }) {
           { href: base, label: 'Employees', exact: true },
           { href: `${base}/runs`, label: 'Pay runs' },
           { href: `${base}/liabilities`, label: 'Taxes & liabilities' },
+          { href: `${base}/forms`, label: 'Tax forms' },
           { href: `${base}/reports`, label: 'Reports' },
           { href: `${base}/setup`, label: 'Setup' },
           { href: `${base}/direct-deposit`, label: 'Direct deposit' },

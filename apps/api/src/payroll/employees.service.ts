@@ -53,7 +53,7 @@ export interface EmployeeListQuery {
   search?: string;
 }
 
-const ssnAad = (employeeId: string) => `employee:${employeeId}:ssn`;
+export const ssnAad = (employeeId: string) => `employee:${employeeId}:ssn`;
 const accountAad = (bankAccountId: string) =>
   `employee_bank_account:${bankAccountId}:account_number`;
 
@@ -193,6 +193,7 @@ export class EmployeesService {
         pay_method: input.payMethod,
         overtime_exempt: input.overtimeExempt,
         ny_dbl_exempt: input.nyDblExempt,
+        tipped_occupation_codes: input.tippedOccupationCodes ?? null,
         workers_comp_class_id: input.workersCompClassId ?? null,
         class_id: input.classId ?? null,
         location_id: input.locationId ?? null,
@@ -839,6 +840,7 @@ export class EmployeesService {
       defaultHours: trimNumber(r.default_hours),
       overtimeExempt: r.overtime_exempt,
       nyDblExempt: r.ny_dbl_exempt,
+      tippedOccupationCodes: r.tipped_occupation_codes,
       workersCompClassId: r.workers_comp_class_id,
       classId: r.class_id,
       locationId: r.location_id,

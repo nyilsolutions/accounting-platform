@@ -46,7 +46,9 @@ A single package: `pnpm --filter @acct/api test`, `pnpm --filter @acct/db test`,
   prenotes in `employees.service.ts`, NACHA records in `nacha.ts` behind `PaymentRail`; the tax
   engine in `payroll/tax/` (pure, exact fractions); paychecks built by `paycheck-calc.ts` and run
   by `pay-runs.service.ts`; liabilities in `liabilities.ts` with payments through `EftpsProvider`;
-  payroll reports in `payroll-reports.ts`).
+  payroll reports in `payroll-reports.ts`; tax forms in `payroll/forms/` (pure builders over pay
+  records) served by `tax-forms.service.ts`, prior payroll in `prior-payroll.service.ts`, filing
+  records in `tax-filings.ts`).
   The A/R and A/P subledgers share one engine: `ledger/subledger.ts`.
 - `apps/desktop-agent`: QuickBooks Desktop migration agent (C#/.NET 8; `Core` is portable and
   tested on Linux with `dotnet test`, `Windows` is the WinForms wizard and QBXMLRP2 session).
@@ -140,6 +142,13 @@ A single package: `pnpm --filter @acct/api test`, `pnpm --filter @acct/db test`,
   `PostingService` ('paycheck' transactions) and posted paychecks are voided, never changed (DB
   triggers). Year to date comes from posted paychecks' tax lines. Payroll reports are served under
   `payroll/reports` with `payroll.view`, not the reports hub (they show individual pay).
+- Payroll tax forms (ADR 0017): every form is built from pay records (posted paychecks plus prior
+  payroll, by pay date) by pure functions in `payroll/forms/`, with golden tests from the form
+  instructions' own examples. Box and line rules follow the supplied instructions; figures and
+  due dates live in `tax-data`. Prior payroll counts toward year-to-date wage bases but never
+  posts to the books, and is locked once a filed form covers it. A filing keeps a snapshot of its
+  figures (no SSNs); later differences are listed, never silently absorbed. Exports with full SSNs
+  are POSTs needing `payroll.sensitive.reveal`, are never stored, and are audited without SSNs.
 - Database errors map to HTTP in `common/pg-error.filter.ts`; add friendly messages for new unique
   indexes there.
 
@@ -154,7 +163,7 @@ A single package: `pnpm --filter @acct/api test`, `pnpm --filter @acct/db test`,
 - [x] Phase 6: QuickBooks migration (QBO connector + attachments, Desktop agent, IIF/CSV, Migration Report, Match attachments)
 - [x] Phase 7: Reports suite, sales tax, budgets (columns/comparisons, cash flow, detail reports, custom builder, PDF/Excel/CSV, memorized + scheduled, sales tax, budgets)
 - [x] Phase 8: Payroll core (setup, employees, tax engine with golden tests, pay runs, pay stubs, direct deposit, liabilities + EFTPS, payroll reports; tax data owner-approved, awaiting professional review)
-- [ ] Phase 9: Payroll and 1099 tax forms
+- [ ] Phase 9: Payroll and 1099 tax forms (part 1 done: prior payroll, W-2/W-3 figures, quarterly and FUTA summaries, state reports, filings; official PDFs, EFW2, 1099/IRIS and state layouts wait on documents)
 - [ ] Phase 10: Advanced (inventory, time, multi-currency, …)
 - [ ] Phase 11: E-file and partners
 - [ ] Phase 12: Hardening and launch

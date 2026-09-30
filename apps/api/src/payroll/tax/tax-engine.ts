@@ -131,6 +131,8 @@ export interface TaxLine {
   /** The work state for state and local taxes; null for federal. */
   state: PayrollState | null;
   taxableWages: Money;
+  /** Wages subject to the tax before any wage base (equal to taxableWages without one). */
+  subjectWages: Money;
   amount: Money;
 }
 
@@ -487,10 +489,18 @@ export function calculatePaycheckTaxes(
     taxable: Q,
     amount: Q,
     lineState: PayrollState | null = null,
+    subject: Q = taxable,
   ) => {
     const cents = toCents(amount);
     if (cents !== ZERO || code !== 'additional_medicare')
-      lines.push({ code, payer, state: lineState, taxableWages: toCents(taxable), amount: cents });
+      lines.push({
+        code,
+        payer,
+        state: lineState,
+        taxableWages: toCents(taxable),
+        subjectWages: toCents(subject),
+        amount: cents,
+      });
   };
 
   // Federal wages.
@@ -530,12 +540,16 @@ export function calculatePaycheckTaxes(
     'employee',
     ssTaxable,
     mul(ssTaxable, pct(ss.employeeRatePercent)),
+    null,
+    ficaWages,
   );
   line(
     'social_security_employer',
     'employer',
     ssTaxable,
     mul(ssTaxable, pct(ss.employerRatePercent)),
+    null,
+    ficaWages,
   );
   const med = fed.medicare;
   line('medicare_employee', 'employee', ficaWages, mul(ficaWages, pct(med.employeeRatePercent)));
@@ -547,7 +561,14 @@ export function calculatePaycheckTaxes(
 
   // FUTA (credit reductions are figured on Form 940 at year end).
   const futaTaxable = underBase(futaWages, fed.futa.wageBase, input.ytd.futa);
-  line('futa', 'employer', futaTaxable, mul(futaTaxable, pct(fed.futa.netRatePercent)));
+  line(
+    'futa',
+    'employer',
+    futaTaxable,
+    mul(futaTaxable, pct(fed.futa.netRatePercent)),
+    null,
+    futaWages,
+  );
 
   // State.
   const sd = data.states[state];
@@ -597,6 +618,7 @@ export function calculatePaycheckTaxes(
         taxable,
         mul(taxable, pct(input.unemploymentRatePercent)),
         state,
+        suiWages,
       );
       if (ui.reemploymentServiceFundRatePercent)
         line(
@@ -605,11 +627,19 @@ export function calculatePaycheckTaxes(
           taxable,
           mul(taxable, pct(ui.reemploymentServiceFundRatePercent)),
           state,
+          suiWages,
         );
       if (sd.employmentTrainingTax) {
         const ett = sd.employmentTrainingTax;
         const ettTaxable = underBase(suiWages, ett.wageBase, input.ytd.stateUnemployment);
-        line('ca_ett', 'employer', ettTaxable, mul(ettTaxable, pct(ett.ratePercent)), state);
+        line(
+          'ca_ett',
+          'employer',
+          ettTaxable,
+          mul(ettTaxable, pct(ett.ratePercent)),
+          state,
+          suiWages,
+        );
       }
     }
 
@@ -626,7 +656,7 @@ export function calculatePaycheckTaxes(
         input.payDate,
       );
       const taxable = underBase(sdiWages, sdi.wageBase, input.ytd.sdi);
-      line('ca_sdi', 'employee', taxable, mul(taxable, pct(sdi.ratePercent)), state);
+      line('ca_sdi', 'employee', taxable, mul(taxable, pct(sdi.ratePercent)), state, sdiWages);
     }
 
     // New York Paid Family Leave: an employee contribution, a percentage of wages each paycheck
