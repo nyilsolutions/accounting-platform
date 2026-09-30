@@ -1,0 +1,553 @@
+{
+  "year": 2026,
+  "state": "CA",
+  "description": "California payroll figures for 2026: unemployment insurance (UI), employment training tax (ETT) and state disability insurance (SDI). Personal income tax withholding needs the 2026 California Employer's Guide (DE 44), not yet supplied.",
+  "sources": [
+    {
+      "id": "de-201",
+      "title": "EDD, 2026 California Payroll Taxes (DE 201)",
+      "revision": "Rev. 12 (1-26)",
+      "url": "https://edd.ca.gov/siteassets/files/pdf_pub_ctr/de201.pdf"
+    },
+    {
+      "id": "de-3395",
+      "title": "EDD, Tax Rates, Wage Limits, and Value of Meals and Lodging (DE 3395)",
+      "revision": "Rev. 69 (1-26)",
+      "url": "https://edd.ca.gov/siteassets/files/pdf_pub_ctr/de3395.pdf"
+    },
+    {
+      "id": "de-231a",
+      "title": "EDD Information Sheet: Wages (DE 231A)",
+      "revision": "Rev. 18 (12-23)",
+      "url": null,
+      "urlNote": "The supplied copy does not show its own address; publisher site edd.ca.gov."
+    },
+    {
+      "id": "de-231eb",
+      "title": "EDD Information Sheet: Taxability of Employee Benefits (DE 231EB)",
+      "revision": "Rev. 12 (6-17)",
+      "url": "https://edd.ca.gov/pdf_pub_ctr/de231eb.pdf",
+      "urlNote": "Address as cited in DE 231A."
+    },
+    {
+      "id": "de-231tp",
+      "title": "EDD Information Sheet: Types of Payments (DE 231TP)",
+      "revision": "Rev. 1 (6-16)",
+      "url": "https://edd.ca.gov/pdf_pub_ctr/de231tp.pdf",
+      "urlNote": "Address as cited in DE 231A."
+    },
+    {
+      "id": "ftb-1001",
+      "title": "FTB Publication 1001, Supplemental Guidelines to California Adjustments (2025)",
+      "revision": "2025 (created 2026-03-13)",
+      "url": null,
+      "urlNote": "The supplied copy does not show its own address; publisher site ftb.ca.gov."
+    },
+    {
+      "id": "de-4",
+      "title": "EDD, DE 4, Employee's Withholding Allowance Certificate",
+      "revision": "DE 4 Rev. 56 (1-26)",
+      "url": null,
+      "urlNote": "The supplied copy does not show its own address; publisher site edd.ca.gov."
+    }
+  ],
+  "incomeTaxWithholding": {
+    "status": "pending",
+    "note": "Needs the 2026 California Employer's Guide (DE 44): Method B tables, low-income exemption, standard deduction, estimated deduction and exemption allowance tables, and supplemental rates."
+  },
+  "unemployment": {
+    "wageBase": "7000.00",
+    "newEmployerRatePercent": "3.4",
+    "newEmployerRateYears": 3,
+    "maximumRatePercent": "6.2",
+    "paidBy": "employer",
+    "note": "The employer's own rate comes from its EDD rate notice (entered in Payroll > Setup); new employers pay 3.4% for up to 3 years.",
+    "cite": [
+      {
+        "source": "de-201",
+        "page": 1,
+        "ref": "2026 California Payroll Taxes, footnote 1"
+      },
+      {
+        "source": "de-3395",
+        "page": 1,
+        "ref": "2026 row: maximum UI tax %"
+      }
+    ]
+  },
+  "employmentTrainingTax": {
+    "ratePercent": "0.1",
+    "wageBase": "7000.00",
+    "paidBy": "employer",
+    "cite": [
+      {
+        "source": "de-201",
+        "page": 1,
+        "ref": "Employment Training Tax"
+      },
+      {
+        "source": "de-3395",
+        "page": 1,
+        "ref": "2026 row"
+      }
+    ]
+  },
+  "stateDisabilityInsurance": {
+    "ratePercent": "1.3",
+    "wageBase": null,
+    "paidBy": "employee",
+    "note": "No SDI taxable wage limit since January 1, 2024.",
+    "cite": [
+      {
+        "source": "de-201",
+        "page": 1,
+        "ref": "SDI, footnote 3"
+      },
+      {
+        "source": "de-3395",
+        "page": 1,
+        "ref": "2026 row, footnote 1"
+      }
+    ]
+  },
+  "mealsAndLodging2026": {
+    "meals": {
+      "perDay": "15.85",
+      "breakfast": "3.25",
+      "lunch": "4.90",
+      "dinner": "7.70",
+      "unidentified": "5.70"
+    },
+    "lodging": {
+      "maxPerMonth": "2038.00",
+      "minPerWeek": "66.10",
+      "note": "66.67% of ordinary rental value, within these limits; non-maritime employees."
+    },
+    "cite": [
+      {
+        "source": "de-3395",
+        "page": 1,
+        "ref": "Value of Meals and Lodging, 2026"
+      }
+    ]
+  },
+  "quarterlyReturns": {
+    "form": "DE 9 and DE 9C",
+    "delinquentDates": {
+      "Q1": "2026-04-30",
+      "Q2": "2026-07-31",
+      "Q3": "2026-11-02",
+      "Q4": "2027-02-01"
+    },
+    "cite": [
+      {
+        "source": "de-201",
+        "page": 1,
+        "ref": "Important Due Dates"
+      }
+    ],
+    "dueNote": "The quarterly return (DE 9) is delinquent after this date."
+  },
+  "taxableWages": {
+    "incomeTax": {
+      "regularWages": "taxable",
+      "kinds": {
+        "traditional_401k": "exempt",
+        "traditional_403b": "exempt",
+        "retirement_match": "exempt",
+        "section_125": "exempt",
+        "health_fsa": "exempt",
+        "dependent_care_fsa": "exempt",
+        "hsa": "taxable",
+        "employer_hsa": "taxable",
+        "employer_health": "exempt",
+        "cash_tips": "taxable",
+        "paid_tips": "taxable",
+        "reimbursement": "exempt",
+        "fringe_benefit": "taxable",
+        "employer_hsa_cafeteria": "taxable"
+      },
+      "otherKinds": "pending",
+      "note": "Personal income tax (PIT) wages. Sick pay here is employer-paid sick leave in the first six months; vacation and holiday pay are paid during employment.",
+      "cite": [
+        {
+          "source": "de-231a",
+          "page": 1,
+          "ref": "\"Wages are all compensation for an employee's personal services... Supplemental payments, including bonuses, overtime pay, sales awards, commissions, and vacation pay, are also considered wages.\" Wages \"are subject to all employment taxes and reportable as PIT wages unless otherwise stated.\""
+        },
+        {
+          "source": "de-231a",
+          "page": 2,
+          "ref": "Wages include \"Employer contributions under a qualified cash or deferred compensation plan (such as section 401(k) of the IRC) that represent elective employee contributions. Not subject to PIT withholding...\""
+        },
+        {
+          "source": "de-231eb",
+          "page": 4,
+          "ref": "Retirement plans: \"Employee salary reduction contributions to a qualified plan (unless under cafeteria plan)\": UI/ETT Subject, SDI Subject, PIT Not Subject"
+        },
+        {
+          "source": "de-231a",
+          "page": 2,
+          "ref": "Employer contributions to 401(k), 408(k), 408(p) and 403(b) plans \"are also not subject to employment taxes, unless the contributions result from a salary reduction agreement\""
+        },
+        {
+          "source": "de-231a",
+          "page": 2,
+          "ref": "Wages do not include \"Employer contributions to a trust under section 401(a) of the IRC or to an annuity plan under section 403(b)... Employer contributions to certain qualified retirement or deferred compensation plans, such as those defined in sections 401(k)... are also not subject to employment taxes, unless the contributions result from a salary reduction agreement.\""
+        },
+        {
+          "source": "de-231eb",
+          "page": 4,
+          "ref": "Retirement plans: \"Employer contributions to a qualified plan (unless under cafeteria plan)\": PIT Not Subject"
+        },
+        {
+          "source": "de-231eb",
+          "page": 2,
+          "ref": "Cafeteria plans: \"Employee salary reduction for dependent care assistance, accident, health, and/or group-term life insurance\": Not Subject for UI/ETT, SDI and PIT"
+        },
+        {
+          "source": "de-231eb",
+          "page": 2,
+          "ref": "Cafeteria plans: \"Employee salary reduction for ... accident, health ...\": Not Subject for UI/ETT, SDI and PIT"
+        },
+        {
+          "source": "de-231eb",
+          "page": 2,
+          "ref": "Cafeteria plans: \"Employee salary reduction for dependent care assistance...\": Not Subject for UI/ETT, SDI and PIT"
+        },
+        {
+          "source": "de-231eb",
+          "page": 3,
+          "ref": "Health Savings Account: \"Employee salary reductions to a qualified plan\": Subject for UI/ETT, SDI and PIT"
+        },
+        {
+          "source": "de-231eb",
+          "page": 2,
+          "ref": "Cafeteria plans: \"Employer contributions into a cafeteria plan for a health savings account\": Subject for all three"
+        },
+        {
+          "source": "ftb-1001",
+          "page": 9,
+          "ref": "Health Savings Account (HSA): California does not recognize HSAs"
+        },
+        {
+          "source": "de-231eb",
+          "page": 3,
+          "ref": "Health Savings Account: \"Employer contributions to a qualified plan on behalf of an employee...\": Subject for UI/ETT, SDI and PIT"
+        },
+        {
+          "source": "de-231eb",
+          "page": 3,
+          "ref": "Health plans: \"Employer contributions to a qualified plan on behalf of an employee...\": Not Subject for UI/ETT, SDI and PIT (PIT subject for 2 percent S corporation shareholder-employees)"
+        },
+        {
+          "source": "de-231a",
+          "page": 2,
+          "ref": "Wages do not include \"Health insurance premiums or health care expenses paid by the employer on behalf of the employee or the employee's dependents who have not reached 27 years of age\""
+        },
+        {
+          "source": "de-231a",
+          "page": 1,
+          "ref": "Wages include \"Cash tips and gratuities of $20 or more in a month that are included in a written statement furnished by the employee to the employer\"; wages \"are subject to all employment taxes and reportable as PIT wages unless otherwise stated\""
+        },
+        {
+          "source": "de-231a",
+          "page": 1,
+          "ref": "Wages include \"Banquet tips and employer-controlled tips, which are considered a regular wage and are fully taxable\" and reported cash tips"
+        },
+        {
+          "source": "de-231a",
+          "page": 2,
+          "ref": "Wages do not include \"Repayment of required or necessary business expenses incurred by the employee while performing services for the employer (e.g., travel expenses)\""
+        },
+        {
+          "source": "de-231tp",
+          "page": 3,
+          "ref": "Business Expenses: employer reimbursement of required or necessary business expenses"
+        },
+        {
+          "source": "de-231a",
+          "page": 2,
+          "ref": "Wages include \"Fringe benefits provided or paid for by the employer on behalf of employees and their dependents unless specifically excluded from income\""
+        }
+      ]
+    },
+    "unemployment": {
+      "regularWages": "taxable",
+      "kinds": {
+        "traditional_401k": "taxable",
+        "traditional_403b": "taxable",
+        "retirement_match": "exempt",
+        "section_125": "exempt",
+        "health_fsa": "exempt",
+        "dependent_care_fsa": "exempt",
+        "hsa": "taxable",
+        "employer_hsa": "taxable",
+        "employer_health": "exempt",
+        "cash_tips": "taxable",
+        "paid_tips": "taxable",
+        "reimbursement": "exempt",
+        "fringe_benefit": "taxable",
+        "employer_hsa_cafeteria": "taxable"
+      },
+      "otherKinds": "pending",
+      "note": "UI and ETT wages (the same rules).",
+      "cite": [
+        {
+          "source": "de-231a",
+          "page": 1,
+          "ref": "\"Wages are all compensation for an employee's personal services... Supplemental payments, including bonuses, overtime pay, sales awards, commissions, and vacation pay, are also considered wages.\" Wages \"are subject to all employment taxes and reportable as PIT wages unless otherwise stated.\""
+        },
+        {
+          "source": "de-231a",
+          "page": 2,
+          "ref": "Wages include \"Employer contributions under a qualified cash or deferred compensation plan (such as section 401(k) of the IRC) that represent elective employee contributions. Not subject to PIT withholding...\""
+        },
+        {
+          "source": "de-231eb",
+          "page": 4,
+          "ref": "Retirement plans: \"Employee salary reduction contributions to a qualified plan (unless under cafeteria plan)\": UI/ETT Subject, SDI Subject, PIT Not Subject"
+        },
+        {
+          "source": "de-231a",
+          "page": 2,
+          "ref": "Employer contributions to 401(k), 408(k), 408(p) and 403(b) plans \"are also not subject to employment taxes, unless the contributions result from a salary reduction agreement\""
+        },
+        {
+          "source": "de-231a",
+          "page": 2,
+          "ref": "Wages do not include \"Employer contributions to a trust under section 401(a) of the IRC or to an annuity plan under section 403(b)... Employer contributions to certain qualified retirement or deferred compensation plans, such as those defined in sections 401(k)... are also not subject to employment taxes, unless the contributions result from a salary reduction agreement.\""
+        },
+        {
+          "source": "de-231eb",
+          "page": 4,
+          "ref": "Retirement plans: \"Employer contributions to a qualified plan (unless under cafeteria plan)\": PIT Not Subject"
+        },
+        {
+          "source": "de-231eb",
+          "page": 2,
+          "ref": "Cafeteria plans: \"Employee salary reduction for dependent care assistance, accident, health, and/or group-term life insurance\": Not Subject for UI/ETT, SDI and PIT"
+        },
+        {
+          "source": "de-231eb",
+          "page": 2,
+          "ref": "Cafeteria plans: \"Employee salary reduction for ... accident, health ...\": Not Subject for UI/ETT, SDI and PIT"
+        },
+        {
+          "source": "de-231eb",
+          "page": 2,
+          "ref": "Cafeteria plans: \"Employee salary reduction for dependent care assistance...\": Not Subject for UI/ETT, SDI and PIT"
+        },
+        {
+          "source": "de-231eb",
+          "page": 3,
+          "ref": "Health Savings Account: \"Employee salary reductions to a qualified plan\": Subject for UI/ETT, SDI and PIT"
+        },
+        {
+          "source": "de-231eb",
+          "page": 2,
+          "ref": "Cafeteria plans: \"Employer contributions into a cafeteria plan for a health savings account\": Subject for all three"
+        },
+        {
+          "source": "ftb-1001",
+          "page": 9,
+          "ref": "Health Savings Account (HSA): California does not recognize HSAs"
+        },
+        {
+          "source": "de-231eb",
+          "page": 3,
+          "ref": "Health Savings Account: \"Employer contributions to a qualified plan on behalf of an employee...\": Subject for UI/ETT, SDI and PIT"
+        },
+        {
+          "source": "de-231eb",
+          "page": 3,
+          "ref": "Health plans: \"Employer contributions to a qualified plan on behalf of an employee...\": Not Subject for UI/ETT, SDI and PIT (PIT subject for 2 percent S corporation shareholder-employees)"
+        },
+        {
+          "source": "de-231a",
+          "page": 2,
+          "ref": "Wages do not include \"Health insurance premiums or health care expenses paid by the employer on behalf of the employee or the employee's dependents who have not reached 27 years of age\""
+        },
+        {
+          "source": "de-231a",
+          "page": 1,
+          "ref": "Wages include \"Cash tips and gratuities of $20 or more in a month that are included in a written statement furnished by the employee to the employer\"; wages \"are subject to all employment taxes and reportable as PIT wages unless otherwise stated\""
+        },
+        {
+          "source": "de-231a",
+          "page": 1,
+          "ref": "Wages include \"Banquet tips and employer-controlled tips, which are considered a regular wage and are fully taxable\" and reported cash tips"
+        },
+        {
+          "source": "de-231a",
+          "page": 2,
+          "ref": "Wages do not include \"Repayment of required or necessary business expenses incurred by the employee while performing services for the employer (e.g., travel expenses)\""
+        },
+        {
+          "source": "de-231tp",
+          "page": 3,
+          "ref": "Business Expenses: employer reimbursement of required or necessary business expenses"
+        },
+        {
+          "source": "de-231a",
+          "page": 2,
+          "ref": "Wages include \"Fringe benefits provided or paid for by the employer on behalf of employees and their dependents unless specifically excluded from income\""
+        }
+      ]
+    },
+    "sdi": {
+      "regularWages": "taxable",
+      "kinds": {
+        "traditional_401k": "taxable",
+        "traditional_403b": "taxable",
+        "retirement_match": "exempt",
+        "section_125": "exempt",
+        "health_fsa": "exempt",
+        "dependent_care_fsa": "exempt",
+        "hsa": "taxable",
+        "employer_hsa": "taxable",
+        "employer_health": "exempt",
+        "cash_tips": "taxable",
+        "paid_tips": "taxable",
+        "reimbursement": "exempt",
+        "fringe_benefit": "taxable",
+        "employer_hsa_cafeteria": "taxable"
+      },
+      "otherKinds": "pending",
+      "note": "SDI wages (includes Paid Family Leave).",
+      "cite": [
+        {
+          "source": "de-231a",
+          "page": 1,
+          "ref": "\"Wages are all compensation for an employee's personal services... Supplemental payments, including bonuses, overtime pay, sales awards, commissions, and vacation pay, are also considered wages.\" Wages \"are subject to all employment taxes and reportable as PIT wages unless otherwise stated.\""
+        },
+        {
+          "source": "de-231a",
+          "page": 2,
+          "ref": "Wages include \"Employer contributions under a qualified cash or deferred compensation plan (such as section 401(k) of the IRC) that represent elective employee contributions. Not subject to PIT withholding...\""
+        },
+        {
+          "source": "de-231eb",
+          "page": 4,
+          "ref": "Retirement plans: \"Employee salary reduction contributions to a qualified plan (unless under cafeteria plan)\": UI/ETT Subject, SDI Subject, PIT Not Subject"
+        },
+        {
+          "source": "de-231a",
+          "page": 2,
+          "ref": "Employer contributions to 401(k), 408(k), 408(p) and 403(b) plans \"are also not subject to employment taxes, unless the contributions result from a salary reduction agreement\""
+        },
+        {
+          "source": "de-231a",
+          "page": 2,
+          "ref": "Wages do not include \"Employer contributions to a trust under section 401(a) of the IRC or to an annuity plan under section 403(b)... Employer contributions to certain qualified retirement or deferred compensation plans, such as those defined in sections 401(k)... are also not subject to employment taxes, unless the contributions result from a salary reduction agreement.\""
+        },
+        {
+          "source": "de-231eb",
+          "page": 4,
+          "ref": "Retirement plans: \"Employer contributions to a qualified plan (unless under cafeteria plan)\": PIT Not Subject"
+        },
+        {
+          "source": "de-231eb",
+          "page": 2,
+          "ref": "Cafeteria plans: \"Employee salary reduction for dependent care assistance, accident, health, and/or group-term life insurance\": Not Subject for UI/ETT, SDI and PIT"
+        },
+        {
+          "source": "de-231eb",
+          "page": 2,
+          "ref": "Cafeteria plans: \"Employee salary reduction for ... accident, health ...\": Not Subject for UI/ETT, SDI and PIT"
+        },
+        {
+          "source": "de-231eb",
+          "page": 2,
+          "ref": "Cafeteria plans: \"Employee salary reduction for dependent care assistance...\": Not Subject for UI/ETT, SDI and PIT"
+        },
+        {
+          "source": "de-231eb",
+          "page": 3,
+          "ref": "Health Savings Account: \"Employee salary reductions to a qualified plan\": Subject for UI/ETT, SDI and PIT"
+        },
+        {
+          "source": "de-231eb",
+          "page": 2,
+          "ref": "Cafeteria plans: \"Employer contributions into a cafeteria plan for a health savings account\": Subject for all three"
+        },
+        {
+          "source": "ftb-1001",
+          "page": 9,
+          "ref": "Health Savings Account (HSA): California does not recognize HSAs"
+        },
+        {
+          "source": "de-231eb",
+          "page": 3,
+          "ref": "Health Savings Account: \"Employer contributions to a qualified plan on behalf of an employee...\": Subject for UI/ETT, SDI and PIT"
+        },
+        {
+          "source": "de-231eb",
+          "page": 3,
+          "ref": "Health plans: \"Employer contributions to a qualified plan on behalf of an employee...\": Not Subject for UI/ETT, SDI and PIT (PIT subject for 2 percent S corporation shareholder-employees)"
+        },
+        {
+          "source": "de-231a",
+          "page": 2,
+          "ref": "Wages do not include \"Health insurance premiums or health care expenses paid by the employer on behalf of the employee or the employee's dependents who have not reached 27 years of age\""
+        },
+        {
+          "source": "de-231a",
+          "page": 1,
+          "ref": "Wages include \"Cash tips and gratuities of $20 or more in a month that are included in a written statement furnished by the employee to the employer\"; wages \"are subject to all employment taxes and reportable as PIT wages unless otherwise stated\""
+        },
+        {
+          "source": "de-231a",
+          "page": 1,
+          "ref": "Wages include \"Banquet tips and employer-controlled tips, which are considered a regular wage and are fully taxable\" and reported cash tips"
+        },
+        {
+          "source": "de-231a",
+          "page": 2,
+          "ref": "Wages do not include \"Repayment of required or necessary business expenses incurred by the employee while performing services for the employer (e.g., travel expenses)\""
+        },
+        {
+          "source": "de-231tp",
+          "page": 3,
+          "ref": "Business Expenses: employer reimbursement of required or necessary business expenses"
+        },
+        {
+          "source": "de-231a",
+          "page": 2,
+          "ref": "Wages include \"Fringe benefits provided or paid for by the employer on behalf of employees and their dependents unless specifically excluded from income\""
+        }
+      ]
+    },
+    "discrepancy": "DE 231EB (Rev. 12, 6-17) shows employer contributions to a qualified retirement plan as subject to UI/ETT and SDI; the newer DE 231A (Rev. 18, 12-23) says they are not subject to employment taxes unless they come from a salary reduction agreement. The engine follows DE 231A (retirement_match exempt). A reviewer should confirm."
+  },
+  "ownerApproval": {
+    "date": "2026-09-30",
+    "by": "product owner",
+    "scope": "Figures checked as copied from the supplied documents, for building and testing the tax calculations. Not a professional review: reviewedBy stays null until a CPA or payroll specialist signs off, which is required before real paychecks."
+  },
+  "reviewedBy": null,
+  "note": "Approved by the product owner for building (see ownerApproval); awaiting professional review.",
+  "noCertificate": {
+    "rule": "single_zero_allowances",
+    "note": "Without a completed DE 4, withhold as Single with zero allowances. (California income tax itself still waits on DE 44.)",
+    "cite": [
+      {
+        "source": "de-4",
+        "page": 1,
+        "ref": "\"If you do not provide your employer a completed DE 4, your employer must use Single with Zero withholding allowance.\""
+      }
+    ]
+  },
+  "certificate": {
+    "form": "DE 4",
+    "revision": "Rev. 56 (1-26)",
+    "note": "Line 3 is the exemption for employees who owed no federal or state tax last year and expect none this year (renewed by February 15 each year); line 4 is the exemption for a military spouse under the Servicemembers Civil Relief Act as amended by the Military Spouses Residency Relief Act.",
+    "cite": [
+      {
+        "source": "de-4",
+        "page": 1,
+        "ref": "Line 3: \"I claim exemption from withholding for 2026\"; line 4: \"I certify under penalty of perjury that I am not subject to California withholding. I meet the conditions set forth under the Service Member Civil Relief Act...\"; \"a new DE 4 designating exempt must be submitted by February 15 each year\""
+      }
+    ]
+  }
+}

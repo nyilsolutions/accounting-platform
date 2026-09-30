@@ -88,7 +88,7 @@ describe('purchase transactions', () => {
   });
 
   it('rejects unknown transaction types', async () => {
-    await expect(header(A.company, 'paycheck', '0')).rejects.toThrow(/txn_type_check/);
+    await expect(header(A.company, 'time_activity', '0')).rejects.toThrow(/txn_type_check/);
   });
 
   it('a transaction cannot name another company’s vendor', async () => {

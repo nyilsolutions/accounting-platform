@@ -6,6 +6,8 @@ import {
   type Money,
   type ReportDto,
   type ReportQuery,
+  type LedgerReportKey,
+  type ReportKey,
 } from '@acct/shared';
 import { ACCRUAL_ONLY_TYPES, cashRecognition, type CashFilter } from './cash-basis';
 import type { ReportAccount } from './report-builder';
@@ -104,7 +106,7 @@ export function filtersOf(
 
 export function reportDto(
   scope: ReportScope,
-  key: ReportDto['key'],
+  key: Exclude<ReportKey, LedgerReportKey>,
   basis: Basis,
   from: string | null,
   to: string,

@@ -80,6 +80,12 @@ export default function VendorsPage() {
       is1099,
       tinType: is1099 ? ((String(f.get('tinType')) || null) as 'ein' | 'ssn' | null) : undefined,
       ...(tin ? { tin } : {}),
+      ...(is1099
+        ? {
+            w9ReceivedOn: String(f.get('w9ReceivedOn') ?? ''),
+            backupWithholding: f.get('backupWithholding') === 'on',
+          }
+        : {}),
       defaultExpenseAccountId: String(f.get('defaultExpenseAccountId') ?? '') || null,
       ...contactFromForm(f),
     };
@@ -231,6 +237,21 @@ export default function VendorsPage() {
                   }
                   error={error?.fieldError('tin')}
                 />
+                <TextInput
+                  label="Form W-9 received"
+                  name="w9ReceivedOn"
+                  type="date"
+                  defaultValue={current?.w9ReceivedOn ?? ''}
+                  error={error?.fieldError('w9ReceivedOn')}
+                />
+                <label className="flex items-center gap-2 self-end pb-2 text-sm">
+                  <input
+                    type="checkbox"
+                    name="backupWithholding"
+                    defaultChecked={current?.backupWithholding ?? false}
+                  />{' '}
+                  Backup withholding (IRS B-notice or no TIN)
+                </label>
               </div>
             )}
           </fieldset>

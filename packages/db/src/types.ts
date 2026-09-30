@@ -192,6 +192,8 @@ export interface VendorsTable extends Audited, ContactColumns {
   tin_enc: string | null;
   tin_last4: string | null;
   default_expense_account_id: string | null;
+  w9_received_on: DateCol | null;
+  backup_withholding: Generated<boolean>;
 }
 
 export interface ItemsTable extends Audited {
@@ -790,6 +792,291 @@ export interface MemorizedReportsTable {
   updated_at: Generated<Date>;
 }
 
+// ---- Payroll (0010) -------------------------------------------------------------------------
+export interface PayrollSettingsTable extends Audited {
+  company_id: string;
+  federal_form: Generated<string>;
+  deposit_schedule: Generated<string>;
+  payroll_start_date: DateCol | null;
+  wage_expense_account_id: string;
+  tax_expense_account_id: string;
+  liability_account_id: string;
+  bank_account_id: string | null;
+  ach_odfi_routing: string | null;
+  ach_odfi_name: string | null;
+  ach_company_name: string | null;
+  ach_company_id: string | null;
+  ny_pfl_deducted: Generated<boolean>;
+  ny_dbl_deducted: Generated<boolean>;
+}
+
+export interface PaySchedulesTable extends Audited {
+  id: Generated<string>;
+  company_id: string;
+  name: string;
+  frequency: string;
+  first_period_end: DateCol;
+  pay_date_offset: Generated<number>;
+  is_active: Generated<boolean>;
+}
+
+export interface PayrollStateRegistrationsTable extends Audited {
+  id: Generated<string>;
+  company_id: string;
+  state: string;
+  withholding_account_number: string | null;
+  unemployment_account_number: string | null;
+  withholding_deposit_schedule: 'monthly' | 'semiweekly' | null;
+  is_active: Generated<boolean>;
+}
+
+export interface StateUnemploymentRatesTable {
+  company_id: string;
+  registration_id: string;
+  year: number;
+  rate: Numeric;
+  created_by: string | null;
+  created_at: Generated<Date>;
+}
+
+export interface WorkersCompClassesTable extends Audited {
+  id: Generated<string>;
+  company_id: string;
+  state: string;
+  code: string;
+  description: string;
+  rate: Numeric;
+  is_active: Generated<boolean>;
+}
+
+export interface PtoPoliciesTable extends Audited {
+  id: Generated<string>;
+  company_id: string;
+  name: string;
+  kind: string;
+  accrual_method: string;
+  accrual_rate: Generated<string>;
+  max_balance: Numeric | null;
+  carryover_limit: Numeric | null;
+  is_active: Generated<boolean>;
+}
+
+export interface PayrollItemsTable extends Audited {
+  id: Generated<string>;
+  company_id: string;
+  name: string;
+  kind: string;
+  rate_multiplier: Numeric | null;
+  pto_policy_id: string | null;
+  garnishment_type: string | null;
+  expense_account_id: string | null;
+  liability_account_id: string | null;
+  vendor_id: string | null;
+  is_active: Generated<boolean>;
+}
+
+export interface EmployeesTable extends Audited {
+  id: Generated<string>;
+  company_id: string;
+  employee_number: string | null;
+  first_name: string;
+  middle_name: string | null;
+  last_name: string;
+  suffix: string | null;
+  ssn_enc: string | null;
+  ssn_last4: string | null;
+  date_of_birth: DateCol | null;
+  email: string | null;
+  phone: string | null;
+  address_line1: string | null;
+  address_line2: string | null;
+  city: string | null;
+  state: string | null;
+  postal_code: string | null;
+  work_address_line1: string | null;
+  work_city: string | null;
+  work_state: string;
+  work_postal_code: string | null;
+  hire_date: DateCol;
+  termination_date: DateCol | null;
+  termination_reason: string | null;
+  pay_type: string;
+  pay_rate: Generated<string>;
+  default_hours: Numeric | null;
+  pay_schedule_id: string;
+  pay_method: Generated<string>;
+  overtime_exempt: Generated<boolean>;
+  ny_dbl_exempt: Generated<boolean>;
+  workers_comp_class_id: string | null;
+  class_id: string | null;
+  location_id: string | null;
+  notes: string | null;
+}
+
+export interface EmployeeW4Table {
+  id: Generated<string>;
+  company_id: string;
+  employee_id: string;
+  effective_from: DateCol;
+  form_version: string;
+  filing_status: string;
+  multiple_jobs: Generated<boolean>;
+  dependents_amount: Generated<string>;
+  other_income: Generated<string>;
+  deductions: Generated<string>;
+  extra_withholding: Generated<string>;
+  allowances: Generated<number>;
+  exempt: Generated<boolean>;
+  nonresident_alien: Generated<boolean>;
+  created_by: string | null;
+  created_at: Generated<Date>;
+}
+
+export interface EmployeeStateCertificatesTable {
+  id: Generated<string>;
+  company_id: string;
+  employee_id: string;
+  state: string;
+  effective_from: DateCol;
+  fields: ColumnType<unknown, string, string>;
+  created_by: string | null;
+  created_at: Generated<Date>;
+}
+
+export interface EmployeeBankAccountsTable extends Audited {
+  id: Generated<string>;
+  company_id: string;
+  employee_id: string;
+  position: number;
+  routing_number: string;
+  account_enc: string;
+  account_last4: string;
+  account_type: string;
+  amount_type: string;
+  amount: Numeric | null;
+  prenote_status: Generated<string>;
+  prenote_sent_on: DateCol | null;
+}
+
+export interface EmployeePayItemsTable {
+  id: Generated<string>;
+  company_id: string;
+  employee_id: string;
+  payroll_item_id: string;
+  position: number;
+  amount: Numeric | null;
+  percent: Numeric | null;
+  annual_limit: Numeric | null;
+  case_number: string | null;
+  total_owed: Numeric | null;
+}
+
+export interface EmployeePtoTable {
+  company_id: string;
+  employee_id: string;
+  policy_id: string;
+  opening_balance: Generated<string>;
+  opening_as_of: DateCol;
+}
+
+export interface AchBatchesTable {
+  id: Generated<string>;
+  company_id: string;
+  kind: string;
+  effective_date: DateCol;
+  entry_count: number;
+  total_credit: Numeric;
+  file_sha256: string;
+  pay_run_id: string | null;
+  created_by: string | null;
+  created_at: Generated<Date>;
+}
+
+export interface PayRunsTable {
+  id: Generated<string>;
+  company_id: string;
+  kind: string;
+  pay_schedule_id: string | null;
+  period_start: DateCol | null;
+  period_end: DateCol | null;
+  pay_date: DateCol;
+  frequency: string;
+  status: Generated<string>;
+  memo: string | null;
+  approved_by: string | null;
+  approved_at: Date | null;
+  posted_by: string | null;
+  posted_at: Date | null;
+  created_by: string | null;
+  updated_by: string | null;
+  created_at: Generated<Date>;
+  updated_at: Generated<Date>;
+}
+
+export interface PaychecksTable {
+  id: Generated<string>;
+  company_id: string;
+  pay_run_id: string;
+  employee_id: string;
+  pay_date: DateCol;
+  pay_method: string;
+  supplemental: Generated<boolean>;
+  status: Generated<string>;
+  problems: ColumnType<unknown, string | null, string | null>;
+  notices: ColumnType<unknown, string | undefined, string>;
+  input: ColumnType<unknown, string | undefined, string>;
+  deposits: ColumnType<unknown, string | undefined, string>;
+  gross_pay: Generated<string>;
+  employee_taxes: Generated<string>;
+  deductions: Generated<string>;
+  net_pay: Generated<string>;
+  employer_taxes: Generated<string>;
+  contributions: Generated<string>;
+  w4_id: string | null;
+  state_certificate_id: string | null;
+  tax_year: number;
+  transaction_id: string | null;
+  voided_by: string | null;
+  voided_at: Date | null;
+  created_at: Generated<Date>;
+  updated_at: Generated<Date>;
+}
+
+export interface PaycheckLinesTable {
+  id: Generated<string>;
+  company_id: string;
+  paycheck_id: string;
+  line_no: number;
+  line_type: string;
+  payroll_item_id: string | null;
+  tax_code: string | null;
+  payer: string | null;
+  state: string | null;
+  hours: Numeric | null;
+  rate: Numeric | null;
+  amount: Numeric;
+  taxable_wages: Numeric | null;
+  description: string | null;
+}
+
+export interface PayrollLiabilityPaymentsTable {
+  id: Generated<string>;
+  company_id: string;
+  agency: string;
+  period_start: DateCol;
+  period_end: DateCol;
+  payment_date: DateCol;
+  amount: Numeric;
+  method: string;
+  reference: string | null;
+  status: Generated<string>;
+  transaction_id: string;
+  created_by: string | null;
+  created_at: Generated<Date>;
+  voided_by: string | null;
+  voided_at: Date | null;
+}
+
 export interface Database {
   users: UsersTable;
   mfa_recovery_codes: MfaRecoveryCodesTable;
@@ -848,6 +1135,24 @@ export interface Database {
   budgets: BudgetsTable;
   budget_amounts: BudgetAmountsTable;
   memorized_reports: MemorizedReportsTable;
+  payroll_settings: PayrollSettingsTable;
+  pay_schedules: PaySchedulesTable;
+  payroll_state_registrations: PayrollStateRegistrationsTable;
+  state_unemployment_rates: StateUnemploymentRatesTable;
+  workers_comp_classes: WorkersCompClassesTable;
+  pto_policies: PtoPoliciesTable;
+  payroll_items: PayrollItemsTable;
+  employees: EmployeesTable;
+  employee_w4: EmployeeW4Table;
+  employee_state_certificates: EmployeeStateCertificatesTable;
+  employee_bank_accounts: EmployeeBankAccountsTable;
+  employee_pay_items: EmployeePayItemsTable;
+  employee_pto: EmployeePtoTable;
+  ach_batches: AchBatchesTable;
+  pay_runs: PayRunsTable;
+  paychecks: PaychecksTable;
+  paycheck_lines: PaycheckLinesTable;
+  payroll_liability_payments: PayrollLiabilityPaymentsTable;
 }
 
 export type User = Selectable<UsersTable>;
@@ -869,3 +1174,10 @@ export type SalesLine = Selectable<SalesLinesTable>;
 export type Estimate = Selectable<EstimatesTable>;
 export type EstimateLine = Selectable<EstimateLinesTable>;
 export type DepositLine = Selectable<DepositLinesTable>;
+export type Employee = Selectable<EmployeesTable>;
+export type PayrollItemRow = Selectable<PayrollItemsTable>;
+export type EmployeeW4Row = Selectable<EmployeeW4Table>;
+export type EmployeeBankAccountRow = Selectable<EmployeeBankAccountsTable>;
+export type PayRunRow = Selectable<PayRunsTable>;
+export type PaycheckRow = Selectable<PaychecksTable>;
+export type PaycheckLineRow = Selectable<PaycheckLinesTable>;
