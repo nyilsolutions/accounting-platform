@@ -216,3 +216,23 @@ Add new questions here instead of guessing.
 50. **Missing Form W-4:** an employee without a W-4 is flagged. Pub 15-T says to withhold as
     single with no adjustments until one arrives. Should payroll allow paying them that way, or
     block the paycheck until a W-4 is on file?
+
+## Pay runs (Phase 8, part 2)
+
+51. **Pay before payroll starts here:** wage bases and caps (social security, FUTA, state
+    unemployment, Paid Family Leave, 401(k) limits) use year-to-date wages from paychecks posted
+    here. A company that starts mid-year needs its earlier 2026 pay entered. Should we add a
+    "prior payroll" entry (year-to-date totals per employee as of the start date), or import it
+    from QuickBooks (Phase 6 doesn't carry paychecks)?
+52. **Garnishment limits:** a garnishment is taken as entered, up to its total owed. The Consumer
+    Credit Protection Act caps most garnishments at a share of disposable earnings (and child
+    support at 50–65%), and states have their own limits. Should payroll enforce them? If so, the
+    limits belong in `tax-data` with citations.
+53. **Working in more than one state, and Yonkers nonresidents:** each employee's taxes go to their
+    work state. Employees who live in one state and work in another (reciprocity, resident-state
+    withholding) or who split time between states are not handled, and the Yonkers nonresident
+    earnings tax (implemented and tested) needs to know who works in Yonkers. How common is this
+    for your customers?
+54. **Paper paychecks:** paychecks paid by check are marked "to print" but can't be printed yet
+    with the check printing from Phase 3 (voucher stubs differ). Do customers print paychecks, or
+    is direct deposit plus a pay stub enough for now?
