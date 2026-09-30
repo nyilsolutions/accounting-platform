@@ -168,10 +168,17 @@ Add new questions here instead of guessing.
 
 ## Payroll setup (Phase 8)
 
-44. **Federal tax data:** `tax-data/2026/federal.json` (Pub 15-T tables, Social Security wage
-    base, Medicare, FUTA, supplemental rates) is waiting for access to www.irs.gov and
-    www.ssa.gov, which this environment's network policy still blocks. The federal tax engine,
-    pay runs and everything after them are built only once you have checked that file.
+44. **Federal tax data:** `tax-data/2026/federal.json` is built from the 2026 Pub. 15-T, Pub. 15
+    and the SSA wage base you supplied, and waits for your sign-off before any tax code is
+    written. Still needed:
+    - **IRS Publication 15-B (2026)**, for the taxability of cafeteria plan, health FSA, dependent
+      care, employer health and Roth items (marked `pending` in the file);
+    - the **state publications** for the state files: IL-700-T, EDD DE 44 and the California UI,
+      ETT and SDI rates, NYS-50-T-NYS, NYS-50-T-NYC, NYS-50-T-Y and NYS-50 (with PFL and DBL), and
+      the 2026 unemployment wage bases and new-employer rates for Texas (TWC), Florida and
+      Illinois (IDES);
+    - the **2026 FUTA credit reduction states**, which the Department of Labor announces in
+      November 2026.
 45. **Your direct deposit bank (ODFI):** which bank will originate the ACH files? Banks differ on:
     - a balanced file (an offsetting debit to your account) or credits only (built today);
     - line endings (CRLF today) and the immediate origin and company ID they assign;

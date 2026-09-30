@@ -1,0 +1,825 @@
+{
+  "year": 2026,
+  "description": "Federal payroll tax figures for wages paid in calendar year 2026: federal income tax withholding (Pub. 15-T percentage method for automated payroll), social security, Medicare, Additional Medicare, FUTA, supplemental wages, deposit rules, tips and the 2025-2028 qualified tips and overtime deductions.",
+  "sources": [
+    {
+      "id": "p15t",
+      "title": "IRS Publication 15-T (2026), Federal Income Tax Withholding Methods",
+      "catalog": "32112B",
+      "revision": "2025-12-03",
+      "url": "https://www.irs.gov/pub/irs-pdf/p15t.pdf"
+    },
+    {
+      "id": "p15",
+      "title": "IRS Publication 15 (2026), (Circular E) Employer's Tax Guide",
+      "catalog": "10000W",
+      "revision": "2025-12-15",
+      "url": "https://www.irs.gov/pub/irs-pdf/p15.pdf"
+    },
+    {
+      "id": "ssa-faq",
+      "title": "SSA FAQ: What is the current maximum amount of taxable earnings for Social Security?",
+      "revision": "2026-01-02",
+      "url": "https://faq.ssa.gov/en-us/Topic/article/KA-02386"
+    }
+  ],
+  "socialSecurity": {
+    "employeeRatePercent": "6.2",
+    "employerRatePercent": "6.2",
+    "wageBase": "184500.00",
+    "cite": [
+      {
+        "source": "p15",
+        "page": 29,
+        "ref": "Section 9, Tax rates and the social security wage base limit"
+      },
+      {
+        "source": "p15",
+        "page": 2,
+        "ref": "What's New"
+      },
+      {
+        "source": "ssa-faq",
+        "page": 1,
+        "ref": "2026 maximum taxable earnings"
+      }
+    ]
+  },
+  "medicare": {
+    "employeeRatePercent": "1.45",
+    "employerRatePercent": "1.45",
+    "wageBase": null,
+    "cite": [
+      {
+        "source": "p15",
+        "page": 29,
+        "ref": "Section 9, Tax rates and the social security wage base limit"
+      }
+    ]
+  },
+  "additionalMedicare": {
+    "employeeRatePercent": "0.9",
+    "employerRatePercent": "0",
+    "withholdingThreshold": "200000.00",
+    "note": "Withhold on wages paid to an employee in excess of $200,000 in the calendar year, regardless of filing status; no employer share.",
+    "cite": [
+      {
+        "source": "p15",
+        "page": 29,
+        "ref": "Section 9, Additional Medicare Tax withholding"
+      },
+      {
+        "source": "p15",
+        "page": 30,
+        "ref": "continued"
+      }
+    ]
+  },
+  "futa": {
+    "grossRatePercent": "6.0",
+    "maxCreditPercent": "5.4",
+    "netRatePercent": "0.6",
+    "wageBase": "7000.00",
+    "quarterlyDepositThreshold": "500.00",
+    "depositDue": {
+      "Q1": "04-30",
+      "Q2": "07-31",
+      "Q3": "10-31",
+      "Q4": "01-31"
+    },
+    "creditReductionStates": {
+      "published": false,
+      "states": {},
+      "note": "Not in Pub. 15; the Department of Labor announces 2026 credit reduction states in November 2026 (see the 2026 Form 940 instructions). Add them here when published."
+    },
+    "cite": [
+      {
+        "source": "p15",
+        "page": 44,
+        "ref": "Section 14, Figuring FUTA tax; Depositing FUTA tax; Table 4"
+      }
+    ]
+  },
+  "supplementalWages": {
+    "optionalFlatRatePercent": "22",
+    "mandatoryRatePercent": "37",
+    "mandatoryThreshold": "1000000.00",
+    "note": "37% applies to supplemental wages above $1 million paid to an employee in the calendar year (all businesses under common control), without regard to Form W-4. Otherwise 22% flat (only if income tax was withheld from regular wages in the current or preceding year) or the aggregate method.",
+    "cite": [
+      {
+        "source": "p15",
+        "page": 2,
+        "ref": "What's New, Withholding on supplemental wages"
+      },
+      {
+        "source": "p15",
+        "page": 24,
+        "ref": "Section 7"
+      }
+    ]
+  },
+  "backupWithholding": {
+    "ratePercent": "24",
+    "cite": [
+      {
+        "source": "p15",
+        "page": 2,
+        "ref": "What's New, Backup withholding"
+      }
+    ]
+  },
+  "tips": {
+    "monthlyReportThreshold": "20.00",
+    "note": "Tips of $20 or more in a month are subject to income tax withholding, social security and Medicare; less than $20 in a month is exempt.",
+    "cite": [
+      {
+        "source": "p15",
+        "page": 22,
+        "ref": "Section 6"
+      },
+      {
+        "source": "p15",
+        "page": 52,
+        "ref": "Section 15, Tips"
+      }
+    ]
+  },
+  "qualifiedTipsAndOvertime": {
+    "taxYears": {
+      "from": 2025,
+      "to": 2028
+    },
+    "qualifiedTipsDeductionMax": "25000.00",
+    "qualifiedOvertimeDeductionMax": {
+      "single": "12500.00",
+      "married_jointly": "25000.00"
+    },
+    "note": "Deductions are claimed on the employee's return; payroll reflects them only through the employee's Form W-4. Tips and overtime stay subject to social security and Medicare. Employers must report qualified tips (with the Treasury Tipped Occupation Code) and qualified overtime on Form W-2; transition relief applies to 2025 reporting only (Notice 2025-62). Qualified overtime is the premium portion (e.g. the 'half' of time-and-a-half) required by FLSA section 7.",
+    "cite": [
+      {
+        "source": "p15t",
+        "page": 2,
+        "ref": "What's New, Withholding on qualified tips / qualified overtime compensation"
+      },
+      {
+        "source": "p15",
+        "page": 2,
+        "ref": "What's New"
+      }
+    ]
+  },
+  "deposits": {
+    "lookbackThreshold": "50000.00",
+    "nextDayThreshold": "100000.00",
+    "returnPaymentThreshold": "2500.00",
+    "form944MaxAnnualLiability": "1000.00",
+    "monthlyDueDayOfFollowingMonth": 15,
+    "semiweekly": {
+      "wednesday_to_friday": "following Wednesday",
+      "saturday_to_tuesday": "following Friday"
+    },
+    "lookbackPeriod2026": {
+      "form941": {
+        "from": "2024-07-01",
+        "to": "2025-06-30"
+      },
+      "form944": {
+        "from": "2024-01-01",
+        "to": "2024-12-31"
+      }
+    },
+    "rules": [
+      "Monthly depositor if lookback-period taxes are $50,000 or less; semiweekly if more.",
+      "New Form 941 employers are monthly depositors for their first calendar year.",
+      "$100,000 or more accumulated on any day of a deposit period must be deposited by the next business day; a monthly depositor then becomes semiweekly for the rest of the year and the next year.",
+      "Liability under $2,500 for the quarter (or prior quarter) may be paid with the return if no $100,000 next-day obligation arose."
+    ],
+    "cite": [
+      {
+        "source": "p15",
+        "page": 31,
+        "ref": "Section 11, Payment with return"
+      },
+      {
+        "source": "p15",
+        "page": 32,
+        "ref": "Lookback period, Table 1"
+      },
+      {
+        "source": "p15",
+        "page": 33,
+        "ref": "Monthly and Semiweekly Deposit Schedules"
+      },
+      {
+        "source": "p15",
+        "page": 34,
+        "ref": "$100,000 Next-Day Deposit Rule"
+      },
+      {
+        "source": "p15",
+        "page": 4,
+        "ref": "Form 944 ($1,000 or less), Reminders"
+      }
+    ]
+  },
+  "incomeTaxWithholding": {
+    "method": "Percentage Method Tables for Automated Payroll Systems (Worksheet 1A), valid for Forms W-4 from any year",
+    "payPeriodsPerYear": {
+      "semiannually": 2,
+      "quarterly": 4,
+      "monthly": 12,
+      "semimonthly": 24,
+      "biweekly": 26,
+      "weekly": 52,
+      "daily": 260
+    },
+    "step2NotCheckedAdjustment": {
+      "married_jointly": "12900.00",
+      "other": "8600.00"
+    },
+    "pre2020AllowanceValue": "4300.00",
+    "noFormW4": "Treat as Single or Married filing separately with no entries in Steps 2-4. Employees paid before 2020 without a Form W-4: Single with zero allowances on a 2019-or-earlier form.",
+    "pre2020": {
+      "marriedStatuses": ["married"],
+      "singleStatuses": ["single", "married_single_rate"],
+      "noHeadOfHousehold": true
+    },
+    "rounding": "Optional: wages to the nearest dollar and tax to the nearest dollar (under 50 cents down, 50-99 cents up), applied consistently.",
+    "annualTables": {
+      "standard": {
+        "married_jointly": [
+          {
+            "atLeast": "0.00",
+            "lessThan": "19300.00",
+            "base": "0.00",
+            "ratePercent": "0",
+            "excessOver": "0.00"
+          },
+          {
+            "atLeast": "19300.00",
+            "lessThan": "44100.00",
+            "base": "0.00",
+            "ratePercent": "10",
+            "excessOver": "19300.00"
+          },
+          {
+            "atLeast": "44100.00",
+            "lessThan": "120100.00",
+            "base": "2480.00",
+            "ratePercent": "12",
+            "excessOver": "44100.00"
+          },
+          {
+            "atLeast": "120100.00",
+            "lessThan": "230700.00",
+            "base": "11600.00",
+            "ratePercent": "22",
+            "excessOver": "120100.00"
+          },
+          {
+            "atLeast": "230700.00",
+            "lessThan": "422850.00",
+            "base": "35932.00",
+            "ratePercent": "24",
+            "excessOver": "230700.00"
+          },
+          {
+            "atLeast": "422850.00",
+            "lessThan": "531750.00",
+            "base": "82048.00",
+            "ratePercent": "32",
+            "excessOver": "422850.00"
+          },
+          {
+            "atLeast": "531750.00",
+            "lessThan": "788000.00",
+            "base": "116896.00",
+            "ratePercent": "35",
+            "excessOver": "531750.00"
+          },
+          {
+            "atLeast": "788000.00",
+            "lessThan": null,
+            "base": "206583.50",
+            "ratePercent": "37",
+            "excessOver": "788000.00"
+          }
+        ],
+        "single": [
+          {
+            "atLeast": "0.00",
+            "lessThan": "7500.00",
+            "base": "0.00",
+            "ratePercent": "0",
+            "excessOver": "0.00"
+          },
+          {
+            "atLeast": "7500.00",
+            "lessThan": "19900.00",
+            "base": "0.00",
+            "ratePercent": "10",
+            "excessOver": "7500.00"
+          },
+          {
+            "atLeast": "19900.00",
+            "lessThan": "57900.00",
+            "base": "1240.00",
+            "ratePercent": "12",
+            "excessOver": "19900.00"
+          },
+          {
+            "atLeast": "57900.00",
+            "lessThan": "113200.00",
+            "base": "5800.00",
+            "ratePercent": "22",
+            "excessOver": "57900.00"
+          },
+          {
+            "atLeast": "113200.00",
+            "lessThan": "209275.00",
+            "base": "17966.00",
+            "ratePercent": "24",
+            "excessOver": "113200.00"
+          },
+          {
+            "atLeast": "209275.00",
+            "lessThan": "263725.00",
+            "base": "41024.00",
+            "ratePercent": "32",
+            "excessOver": "209275.00"
+          },
+          {
+            "atLeast": "263725.00",
+            "lessThan": "648100.00",
+            "base": "58448.00",
+            "ratePercent": "35",
+            "excessOver": "263725.00"
+          },
+          {
+            "atLeast": "648100.00",
+            "lessThan": null,
+            "base": "192979.25",
+            "ratePercent": "37",
+            "excessOver": "648100.00"
+          }
+        ],
+        "head_of_household": [
+          {
+            "atLeast": "0.00",
+            "lessThan": "15550.00",
+            "base": "0.00",
+            "ratePercent": "0",
+            "excessOver": "0.00"
+          },
+          {
+            "atLeast": "15550.00",
+            "lessThan": "33250.00",
+            "base": "0.00",
+            "ratePercent": "10",
+            "excessOver": "15550.00"
+          },
+          {
+            "atLeast": "33250.00",
+            "lessThan": "83000.00",
+            "base": "1770.00",
+            "ratePercent": "12",
+            "excessOver": "33250.00"
+          },
+          {
+            "atLeast": "83000.00",
+            "lessThan": "121250.00",
+            "base": "7740.00",
+            "ratePercent": "22",
+            "excessOver": "83000.00"
+          },
+          {
+            "atLeast": "121250.00",
+            "lessThan": "217300.00",
+            "base": "16155.00",
+            "ratePercent": "24",
+            "excessOver": "121250.00"
+          },
+          {
+            "atLeast": "217300.00",
+            "lessThan": "271750.00",
+            "base": "39207.00",
+            "ratePercent": "32",
+            "excessOver": "217300.00"
+          },
+          {
+            "atLeast": "271750.00",
+            "lessThan": "656150.00",
+            "base": "56631.00",
+            "ratePercent": "35",
+            "excessOver": "271750.00"
+          },
+          {
+            "atLeast": "656150.00",
+            "lessThan": null,
+            "base": "191171.00",
+            "ratePercent": "37",
+            "excessOver": "656150.00"
+          }
+        ]
+      },
+      "step2Checkbox": {
+        "married_jointly": [
+          {
+            "atLeast": "0.00",
+            "lessThan": "16100.00",
+            "base": "0.00",
+            "ratePercent": "0",
+            "excessOver": "0.00"
+          },
+          {
+            "atLeast": "16100.00",
+            "lessThan": "28500.00",
+            "base": "0.00",
+            "ratePercent": "10",
+            "excessOver": "16100.00"
+          },
+          {
+            "atLeast": "28500.00",
+            "lessThan": "66500.00",
+            "base": "1240.00",
+            "ratePercent": "12",
+            "excessOver": "28500.00"
+          },
+          {
+            "atLeast": "66500.00",
+            "lessThan": "121800.00",
+            "base": "5800.00",
+            "ratePercent": "22",
+            "excessOver": "66500.00"
+          },
+          {
+            "atLeast": "121800.00",
+            "lessThan": "217875.00",
+            "base": "17966.00",
+            "ratePercent": "24",
+            "excessOver": "121800.00"
+          },
+          {
+            "atLeast": "217875.00",
+            "lessThan": "272325.00",
+            "base": "41024.00",
+            "ratePercent": "32",
+            "excessOver": "217875.00"
+          },
+          {
+            "atLeast": "272325.00",
+            "lessThan": "400450.00",
+            "base": "58448.00",
+            "ratePercent": "35",
+            "excessOver": "272325.00"
+          },
+          {
+            "atLeast": "400450.00",
+            "lessThan": null,
+            "base": "103291.75",
+            "ratePercent": "37",
+            "excessOver": "400450.00"
+          }
+        ],
+        "single": [
+          {
+            "atLeast": "0.00",
+            "lessThan": "8050.00",
+            "base": "0.00",
+            "ratePercent": "0",
+            "excessOver": "0.00"
+          },
+          {
+            "atLeast": "8050.00",
+            "lessThan": "14250.00",
+            "base": "0.00",
+            "ratePercent": "10",
+            "excessOver": "8050.00"
+          },
+          {
+            "atLeast": "14250.00",
+            "lessThan": "33250.00",
+            "base": "620.00",
+            "ratePercent": "12",
+            "excessOver": "14250.00"
+          },
+          {
+            "atLeast": "33250.00",
+            "lessThan": "60900.00",
+            "base": "2900.00",
+            "ratePercent": "22",
+            "excessOver": "33250.00"
+          },
+          {
+            "atLeast": "60900.00",
+            "lessThan": "108938.00",
+            "base": "8983.00",
+            "ratePercent": "24",
+            "excessOver": "60900.00"
+          },
+          {
+            "atLeast": "108938.00",
+            "lessThan": "136163.00",
+            "base": "20512.00",
+            "ratePercent": "32",
+            "excessOver": "108938.00"
+          },
+          {
+            "atLeast": "136163.00",
+            "lessThan": "328350.00",
+            "base": "29224.00",
+            "ratePercent": "35",
+            "excessOver": "136163.00"
+          },
+          {
+            "atLeast": "328350.00",
+            "lessThan": null,
+            "base": "96489.63",
+            "ratePercent": "37",
+            "excessOver": "328350.00"
+          }
+        ],
+        "head_of_household": [
+          {
+            "atLeast": "0.00",
+            "lessThan": "12075.00",
+            "base": "0.00",
+            "ratePercent": "0",
+            "excessOver": "0.00"
+          },
+          {
+            "atLeast": "12075.00",
+            "lessThan": "20925.00",
+            "base": "0.00",
+            "ratePercent": "10",
+            "excessOver": "12075.00"
+          },
+          {
+            "atLeast": "20925.00",
+            "lessThan": "45800.00",
+            "base": "885.00",
+            "ratePercent": "12",
+            "excessOver": "20925.00"
+          },
+          {
+            "atLeast": "45800.00",
+            "lessThan": "64925.00",
+            "base": "3870.00",
+            "ratePercent": "22",
+            "excessOver": "45800.00"
+          },
+          {
+            "atLeast": "64925.00",
+            "lessThan": "112950.00",
+            "base": "8077.50",
+            "ratePercent": "24",
+            "excessOver": "64925.00"
+          },
+          {
+            "atLeast": "112950.00",
+            "lessThan": "140175.00",
+            "base": "19603.50",
+            "ratePercent": "32",
+            "excessOver": "112950.00"
+          },
+          {
+            "atLeast": "140175.00",
+            "lessThan": "332375.00",
+            "base": "28315.50",
+            "ratePercent": "35",
+            "excessOver": "140175.00"
+          },
+          {
+            "atLeast": "332375.00",
+            "lessThan": null,
+            "base": "95585.50",
+            "ratePercent": "37",
+            "excessOver": "332375.00"
+          }
+        ]
+      },
+      "note": "Use 'standard' for Forms W-4 from 2019 or earlier, and for 2020+ forms with Step 2 not checked; 'step2Checkbox' when Step 2 is checked. Pre-2020 forms never use head of household. 'single' covers Single or Married filing separately. Values are exactly as published. Two Step 2 checkbox Single rows ($20,512.00 at $108,938 and $96,489.63 at $328,350) are the checkbox Married filing jointly amounts halved with bracket edges rounded to whole dollars, so they differ by cents from a row-by-row recomputation; the engine must use the published figures."
+    },
+    "nonresidentAlienAddition": {
+      "firstPaidBefore2020NoNewW4": {
+        "weekly": "226.90",
+        "biweekly": "453.80",
+        "semimonthly": "491.70",
+        "monthly": "983.30",
+        "quarterly": "2950.00",
+        "semiannually": "5900.00",
+        "annually": "11800.00",
+        "daily": "45.40"
+      },
+      "w4From2020OrFirstPaid2020OrLater": {
+        "weekly": "309.60",
+        "biweekly": "619.20",
+        "semimonthly": "670.80",
+        "monthly": "1341.70",
+        "quarterly": "4025.00",
+        "semiannually": "8050.00",
+        "annually": "16100.00",
+        "daily": "61.90"
+      },
+      "note": "Added to wages only to figure income tax withholding (not to W-2 wages, FICA or FUTA). Not for supplemental wages at the 22%/37% flat rates. Not for students and business apprentices from India."
+    },
+    "cite": [
+      {
+        "source": "p15t",
+        "page": 4,
+        "ref": "Form W-4, New employee fails to furnish Form W-4"
+      },
+      {
+        "source": "p15t",
+        "page": 5,
+        "ref": "Computational bridge"
+      },
+      {
+        "source": "p15t",
+        "page": 6,
+        "ref": "Nonresident alien Table 1"
+      },
+      {
+        "source": "p15t",
+        "page": 7,
+        "ref": "Nonresident alien Table 2"
+      },
+      {
+        "source": "p15t",
+        "page": 9,
+        "ref": "Rounding"
+      },
+      {
+        "source": "p15t",
+        "page": 10,
+        "ref": "Worksheet 1A and Table 3"
+      },
+      {
+        "source": "p15t",
+        "page": 12,
+        "ref": "2026 Percentage Method Tables for Automated Payroll Systems"
+      }
+    ]
+  },
+  "taxabilityByItemKind": {
+    "note": "How each payroll item kind is taxed. 'exempt'/'taxable' per federal income tax withholding (fit), social security and Medicare (fica) and FUTA (futa). Kinds marked pending need IRS Publication 15-B (Employer's Tax Guide to Fringe Benefits), which has not been provided.",
+    "kinds": {
+      "traditional_401k": {
+        "fit": "exempt",
+        "fica": "taxable",
+        "futa": "taxable",
+        "cite": [
+          {
+            "source": "p15",
+            "page": 51,
+            "ref": "Section 15, Retirement and pension plans, item 2"
+          }
+        ],
+        "note": "Subject to the section 402(g) limit."
+      },
+      "traditional_403b": {
+        "fit": "exempt",
+        "fica": "taxable",
+        "futa": "taxable",
+        "cite": [
+          {
+            "source": "p15",
+            "page": 51,
+            "ref": "Section 15, Retirement and pension plans, item 4 (salary reduction contributions are taxable for FICA/FUTA)"
+          }
+        ],
+        "note": "Subject to the section 402(g) limit."
+      },
+      "hsa": {
+        "fit": "exempt",
+        "fica": "exempt",
+        "futa": "exempt",
+        "cite": [
+          {
+            "source": "p15",
+            "page": 20,
+            "ref": "Section 5, Health savings accounts (salary reduction under a section 125 cafeteria plan)"
+          }
+        ],
+        "note": "Only when contributed through a section 125 cafeteria plan (as this item kind is defined); payroll-deduction HSA contributions outside a cafeteria plan are fully taxable."
+      },
+      "employer_hsa": {
+        "fit": "exempt",
+        "fica": "exempt",
+        "futa": "exempt",
+        "cite": [
+          {
+            "source": "p15",
+            "page": 20,
+            "ref": "Section 5, Health savings accounts"
+          }
+        ],
+        "note": "If it is reasonable to believe the contributions are excludable from the employee's income."
+      },
+      "retirement_match": {
+        "fit": "exempt",
+        "fica": "exempt",
+        "futa": "exempt",
+        "cite": [
+          {
+            "source": "p15",
+            "page": 51,
+            "ref": "Section 15, Retirement and pension plans, item 1 (employer contributions to a qualified plan)"
+          }
+        ]
+      },
+      "cash_tips": {
+        "fit": "taxable",
+        "fica": "taxable",
+        "futa": "taxable",
+        "cite": [
+          {
+            "source": "p15",
+            "page": 52,
+            "ref": "Section 15, Tips"
+          }
+        ],
+        "note": "$20 or more in a month; FUTA on tips reported in writing to the employer."
+      },
+      "paid_tips": {
+        "fit": "taxable",
+        "fica": "taxable",
+        "futa": "taxable",
+        "cite": [
+          {
+            "source": "p15",
+            "page": 52,
+            "ref": "Section 15, Tips"
+          }
+        ]
+      },
+      "section_125": {
+        "status": "pending",
+        "note": "Cafeteria plan benefits are treated as if provided outside the plan (Pub. 15 p. 47); the treatment of health premiums is in Pub. 15-B."
+      },
+      "health_fsa": {
+        "status": "pending",
+        "note": "Pub. 15-B."
+      },
+      "dependent_care_fsa": {
+        "status": "pending",
+        "note": "Exempt to the extent excludable under section 129 (Pub. 15 p. 47); the 2026 annual limit is in Pub. 15-B."
+      },
+      "roth_401k": {
+        "status": "pending",
+        "note": "Designated Roth contributions are not excluded from wages; confirm the citation (Pub. 15-B / Form W-2 instructions)."
+      },
+      "roth_403b": {
+        "status": "pending",
+        "note": "As for roth_401k."
+      },
+      "employer_health": {
+        "status": "pending",
+        "note": "Pub. 15-B (accident and health benefits)."
+      },
+      "reimbursement": {
+        "status": "pending",
+        "note": "Accountable-plan reimbursements are not wages; non-accountable are supplemental wages (Pub. 15 section 5)."
+      },
+      "fringe_benefit": {
+        "status": "pending",
+        "note": "Pub. 15-B."
+      }
+    }
+  },
+  "workedExamples": [
+    {
+      "source": "p15",
+      "page": 24,
+      "what": "Pre-2020 W-4, Single, 1 allowance, monthly $1,000 then $1,500 (wage bracket method)",
+      "published": {
+        "1000.00": "2",
+        "1500.00": "53"
+      }
+    },
+    {
+      "source": "p15",
+      "page": 24,
+      "what": "2026 W-4, Single, no Steps 2-4, monthly $2,000; $3,000 with a bonus (wage bracket method)",
+      "published": {
+        "2000.00": "65",
+        "3000.00": "179"
+      }
+    },
+    {
+      "source": "p15t",
+      "page": 7,
+      "what": "Nonresident alien, 2019 W-4 Single 1 allowance, weekly $300 + $226.90 (wage bracket method)",
+      "published": {
+        "526.90": "31"
+      }
+    },
+    {
+      "source": "p15",
+      "page": 30,
+      "what": "Successor employer: $2,000 paid by predecessor leaves $182,500 subject to social security"
+    }
+  ],
+  "reviewedBy": null,
+  "note": "Built from the documents the user supplied on 2026-09-30. The worked examples use the wage bracket method; the percentage method used by the app can differ by a dollar or so, so golden tests compare within the wage bracket's rounding. Pending CPA or payroll specialist review."
+}
