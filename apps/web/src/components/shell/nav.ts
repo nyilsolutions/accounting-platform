@@ -47,6 +47,14 @@ export const NAV: NavItem[] = [
     section: 'main',
   },
   {
+    key: 'inventory',
+    label: 'Inventory',
+    path: '/inventory',
+    shortcut: 'h',
+    permission: 'inventory.manage',
+    section: 'main',
+  },
+  {
     key: 'reports',
     label: 'Reports',
     path: '/reports',

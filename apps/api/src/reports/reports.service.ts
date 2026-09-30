@@ -44,6 +44,11 @@ import {
   vendor1099DetailReport,
 } from './detail-reports';
 import {
+  inventoryStockStatusReport,
+  inventoryValuationDetailReport,
+  inventoryValuationSummaryReport,
+} from './inventory-reports';
+import {
   balanceSheetReport,
   budgetOverviewReport,
   budgetVsActualsReport,
@@ -110,6 +115,9 @@ export class ReportsService {
     sales_tax_liability: salesTaxLiabilityReport,
     budget_overview: budgetOverviewReport,
     budget_vs_actuals: budgetVsActualsReport,
+    inventory_valuation_summary: inventoryValuationSummaryReport,
+    inventory_valuation_detail: inventoryValuationDetailReport,
+    inventory_stock_status: inventoryStockStatusReport,
   };
 
   run(

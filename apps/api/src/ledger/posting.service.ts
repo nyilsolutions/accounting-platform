@@ -17,6 +17,11 @@ export interface PostingLine {
   vendorId: string | null;
   classId: string | null;
   locationId: string | null;
+  /**
+   * 'inventory' for lines a transaction carries because of inventory (cost of goods sold against
+   * the inventory asset). They are replaced on their own when costs change (replaceRoleLines).
+   */
+  role?: 'inventory' | null;
 }
 
 export type PostingTxnType =
@@ -37,7 +42,9 @@ export type PostingTxnType =
   | 'sales_tax_payment'
   | 'sales_tax_adjustment'
   | 'paycheck'
-  | 'payroll_liability_payment';
+  | 'payroll_liability_payment'
+  | 'inventory_adjustment'
+  | 'inventory_build';
 
 /** Document fields stored on the transaction header (sales and purchase documents). */
 export interface DocumentDetails {
@@ -191,6 +198,62 @@ export class PostingService {
     if (accounts.length) stale = stale.where('account_id', 'not in', accounts);
     await stale.execute();
     return version;
+  }
+
+  /**
+   * Replaces a posted transaction's lines of one role with new ones, as a new version, keeping
+   * every other line as it is. Used when inventory costs change: an earlier-dated change recosts
+   * later sales. Does nothing when the lines are the same, or when the transaction isn't posted.
+   * The closing date still applies. Returns whether a new version was written.
+   */
+  async replaceRoleLines(
+    tx: Tx,
+    ctx: PostingContext,
+    txnId: string,
+    role: 'inventory',
+    lines: PostingLine[],
+  ): Promise<boolean> {
+    const current = await this.lockTransaction(tx, ctx.companyId, txnId);
+    if (current.status !== 'posted') return false;
+    const existing = await tx
+      .selectFrom('journal_lines')
+      .selectAll()
+      .where('transaction_id', '=', txnId)
+      .where('version', '=', current.version)
+      .orderBy('line_no')
+      .execute();
+    const toLine = (r: (typeof existing)[number]): PostingLine => ({
+      accountId: r.account_id,
+      debit: parseMoney(r.debit),
+      credit: parseMoney(r.credit),
+      description: r.description,
+      customerId: r.customer_id,
+      vendorId: r.vendor_id,
+      classId: r.class_id,
+      locationId: r.location_id,
+      role: (r.role as 'inventory' | null) ?? null,
+    });
+    const key = (l: PostingLine) =>
+      [l.accountId, l.debit, l.credit, l.customerId, l.vendorId, l.classId, l.locationId].join('|');
+    const before = existing.filter((r) => r.role === role).map(toLine);
+    const after = lines.map((l) => ({ ...l, role }));
+    if (
+      before.length === after.length &&
+      before.map(key).sort().join('\n') === after.map(key).sort().join('\n')
+    )
+      return false;
+    await this.guardClosingDate(tx, ctx, [current.txn_date]);
+    const version = current.version + 1;
+    await tx
+      .updateTable('transactions')
+      .set({ version, updated_by: ctx.userId })
+      .where('id', '=', txnId)
+      .execute();
+    await this.insertLines(tx, ctx.companyId, txnId, version, current.txn_date, [
+      ...existing.filter((r) => r.role !== role).map(toLine),
+      ...after,
+    ]);
+    return true;
   }
 
   /** Voids (keeps the record, removes it from balances) or deletes (hides it) a transaction. */
@@ -442,6 +505,7 @@ export class PostingService {
           vendor_id: l.vendorId,
           class_id: l.classId,
           location_id: l.locationId,
+          role: l.role ?? null,
         })),
       )
       .execute();

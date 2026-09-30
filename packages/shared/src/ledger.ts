@@ -242,6 +242,7 @@ export const SYSTEM_ROLES = [
   'payroll_liabilities',
   'payroll_expenses',
   'cost_of_goods_sold',
+  'inventory_asset',
 ] as const;
 export type SystemRole = (typeof SYSTEM_ROLES)[number];
 
@@ -475,6 +476,8 @@ export const ledgerSettingsSchema = z.object({
   closingPassword: z.string().max(128).optional(),
   /** Current password, required to change or remove an existing closing date/password. */
   currentClosingPassword: z.string().max(128).optional(),
+  /** How inventory is costed (ADR 0018). Can't change once inventory has moved. */
+  inventoryCosting: z.enum(['fifo', 'average']).optional(),
 });
 export type LedgerSettingsInput = z.input<typeof ledgerSettingsSchema>;
 
@@ -482,4 +485,7 @@ export interface LedgerSettingsDto {
   useAccountNumbers: boolean;
   closingDate: string | null;
   hasClosingPassword: boolean;
+  inventoryCosting: 'fifo' | 'average';
+  /** True once any inventory has moved: the costing method is then fixed. */
+  inventoryCostingLocked: boolean;
 }

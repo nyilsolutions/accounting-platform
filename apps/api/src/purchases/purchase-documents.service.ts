@@ -22,6 +22,7 @@ import type { purchaseDocumentInputSchema } from '@acct/shared';
 import { AuditService } from '../audit/audit.service';
 import type { AuthContext, CompanyContext, RequestMeta } from '../common/request';
 import { DB } from '../db/db.module';
+import { InventoryService, type ProposedMove } from '../inventory/inventory.service';
 import { PostingService, type PostingLine } from '../ledger/posting.service';
 import { systemAccount, validationError } from '../sales/sales-common';
 import { paymentStatus } from '../sales/sales-documents.service';
@@ -38,7 +39,12 @@ interface ResolvedLine {
   amount: Money;
   customerId: string | null;
   classId: string | null;
+  /** Inventory items and assemblies: the cost of goods sold account (returns relieve to it). */
+  cogsAccountId: string | null;
 }
+
+/** Documents that bring inventory in; the others (credits) send it back to the vendor. */
+const INWARD: PurchaseDocType[] = ['bill', 'check', 'expense'];
 
 /** Where the document total goes, and on which side. */
 const TOTAL_SIDE: Record<PurchaseDocType, { account: 'ap' | 'payment'; side: 'debit' | 'credit' }> =
@@ -77,6 +83,7 @@ export class PurchaseDocumentsService {
   constructor(
     @Inject(DB) private readonly db: Db,
     private readonly posting: PostingService,
+    private readonly inventory: InventoryService,
     private readonly audit: AuditService,
   ) {}
 
@@ -177,7 +184,7 @@ export class PurchaseDocumentsService {
     }
 
     // --- Lines -----------------------------------------------------------------------------
-    const lines = await this.resolveLines(tx, companyId, input, paymentAccountId);
+    const lines = await this.resolveLines(tx, companyId, type, input, paymentAccountId);
     const total = lines.reduce((s, l) => s + l.amount, 0n);
     if (total <= 0n) {
       throw new BadRequestException(
@@ -290,9 +297,35 @@ export class PurchaseDocumentsService {
       },
     };
     const postingCtx = { companyId, userId: auth.userId, closingPassword: input.closingPassword };
+    // Inventory bought comes in at the line's amount (the line debits the inventory asset).
+    // Returned to the vendor, it goes out at cost: the line credits cost of goods sold with the
+    // amount credited, and the inventory lines move the cost from the asset to cost of goods sold.
+    const inward = INWARD.includes(type);
+    const moves: ProposedMove[] = [];
+    lines.forEach((l, i) => {
+      if (!l.cogsAccountId) return;
+      const qty = parseMoney(l.quantity!);
+      moves.push({
+        itemId: l.itemId!,
+        lineNo: i + 1,
+        kind: inward ? 'purchase' : 'purchase_return',
+        quantity: inward ? qty : -qty,
+        fixedCost: inward ? l.amount : null,
+        counterAccountId: inward ? null : l.cogsAccountId,
+        classId: l.classId,
+      });
+    });
+    const plan = await this.inventory.plan(
+      tx,
+      postingCtx,
+      { id, date: input.txnDate, customerId: null, vendorId },
+      moves,
+    );
+    journal.push(...plan.lines);
     let txnId = id;
     if (id) await this.posting.revise(tx, postingCtx, id, input.version, header, journal);
     else txnId = await this.posting.create(tx, postingCtx, header, journal);
+    await plan.commit(txnId!);
 
     await tx.deleteFrom('purchase_lines').where('transaction_id', '=', txnId!).execute();
     await tx
@@ -349,12 +382,15 @@ export class PurchaseDocumentsService {
             : 'This credit has been applied to bills. Change the bill payment first.',
         );
       }
-      await this.posting.setStatus(
+      const postingCtx = { companyId: ctx.companyId, userId: auth.userId, closingPassword };
+      const plan = await this.inventory.plan(
         tx,
-        { companyId: ctx.companyId, userId: auth.userId, closingPassword },
-        id,
-        status,
+        postingCtx,
+        { id, date: before.txnDate, customerId: null, vendorId: before.vendorId },
+        [],
       );
+      await this.posting.setStatus(tx, postingCtx, id, status);
+      await plan.commit(id);
       await this.audit.record(
         tx,
         {
@@ -452,6 +488,7 @@ export class PurchaseDocumentsService {
   private async resolveLines(
     tx: Tx,
     companyId: string,
+    type: PurchaseDocType,
     input: PurchaseDocumentInput,
     paymentAccountId: string | null,
   ): Promise<ResolvedLine[]> {
@@ -466,6 +503,8 @@ export class PurchaseDocumentsService {
                 'id',
                 'name',
                 'is_active',
+                'item_type',
+                'asset_account_id',
                 'expense_account_id',
                 'purchase_description',
                 'description',
@@ -498,7 +537,26 @@ export class PurchaseDocumentsService {
           path: `lines.${i}.itemId`,
           message: 'Product/service not found or inactive',
         });
-      const accountId = l.accountId ?? item?.expense_account_id ?? null;
+      const stocked = item && (item.item_type === 'inventory' || item.item_type === 'assembly');
+      // Inventory posts to its own accounts: the asset when bought, cost of goods sold when
+      // returned.
+      const accountId = stocked
+        ? INWARD.includes(type)
+          ? item.asset_account_id
+          : item.expense_account_id
+        : (l.accountId ?? item?.expense_account_id ?? null);
+      if (stocked) {
+        if (!(l.quantity && parseMoney(l.quantity) > 0n))
+          errors.push({
+            path: `lines.${i}.quantity`,
+            message: `Enter how many "${item.name}" (more than zero)`,
+          });
+        if (resolveLineAmount(l) < 0n)
+          errors.push({
+            path: `lines.${i}.amount`,
+            message: `The amount for "${item.name}" can't be negative`,
+          });
+      }
       if (!accountId && item)
         errors.push({
           path: `lines.${i}.itemId`,
@@ -515,6 +573,7 @@ export class PurchaseDocumentsService {
         amount: resolveLineAmount(l),
         customerId: l.customerId ?? null,
         classId: l.classId ?? null,
+        cogsAccountId: stocked ? item.expense_account_id : null,
       };
     });
     const accountIds = [...new Set(resolved.map((l) => l.accountId).filter(Boolean))];

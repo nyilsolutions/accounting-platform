@@ -467,7 +467,7 @@ export class Importers {
         : 'non_inventory';
     if (p.itemType === 'inventory')
       c.warnings.push(
-        'Imported as non-inventory: quantity on hand and average cost arrive with inventory (Phase 10)',
+        "Imported as non-inventory, with its history as QuickBooks posted it: quantities of imported items aren't tracked here yet",
       );
     if (p.itemType === 'discount') itemType = 'other_charge';
     // Our item list holds income and expense accounts only; transactions imported from QuickBooks

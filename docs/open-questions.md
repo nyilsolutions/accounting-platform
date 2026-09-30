@@ -289,3 +289,23 @@ Add new questions here instead of guessing.
     filed (migration 0017).
 60. **Corrections:** decided 2026-09-30. A filed form lists what changed since filing, and that is
     enough for now. Forms W-2c/W-3c and 941-X are prepared once their instructions are supplied.
+
+## Inventory (Phase 10a)
+
+61. **QuickBooks inventory items:** they still import as non-inventory items, with their history
+    as QuickBooks posted it (cost of goods sold arrives with the imported GL lines). Replaying
+    that history through our costing would fail or differ:
+    - QuickBooks allows negative stock and we don't;
+    - imports don't arrive in date order;
+    - our cost of goods sold would differ from what QuickBooks posted.
+
+    **Recommendation:** after the import, convert each inventory item on a cut-over date, with
+    its quantity and value from QuickBooks' Inventory Valuation Summary on that date:
+    - the value is already in the imported Inventory Asset balance, so the opening movement
+      posts nothing;
+    - from then on the item is tracked here, using the method QuickBooks used (Desktop: average,
+      Online: FIFO);
+    - transactions before the cut-over stay as QuickBooks posted them (the closing date protects
+      them).
+
+    To decide: this approach, or another.

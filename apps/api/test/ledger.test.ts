@@ -295,6 +295,8 @@ describe('closing date', () => {
       useAccountNumbers: false,
       closingDate: '2026-01-31',
       hasClosingPassword: true,
+      inventoryCosting: 'fifo',
+      inventoryCostingLocked: false,
     });
 
     const lines = [

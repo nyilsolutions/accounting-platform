@@ -45,6 +45,8 @@ export const TXN_TYPE_LABELS: Record<string, string> = {
   sales_tax_adjustment: 'Sales Tax Adjustment',
   paycheck: 'Paycheck',
   payroll_liability_payment: 'Payroll Liability Payment',
+  inventory_adjustment: 'Inventory Qty Adjust',
+  inventory_build: 'Build Assembly',
 };
 
 /** Every transaction type that posts to the ledger. */
@@ -67,6 +69,8 @@ export const POSTING_TXN_TYPES = [
   'sales_tax_adjustment',
   'paycheck',
   'payroll_liability_payment',
+  'inventory_adjustment',
+  'inventory_build',
 ] as const;
 export type PostingTxnType = (typeof POSTING_TXN_TYPES)[number];
 
