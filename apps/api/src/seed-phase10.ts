@@ -9,7 +9,10 @@ import {
   weekOf,
   inventoryBuildInputSchema,
   billPaymentInputSchema,
+  accountInputSchema,
   customerInputSchema,
+  depositInputSchema,
+  journalEntryInputSchema,
   itemInputSchema,
   paymentInputSchema,
   PERMISSIONS,
@@ -19,6 +22,9 @@ import {
 } from '@acct/shared';
 import { AppModule } from './app.module';
 import { CurrencyService } from './currency/currency.service';
+import { AccountsService } from './ledger/accounts.service';
+import { JournalService } from './ledger/journal.service';
+import { DepositsService } from './sales/deposits.service';
 import { CustomersService, VendorsService } from './lists/customers-vendors.service';
 import { PaymentsService } from './sales/payments.service';
 import { BillPaymentsService } from './purchases/bill-payments.service';
@@ -545,6 +551,168 @@ export async function seedPhase10c(
         number: 'WIRE-0925',
         exchangeRate: '1.0935',
         applications: [{ targetId: bill.id, amount: '1500' }],
+      }),
+      meta,
+    );
+  } finally {
+    await app.close();
+  }
+}
+
+/**
+ * Demo of Phase 10d accountant tools in Sample Landscaping Co.:
+ * - an adjusting entry accruing August utilities (Adjusted Trial Balance);
+ * - an old $85 invoice to Oakwood Dental nobody will pay (Write off invoices);
+ * - a $320 payment from Hillside HOA received into Undeposited Funds, with the bank deposit
+ *   entered again straight to Services (Fix undeposited funds);
+ * - a $64.50 expense left in Uncategorized Expense (Reclassify, and the close checklist).
+ */
+export async function seedPhase10d(
+  db: Db,
+  config: AppConfig,
+  userId: string,
+  companyId: string,
+): Promise<void> {
+  const lookup = await withTenant(db, { userId, companyId }, async (tx) => ({
+    done: await tx
+      .selectFrom('transactions')
+      .select('id')
+      .where('company_id', '=', companyId)
+      .where('memo', '=', 'Accrue August utilities')
+      .executeTakeFirst(),
+    accounts: await tx
+      .selectFrom('accounts')
+      .select(['id', 'name'])
+      .where('company_id', '=', companyId)
+      .execute(),
+    customers: await tx
+      .selectFrom('customers')
+      .select(['id', 'display_name'])
+      .where('company_id', '=', companyId)
+      .execute(),
+  }));
+  const hillside = lookup.customers.find((c) => c.display_name === 'Hillside HOA');
+  const oakwood = lookup.customers.find((c) => c.display_name === 'Oakwood Dental');
+  if (lookup.done || !hillside || !oakwood) return;
+  const acct = (name: string) => lookup.accounts.find((a) => a.name === name)!.id;
+
+  const app = await NestFactory.createApplicationContext(
+    AppModule.forRoot({ ...config, REPORT_SCHEDULER: 'off' }),
+    { logger: ['error'] },
+  );
+  try {
+    const auth: AuthContext = {
+      sessionId: 'seed',
+      userId,
+      email: 'demo@example.com',
+      fullName: 'Demo Owner',
+      mfaEnrolled: true,
+      mfaVerified: true,
+    };
+    const ctx: CompanyContext = { companyId, role: 'owner', permissions: PERMISSIONS };
+    const meta: RequestMeta = { ip: null, userAgent: 'seed', requestId: null };
+    const year = new Date().getFullYear();
+
+    const accrued = await app.get(AccountsService).create(
+      auth,
+      ctx,
+      accountInputSchema.parse({
+        name: 'Accrued Liabilities',
+        accountType: 'other_current_liability',
+        description: 'Expenses incurred, not yet billed',
+      }),
+      meta,
+    );
+    await app.get(JournalService).create(
+      auth,
+      ctx,
+      journalEntryInputSchema.parse({
+        txnDate: `${year}-08-31`,
+        isAdjusting: true,
+        memo: 'Accrue August utilities',
+        lines: [
+          {
+            accountId: acct('Utilities'),
+            debit: '215.40',
+            description: 'August electric and water',
+          },
+          { accountId: accrued.id, credit: '215.40' },
+        ],
+      }),
+      meta,
+    );
+
+    const sales = app.get(SalesDocumentsService);
+    await sales.save(
+      auth,
+      ctx,
+      'invoice',
+      null,
+      salesDocumentInputSchema.parse({
+        customerId: oakwood.id,
+        txnDate: `${year}-03-05`,
+        dueDate: `${year}-04-04`,
+        number: 'OLD-17',
+        memo: 'Hedge trim, disputed',
+        lines: [{ accountId: acct('Services'), description: 'Hedge trim', amount: '85' }],
+      }),
+      meta,
+    );
+
+    const invoice = await sales.save(
+      auth,
+      ctx,
+      'invoice',
+      null,
+      salesDocumentInputSchema.parse({
+        customerId: hillside.id,
+        txnDate: `${year}-09-05`,
+        lines: [{ accountId: acct('Services'), description: 'Irrigation repair', amount: '320' }],
+      }),
+      meta,
+    );
+    await app.get(PaymentsService).save(
+      auth,
+      ctx,
+      null,
+      paymentInputSchema.parse({
+        customerId: hillside.id,
+        txnDate: `${year}-09-12`,
+        amount: '320',
+        reference: 'Check 4471',
+        applications: [{ targetId: invoice.id, amount: '320' }],
+      }),
+      meta,
+    );
+    await app.get(DepositsService).save(
+      auth,
+      ctx,
+      null,
+      depositInputSchema.parse({
+        txnDate: `${year}-09-13`,
+        depositAccountId: acct('Checking'),
+        memo: 'Hillside check',
+        lines: [{ accountId: acct('Services'), amount: '320', customerId: hillside.id }],
+      }),
+      meta,
+    );
+
+    await app.get(PurchaseDocumentsService).save(
+      auth,
+      ctx,
+      'expense',
+      null,
+      purchaseDocumentInputSchema.parse({
+        txnDate: `${year}-09-18`,
+        paymentAccountId: acct('Checking'),
+        memo: 'Card swipe, unknown',
+        lines: [
+          {
+            accountId: acct('Uncategorized Expense'),
+            description: 'HOMEDEPOT #4410',
+            amount: '64.50',
+          },
+        ],
       }),
       meta,
     );

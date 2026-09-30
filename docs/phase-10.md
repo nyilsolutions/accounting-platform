@@ -7,7 +7,7 @@ Phase 10 comes in six parts, each its own pull request, in this order (decided 2
 | 10a  | Inventory                                     | This PR |
 | 10b  | Time tracking and progress invoicing          | This PR |
 | 10c  | Multi-currency                                | This PR |
-| 10d  | Accountant tools                              | Planned |
+| 10d  | Accountant tools                              | This PR |
 | 10e  | Card and bank payments through Stripe Connect | Planned |
 | 10f  | Customer, employee and contractor portals     | Planned |
 
@@ -228,3 +228,77 @@ Screenshots: `docs/screenshots/107-exchange-rates.png`, `108-foreign-invoice.png
 - Foreign-currency bank and credit card accounts and transfers between currencies (10c-2,
   question 62).
 - Importing QuickBooks companies with multi-currency on (question 64: waits on a sample file).
+
+## 10d: Accountant tools (ADR 0021)
+
+### Delivered
+
+- **Accounting › Accountant tools**, one page per tool, for people with `ledger.manage`:
+- **Reclassify transactions:**
+  - filter posted lines by account, class, customer or vendor, dates and type;
+  - move the chosen lines to another account and/or class in one step;
+  - amounts don't change; each transaction gets a new version;
+  - invoices, receipts, credit memos, bills, checks and expenses change their own lines too, so
+    a later edit keeps the new account;
+  - product and service lines keep the item's account (only the class moves);
+  - A/R, A/P, bank, card, sales tax, payroll and inventory lines are never listed;
+  - lines in a closed period need the closing password.
+- **Write off invoices:**
+  - open invoices at least N days past due as of a date;
+  - each one's balance goes to Bad Debts (created on first use) through a credit memo applied by
+    a payment of zero, in the invoice's currency at its rate;
+  - the sales tax on the invoice stays owed to the agency.
+- **Fix undeposited funds:**
+  - what is waiting in Undeposited Funds, and deposit lines entered straight to income for a
+    customer;
+  - replaces such a line with the customer's waiting payments that add up to it, so income isn't
+    counted twice; the bank amount doesn't change.
+- **Review client changes:**
+  - transactions and accounts added, changed, voided or deleted by anyone who isn't the
+    company's accountant, from the audit log, with before and after;
+  - changes in a closed period are flagged;
+  - mark them reviewed one by one or all shown at once, and unmark.
+- **Close the books**, a month-end checklist worked out live:
+  - every bank and card account reconciled through the month end;
+  - Undeposited Funds empty;
+  - nothing uncategorized in the month;
+  - client changes to the month or earlier reviewed;
+  - a revaluation dated the month end, if foreign-currency balances are open;
+  - the A/R and A/P aging looked over (marked by hand).
+
+  Any step can be marked done by hand with a note. **Close** is allowed once nothing needs
+  attention: it sets the closing date and password and records the close with a snapshot of the
+  checklist.
+
+- **Adjusted Trial Balance** report: unadjusted balances, adjusting entries and adjusted
+  balances, each as debit and credit.
+
+### Demo script
+
+1. In Sample Landscaping Co., open **Accounting › Accountant tools**.
+2. **Fix undeposited funds:** Hillside HOA's $320 check (September 12) waits in Undeposited
+   Funds, and the September 13 deposit put $320 straight to Services. **Match to 1 payment**.
+3. **Reclassify:** filter by Uncategorized Expense. Move the $64.50 HOMEDEPOT #4410 expense
+   (September 18) to Repairs and Maintenance.
+4. **Write off invoices:** OLD-17, Oakwood Dental's disputed $85 hedge trim from March. Write it
+   off; the invoice is paid and Bad Debts shows $85.
+5. **Review client changes:** the demo's changes, then **Mark all shown reviewed**.
+6. **Close the books** for August: mark the bank step with a note (the demo's bank isn't
+   reconciled), mark the aging step, set a closing password and close.
+7. **Reports › Adjusted Trial Balance** through August 31: the $215.40 utilities accrual
+   (to Accrued Liabilities) in the adjustments columns.
+
+Screenshots: `docs/screenshots/110-fix-undeposited.png`, `111-reclassify.png`,
+`112-close-books.png`.
+
+### Tests
+
+| Suite                   | Count | Highlights                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| ----------------------- | ----- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `packages/db`           | 99    | +2: reviews, checklist marks and closes isolated by company; only the checklist's steps; closes kept as history (never changed or deleted)                                                                                                                                                                                                                                                                                                                                                                                                     |
+| `apps/api`              | 518   | +8: the Adjusted Trial Balance; reclassify listing only lines that can move, moving accounts and classes as a new version with the documents' lines, keeping product accounts, a standard user refused, a closed period needing the password; writing off old invoices to Bad Debts with the tax still owed; replacing a deposit line with the waiting payment; client changes (not the accountant's) until reviewed; the checklist worked out live, marks with notes, closing refused until ready, then the month closed and closed only once |
+| `apps/web` (Playwright) | 16    | +1: fix undeposited funds, reclassify an uncategorized expense, write off an old invoice, review the client's changes, close March with marks and a closing password, the Adjusted Trial Balance                                                                                                                                                                                                                                                                                                                                               |
+
+### Not in this part
+
+- A list of every client's checklist and changes for accountants with many clients.

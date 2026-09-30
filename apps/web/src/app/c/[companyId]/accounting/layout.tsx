@@ -16,6 +16,7 @@ export default function AccountingLayout({ children }: { children: ReactNode }) 
         tabs={[
           { href: base, label: 'Chart of accounts', exact: true },
           { href: `${base}/journal-entries`, label: 'Journal entries' },
+          { href: `${base}/tools`, label: 'Accountant tools' },
           ...(currencies.data?.multicurrency
             ? [{ href: `${base}/currencies`, label: 'Currencies' }]
             : []),
