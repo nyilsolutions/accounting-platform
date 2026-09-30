@@ -7,10 +7,12 @@ import {
 } from '@nestjs/common';
 import { withTenant, type Db, type Tx } from '@acct/db';
 import {
+  lineAmount,
   moneyToString,
   parseMoney,
   resolveLineAmount,
   type EstimateDto,
+  type progressInvoiceSchema,
   type EstimateStatus,
   type SalesDocumentDto,
   type SendDocumentInput,
@@ -22,10 +24,12 @@ import type { AuthContext, CompanyContext, RequestMeta } from '../common/request
 import { DB } from '../db/db.module';
 import { MAILER, type Mailer } from '../mail/mailer';
 import { SALES_TAX_CALCULATOR, type SalesTaxCalculator } from '../sales-tax/tax-calculator';
+import { estimateProgress } from './progress';
 import { nextEstimateNumber, validationError } from './sales-common';
 import { FORBIDDEN_LINE_ACCOUNTS, SalesDocumentsService } from './sales-documents.service';
 
 type EstimateInput = z.output<typeof estimateInputSchema>;
+type ProgressInput = z.output<typeof progressInvoiceSchema>;
 
 /** Estimates (quotes). They never touch the ledger; converting one creates a normal invoice. */
 @Injectable()
@@ -91,6 +95,10 @@ export class EstimatesService {
     if (before?.invoiceId)
       throw new ConflictException(
         'This estimate has been converted to an invoice and can no longer be edited.',
+      );
+    if (before && before.progressInvoices.length)
+      throw new ConflictException(
+        'This estimate has been partly invoiced, so it can no longer be edited.',
       );
     const customer = await tx
       .selectFrom('customers')
@@ -288,10 +296,8 @@ export class EstimatesService {
   delete(auth: AuthContext, ctx: CompanyContext, id: string, meta: RequestMeta): Promise<void> {
     return withTenant(this.db, { userId: auth.userId, companyId: ctx.companyId }, async (tx) => {
       const before = await this.load(tx, ctx.companyId, id);
-      if (before.invoiceId)
-        throw new ConflictException(
-          'This estimate has been converted to an invoice and cannot be deleted.',
-        );
+      if (before.invoiceId || before.progressInvoices.length)
+        throw new ConflictException('This estimate has been invoiced and cannot be deleted.');
       await tx.deleteFrom('estimates').where('id', '=', id).execute();
       await this.audit.record(
         tx,
@@ -320,6 +326,10 @@ export class EstimatesService {
       const est = await this.load(tx, ctx.companyId, id);
       if (est.invoiceId)
         throw new ConflictException('This estimate has already been converted to an invoice.');
+      if (est.progressInvoices.length)
+        throw new ConflictException(
+          'This estimate has been partly invoiced. Create a progress invoice for what remains.',
+        );
       await tx.selectFrom('estimates').select('id').where('id', '=', id).forUpdate().execute();
       const invoice = await this.documents.saveInTx(
         tx,
@@ -345,6 +355,9 @@ export class EstimatesService {
             classId: l.classId,
             serviceDate: l.serviceDate,
             taxable: l.taxable,
+            ...(parseMoney(l.amount) !== 0n
+              ? { estimateId: est.id, estimateLineNo: l.lineNo }
+              : {}),
           })),
           closingPassword: input.closingPassword,
         },
@@ -364,6 +377,120 @@ export class EstimatesService {
           entityType: 'estimate',
           entityId: id,
           metadata: { invoiceId: invoice.id, invoiceNumber: invoice.number },
+        },
+        meta,
+      );
+      return invoice;
+    });
+  }
+
+  /**
+   * Progress invoicing (ADR 0019): an invoice for part of the estimate. By percent (of each
+   * line's estimate amount, capped at what remains), for everything remaining, or an amount per
+   * line. Lines with a quantity bill the same share of it. The invoice keeps a link to each
+   * estimate line, so what has been invoiced is always the posted invoices' lines.
+   */
+  progressInvoice(
+    auth: AuthContext,
+    ctx: CompanyContext,
+    id: string,
+    input: ProgressInput,
+    meta: RequestMeta,
+  ): Promise<SalesDocumentDto> {
+    return withTenant(this.db, { userId: auth.userId, companyId: ctx.companyId }, async (tx) => {
+      await tx.selectFrom('estimates').select('id').where('id', '=', id).forUpdate().execute();
+      const est = await this.load(tx, ctx.companyId, id);
+      if (est.invoiceId)
+        throw new ConflictException('This estimate has already been converted to an invoice.');
+      const errors: Array<{ path: string; message: string }> = [];
+      const lines = est.lines.flatMap((l, i) => {
+        const full = parseMoney(l.amount);
+        const remaining = parseMoney(l.remaining);
+        if (full === 0n) return [];
+        let amount: bigint;
+        if (input.mode === 'remaining') amount = remaining;
+        else if (input.mode === 'percent') {
+          amount = lineAmount(l.amount, moneyToString(parseMoney(input.percent!) / 100n, 4));
+          if (full > 0n ? amount > remaining : amount < remaining) amount = remaining;
+        } else {
+          const given = input.lines!.find((x) => x.lineNo === l.lineNo)?.amount;
+          amount = given ? parseMoney(given) : 0n;
+          const over =
+            full > 0n ? amount > remaining || amount < 0n : amount < remaining || amount > 0n;
+          if (over)
+            errors.push({
+              path: `lines.${i}.amount`,
+              message: `Line ${l.lineNo}: at most ${moneyToString(remaining)} remains to invoice`,
+            });
+        }
+        if (amount === 0n) return [];
+        // A line with a quantity bills the same share of it.
+        const quantity =
+          l.quantity && full !== 0n
+            ? trimQty((parseMoney(l.quantity) * amount * 2n + full) / (full * 2n))
+            : null;
+        const whole = amount === full && parseMoney(l.invoiced) === 0n;
+        return [
+          {
+            itemId: l.itemId,
+            accountId: l.accountId,
+            description: l.description,
+            quantity: whole ? l.quantity : quantity,
+            rate: whole ? l.rate : null,
+            amount: moneyToString(amount),
+            classId: l.classId,
+            serviceDate: l.serviceDate,
+            taxable: l.taxable,
+            estimateId: est.id,
+            estimateLineNo: l.lineNo,
+          },
+        ];
+      });
+      if (errors.length) throw new BadRequestException(validationError(errors));
+      if (lines.length === 0)
+        throw new ConflictException('There is nothing left to invoice on this estimate.');
+      const number = est.progressInvoices.length + 1;
+      const invoice = await this.documents.saveInTx(
+        tx,
+        auth,
+        ctx,
+        'invoice',
+        null,
+        {
+          customerId: est.customerId,
+          txnDate: input.txnDate,
+          billTo: est.billTo,
+          emailTo: est.emailTo,
+          customerMessage: est.customerMessage,
+          memo: `Progress invoice ${number}${est.number ? ` for estimate ${est.number}` : ''}`,
+          taxRateId: est.taxRateId,
+          lines,
+          closingPassword: input.closingPassword,
+        },
+        meta,
+      );
+      if (est.status === 'pending')
+        await tx
+          .updateTable('estimates')
+          .set({ status: 'accepted', updated_by: auth.userId })
+          .where('id', '=', id)
+          .where('status', '=', 'pending')
+          .execute();
+      await this.audit.record(
+        tx,
+        {
+          companyId: ctx.companyId,
+          actorUserId: auth.userId,
+          action: 'estimate.progress_invoiced',
+          entityType: 'estimate',
+          entityId: id,
+          metadata: {
+            invoiceId: invoice.id,
+            invoiceNumber: invoice.number,
+            mode: input.mode,
+            percent: input.percent ?? null,
+            amount: invoice.subtotal,
+          },
         },
         meta,
       );
@@ -446,6 +573,19 @@ export class EstimatesService {
       .execute();
     const trim = (v: string | null) =>
       v === null ? null : v.includes('.') ? v.replace(/\.?0+$/, '') : v;
+    const progress = new Map((await estimateProgress(tx, id)).map((p) => [p.lineNo, p]));
+    const invoices = await tx
+      .selectFrom('sales_lines as l')
+      .innerJoin('transactions as t', 't.id', 'l.transaction_id')
+      .select(['t.id', 't.txn_number', 't.txn_date'])
+      .select((eb) => eb.fn.sum<string>('l.amount').as('amount'))
+      .where('l.estimate_id', '=', id)
+      .where('t.status', '=', 'posted')
+      .where('t.txn_type', '=', 'invoice')
+      .groupBy(['t.id', 't.txn_number', 't.txn_date'])
+      .orderBy('t.txn_date')
+      .execute();
+    const invoicedTotal = invoices.reduce((s, i) => s + parseMoney(i.amount), 0n);
     return {
       id: e.id,
       number: e.number,
@@ -476,7 +616,20 @@ export class EstimatesService {
         classId: l.class_id,
         serviceDate: l.service_date,
         taxable: l.taxable,
+        invoiced: moneyToString(progress.get(l.line_no)?.invoiced ?? 0n),
+        remaining: moneyToString(progress.get(l.line_no)?.remaining ?? parseMoney(l.amount)),
       })),
+      invoicedTotal: moneyToString(invoicedTotal),
+      remainingTotal: moneyToString(parseMoney(e.total) - parseMoney(e.tax_total) - invoicedTotal),
+      // A single full conversion (invoice_id) isn't a progress invoice.
+      progressInvoices: e.invoice_id
+        ? []
+        : invoices.map((i) => ({
+            id: i.id,
+            number: i.txn_number,
+            txnDate: i.txn_date,
+            amount: moneyToString(parseMoney(i.amount)),
+          })),
     };
   }
 }
@@ -490,4 +643,10 @@ function auditView(e: EstimateDto): Record<string, unknown> {
     total: e.total,
     lines: e.lines.map((l) => `${l.itemName ?? l.description ?? ''}: ${l.amount}`),
   };
+}
+
+/** A quantity (1/10,000 units) as text without trailing zeros. */
+function trimQty(v: bigint): string {
+  const s = moneyToString(v, 4).replace(/\.?0+$/, '');
+  return s === '' ? '0' : s;
 }

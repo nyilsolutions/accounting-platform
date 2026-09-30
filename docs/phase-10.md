@@ -5,7 +5,7 @@ Phase 10 comes in six parts, each its own pull request, in this order (decided 2
 | Part | What                                          | Status  |
 | ---- | --------------------------------------------- | ------- |
 | 10a  | Inventory                                     | This PR |
-| 10b  | Time tracking and progress invoicing          | Next    |
+| 10b  | Time tracking and progress invoicing          | This PR |
 | 10c  | Multi-currency                                | Planned |
 | 10d  | Accountant tools                              | Planned |
 | 10e  | Card and bank payments through Stripe Connect | Planned |
@@ -96,3 +96,61 @@ Screenshots: `docs/screenshots/100-build-assembly.png`, `101-inventory.png`,
 ### Not in this part
 
 - Serial and lot numbers, locations and bins, units of measure, landed costs, pending builds.
+
+## 10b: Time tracking and progress invoicing (ADR 0019)
+
+### Delivered
+
+- **Time** (`g g`), a weekly timesheet for any employee or contractor:
+  - rows by customer, service, pay-as (regular, overtime, time off) and billable, with notes;
+  - hours as 7.5 or 7:30;
+  - **Save**, and **Submit for approval**;
+  - submitted and approved time shows locked, rejected time shows its reason.
+- **Approve time:** each person's submitted week, with hours and billable hours, to approve or
+  reject with a reason.
+  - Payroll admins (the new `time.approve` permission) approve anyone's time.
+  - The manager named on an employee (Payroll › Employees, "Time approved by") approves that
+    employee's.
+- **Paychecks:** regular pay runs pay hourly employees their approved time in the period, by
+  payroll item. The paycheck says where its hours came from and flags time in the period that
+  isn't approved. Deleting a draft or voiding a paycheck frees its time.
+- **Billing time:** **Add billable time** on invoices and sales receipts lists the customer's
+  approved, billable time. Each chosen entry becomes a line (hours × rate). Time can be billed
+  once; voiding the invoice frees it.
+- **Progress invoicing:** **Create progress invoice** on an estimate, by percent, what remains, or
+  an amount per line.
+  - The estimate shows what has been invoiced and what remains.
+  - It closes when fully invoiced and reopens if an invoice is voided.
+  - Invoices can't bill more than an estimate line.
+- **Reports** (Reports › Time and projects): Time by Customer Summary, Time Activities by Person
+  Detail, Unbilled Time, Estimates Progress.
+
+### Demo script
+
+1. In Sample Landscaping Co., open **Time**:
+   - Maria Lopez's last September week is approved;
+   - the next week is waiting in **Approve time**; approve it.
+2. Open a new invoice for Hillside HOA, then **Add billable time**: Maria's lawn service and
+   Rivera Tree Service's four hours at $75.
+3. Open the Oakwood Dental estimate:
+   - 40% has been invoiced;
+   - **Create progress invoice** for everything that remains;
+   - the estimate closes.
+4. **Reports › Estimates Progress** and **Unbilled Time**.
+
+Screenshots: `docs/screenshots/104-timesheet.png`, `105-approve-time.png`,
+`106-progress-invoice.png`.
+
+### Tests
+
+| Suite                   | Count | Highlights                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| ----------------------- | ----- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `packages/db`           | 91    | +3: an employee or a vendor, never both; hours within a day; billable time names a customer; only approved time is paid or billed; isolation by company                                                                                                                                                                                                                                                                                                                                                                                   |
+| `apps/api`              | 489   | +17 end to end: a time tracking user's weekly timesheet, submitted time locked, contractors' time, approvals by payroll admins and managers only, rejection with a reason and resubmission, pay runs paying approved time by payroll item with notices, freeing time when a draft run is deleted, billing time once, voids freeing it, the time reports, progress invoicing by percent (quantities shared), refusing to invoice more than a line (also by editing), closing and reopening the estimate, and the Estimates Progress report |
+| `apps/web` (Playwright) | 14    | +1: a weekly timesheet in the grid, submit, approve, bill the time with Add billable time, a 30% progress invoice, the estimate's progress and the report                                                                                                                                                                                                                                                                                                                                                                                 |
+
+### Not in this part
+
+- Overtime calculated from hours worked (FLSA weekly, California daily): time is paid as the
+  payroll item it was entered as.
+- A start/stop timer, billable expenses, and time entry by employees themselves (portals, 10f).

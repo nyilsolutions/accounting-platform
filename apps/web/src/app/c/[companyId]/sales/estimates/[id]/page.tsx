@@ -9,6 +9,7 @@ import { useClosingPassword } from '@/components/ledger/closing-password';
 import { DocumentPrint } from '@/components/sales/document-print';
 import { EstimateForm } from '@/components/sales/estimate-form';
 import { SendDialog } from '@/components/sales/send-dialog';
+import { EstimateProgress, ProgressInvoiceDialog } from '@/components/sales/progress-invoice';
 import { EstimateStatusBadge } from '@/components/sales/status-badge';
 import { useSalesLookups } from '@/components/sales/use-sales-lookups';
 import { Alert, Button, Spinner } from '@/components/ui';
@@ -25,6 +26,7 @@ export default function EstimatePage() {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
+  const [progress, setProgress] = useState(false);
   const estimate = useQuery({
     queryKey: keys.salesDoc(companyId, 'estimates', id),
     queryFn: () => api<EstimateDto>(`/companies/${companyId}/estimates/${id}`),
@@ -34,6 +36,8 @@ export default function EstimatePage() {
   const e = estimate.data;
   const canManage = access.can('sales.manage');
   const converted = !!e.invoiceId;
+  const partly = e.progressInvoices.length > 0;
+  const open = !converted && e.remainingTotal !== '0.00';
   const refresh = () => qc.invalidateQueries({ queryKey: keys.sales(companyId) });
 
   async function run(fn: () => Promise<void>) {
@@ -94,7 +98,7 @@ export default function EstimatePage() {
         key={JSON.stringify([e.status, e.total, e.txnDate, e.number])}
         initial={e}
         lookups={lookups}
-        readOnly={!canManage || converted}
+        readOnly={!canManage || converted || partly}
         onSave={async (input, andNew) => {
           await api(`/companies/${companyId}/estimates/${id}`, { method: 'PUT', body: input });
           await refresh();
@@ -107,7 +111,17 @@ export default function EstimatePage() {
             <Button type="button" variant="secondary" size="sm" onClick={() => window.print()}>
               Print or save PDF
             </Button>
-            {canManage && !converted && (
+            {canManage && open && (
+              <Button
+                type="button"
+                variant={partly ? 'primary' : 'secondary'}
+                size="sm"
+                onClick={() => setProgress(true)}
+              >
+                Create progress invoice
+              </Button>
+            )}
+            {canManage && !converted && !partly && (
               <>
                 <Button type="button" size="sm" onClick={convert}>
                   Convert to invoice
@@ -158,6 +172,27 @@ export default function EstimatePage() {
               </>
             )}
           </div>
+        }
+      />
+      <EstimateProgress
+        estimate={e}
+        invoiceHref={(inv) => `/c/${companyId}/sales/invoices/${inv}`}
+      />
+      <ProgressInvoiceDialog
+        open={progress}
+        estimate={e}
+        onClose={() => setProgress(false)}
+        onCreate={(input) =>
+          closing.run(async (closingPassword) => {
+            const inv = await api<SalesDocumentDto>(
+              `/companies/${companyId}/estimates/${id}/progress-invoice`,
+              { method: 'POST', body: { ...input, closingPassword } },
+            );
+            await Promise.all(
+              ledgerKeys(companyId).map((k) => qc.invalidateQueries({ queryKey: k })),
+            );
+            router.push(`/c/${companyId}/sales/invoices/${inv.id}`);
+          })
         }
       />
       <DocumentPrint

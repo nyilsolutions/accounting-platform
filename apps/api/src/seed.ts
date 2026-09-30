@@ -33,7 +33,7 @@ import { SalesDocumentsService } from './sales/sales-documents.service';
 import { IMPORTED_COMPANY, seedMigration } from './seed-migration';
 import { seedPhase7 } from './seed-phase7';
 import { seedPhase8 } from './seed-phase8';
-import { seedPhase10 } from './seed-phase10';
+import { seedPhase10, seedPhase10b } from './seed-phase10';
 
 const DEMO_EMAIL = 'demo@example.com';
 const DEMO_PASSWORD = 'demo-password-change-me';
@@ -168,6 +168,7 @@ async function main(): Promise<void> {
     await seedPhase7(db, config, userId, companyId!);
     await seedPhase8(db, config, userId, companyId!);
     await seedPhase10(db, config, userId, companyId!);
+    await seedPhase10b(db, config, userId, companyId!);
     await seedMigration(db, config, userId);
 
     console.log(

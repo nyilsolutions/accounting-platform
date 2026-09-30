@@ -290,6 +290,9 @@ export interface SalesLinesTable {
   class_id: string | null;
   service_date: DateCol | null;
   taxable: Generated<boolean>;
+  /** Progress invoicing: the estimate line this line bills (part of). */
+  estimate_id: Generated<string | null>;
+  estimate_line_no: Generated<number | null>;
 }
 
 export interface PaymentApplicationsTable {
@@ -886,6 +889,8 @@ export interface PayrollItemsTable extends Audited {
 export interface EmployeesTable extends Audited {
   id: Generated<string>;
   company_id: string;
+  /** The member who may approve this employee's time. */
+  manager_user_id: Generated<string | null>;
   employee_number: string | null;
   first_name: string;
   middle_name: string | null;
@@ -1197,6 +1202,35 @@ export interface InventoryOpeningLinesTable {
   offset_account_id: string | null;
 }
 
+export interface TimeEntriesTable {
+  id: Generated<string>;
+  company_id: string;
+  employee_id: string | null;
+  vendor_id: string | null;
+  work_date: DateCol;
+  hours: Numeric;
+  customer_id: string | null;
+  item_id: string | null;
+  payroll_item_id: string | null;
+  billable: Generated<boolean>;
+  billing_rate: Numeric | null;
+  class_id: string | null;
+  notes: string | null;
+  status: Generated<string>;
+  submitted_at: Timestamp | null;
+  submitted_by: string | null;
+  approved_at: Timestamp | null;
+  approved_by: string | null;
+  rejection_note: string | null;
+  paycheck_id: string | null;
+  invoice_id: string | null;
+  invoice_line_no: number | null;
+  created_by: string | null;
+  updated_by: string | null;
+  created_at: Generated<Date>;
+  updated_at: Generated<Date>;
+}
+
 export interface Database {
   users: UsersTable;
   mfa_recovery_codes: MfaRecoveryCodesTable;
@@ -1263,6 +1297,7 @@ export interface Database {
   pto_policies: PtoPoliciesTable;
   payroll_items: PayrollItemsTable;
   employees: EmployeesTable;
+  time_entries: TimeEntriesTable;
   employee_w4: EmployeeW4Table;
   employee_state_certificates: EmployeeStateCertificatesTable;
   employee_bank_accounts: EmployeeBankAccountsTable;

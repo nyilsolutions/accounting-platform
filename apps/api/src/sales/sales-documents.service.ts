@@ -34,6 +34,7 @@ import {
   type SalesTaxCalculation,
   type SalesTaxCalculator,
 } from '../sales-tax/tax-calculator';
+import { refreshEstimate } from './progress';
 import { depositsOf, nextDocumentNumber, systemAccount, validationError } from './sales-common';
 
 type SalesDocumentInput = z.output<typeof salesDocumentInputSchema>;
@@ -50,6 +51,9 @@ interface ResolvedLine {
   taxable: boolean;
   /** Inventory items and assemblies: the cost of goods sold account the cost goes to. */
   cogsAccountId: string | null;
+  timeEntryIds: string[];
+  estimateId: string | null;
+  estimateLineNo: number | null;
 }
 
 /** Which side of the ledger the document total goes to. */
@@ -172,6 +176,8 @@ export class SalesDocumentsService {
         validationError([{ path: 'lines', message: 'The total must be greater than zero' }]),
       );
     }
+
+    await this.assertLinks(tx, companyId, type, id, input.customerId ?? null, lines);
 
     // --- Sales tax ---------------------------------------------------------------------------
     // An edit that doesn't mention the rate keeps the one the document has.
@@ -394,9 +400,32 @@ export class SalesDocumentsService {
           class_id: l.classId,
           service_date: l.serviceDate,
           taxable: l.taxable,
+          estimate_id: l.estimateId,
+          estimate_line_no: l.estimateLineNo,
         })),
       )
       .execute();
+    // Billable time (ADR 0019): what the lines bill now, and nothing else.
+    await tx
+      .updateTable('time_entries')
+      .set({ invoice_id: null, invoice_line_no: null })
+      .where('company_id', '=', companyId)
+      .where('invoice_id', '=', txnId!)
+      .execute();
+    for (const [i, l] of lines.entries())
+      if (l.timeEntryIds.length)
+        await tx
+          .updateTable('time_entries')
+          .set({ invoice_id: txnId!, invoice_line_no: i + 1 })
+          .where('company_id', '=', companyId)
+          .where('id', 'in', l.timeEntryIds)
+          .execute();
+    // Progress invoicing: the estimates billed before or now.
+    const estimates = new Set([
+      ...lines.map((l) => l.estimateId).filter((v): v is string => !!v),
+      ...(before?.lines ?? []).map((l) => l.estimateId).filter((v): v is string => !!v),
+    ]);
+    for (const e of estimates) await refreshEstimate(tx, companyId, e, auth.userId);
     // Tax charged raises what is owed to each agency; credits and refunds give it back.
     const sign = type === 'invoice' || type === 'sales_receipt' ? 1n : -1n;
     await replaceSalesTaxLines(
@@ -461,6 +490,14 @@ export class SalesDocumentsService {
       );
       await this.posting.setStatus(tx, postingCtx, id, status);
       await plan.commit(id);
+      await tx
+        .updateTable('time_entries')
+        .set({ invoice_id: null, invoice_line_no: null })
+        .where('company_id', '=', ctx.companyId)
+        .where('invoice_id', '=', id)
+        .execute();
+      for (const e of new Set(before.lines.map((l) => l.estimateId).filter((v) => !!v)))
+        await refreshEstimate(tx, ctx.companyId, e!, auth.userId);
       await this.audit.record(
         tx,
         {
@@ -568,6 +605,13 @@ export class SalesDocumentsService {
       .where('l.transaction_id', '=', id)
       .orderBy('l.line_no')
       .execute();
+    const billedTime = await tx
+      .selectFrom('time_entries')
+      .select(['id', 'invoice_line_no'])
+      .where('company_id', '=', companyId)
+      .where('invoice_id', '=', id)
+      .orderBy('work_date')
+      .execute();
     const applied = await tx
       .selectFrom('payment_applications as pa')
       .innerJoin('transactions as p', 'p.id', 'pa.payment_id')
@@ -641,6 +685,9 @@ export class SalesDocumentsService {
         classId: l.class_id,
         serviceDate: l.service_date,
         taxable: l.taxable,
+        timeEntryIds: billedTime.filter((b) => b.invoice_line_no === l.line_no).map((b) => b.id),
+        estimateId: l.estimate_id,
+        estimateLineNo: l.estimate_line_no,
       })),
       subtotal: moneyToString(total - taxTotal),
       taxRateId: t.tax_rate_id,
@@ -672,6 +719,81 @@ export class SalesDocumentsService {
       createdAt: t.created_at.toISOString(),
       updatedAt: t.updated_at.toISOString(),
     };
+  }
+
+  /**
+   * Billable time and estimate lines a document's lines refer to (ADR 0019): time must be
+   * approved, billable, for the document's customer and not billed elsewhere; estimate lines must
+   * be on an estimate for the same customer. Only invoices (and, for time, sales receipts) bill
+   * them.
+   */
+  private async assertLinks(
+    tx: Tx,
+    companyId: string,
+    type: SalesDocType,
+    id: string | null,
+    customerId: string | null,
+    lines: ResolvedLine[],
+  ): Promise<void> {
+    const errors: Array<{ path: string; message: string }> = [];
+    const allTime = lines.flatMap((l) => l.timeEntryIds);
+    if (allTime.length) {
+      if (type !== 'invoice' && type !== 'sales_receipt')
+        errors.push({ path: 'lines', message: 'Only invoices and sales receipts bill time' });
+      if (new Set(allTime).size !== allTime.length)
+        errors.push({ path: 'lines', message: 'The same time is on two lines' });
+      const rows = await tx
+        .selectFrom('time_entries')
+        .select(['id', 'status', 'billable', 'customer_id', 'invoice_id'])
+        .where('company_id', '=', companyId)
+        .where('id', 'in', [...new Set(allTime)])
+        .forUpdate()
+        .execute();
+      lines.forEach((l, i) => {
+        for (const t of l.timeEntryIds) {
+          const r = rows.find((x) => x.id === t);
+          const path = `lines.${i}.timeEntryIds`;
+          if (!r) errors.push({ path, message: 'Time entry not found' });
+          else if (r.status !== 'approved' || !r.billable)
+            errors.push({ path, message: 'Only approved, billable time can be billed' });
+          else if (r.customer_id !== customerId)
+            errors.push({ path, message: 'The time is for another customer' });
+          else if (r.invoice_id && r.invoice_id !== id)
+            errors.push({ path, message: 'The time is already billed on another invoice' });
+        }
+      });
+    }
+    const estimateIds = [
+      ...new Set(lines.map((l) => l.estimateId).filter((v): v is string => !!v)),
+    ];
+    if (estimateIds.length) {
+      if (type !== 'invoice')
+        errors.push({ path: 'lines', message: 'Only invoices bill estimates' });
+      const ests = await tx
+        .selectFrom('estimates')
+        .select(['id', 'customer_id'])
+        .where('company_id', '=', companyId)
+        .where('id', 'in', estimateIds)
+        .execute();
+      const estLines = await tx
+        .selectFrom('estimate_lines')
+        .select(['estimate_id', 'line_no'])
+        .where('estimate_id', 'in', estimateIds)
+        .execute();
+      lines.forEach((l, i) => {
+        if (!l.estimateId) return;
+        const e = ests.find((x) => x.id === l.estimateId);
+        const path = `lines.${i}.estimateId`;
+        if (!e) errors.push({ path, message: 'Estimate not found' });
+        else if (e.customer_id !== customerId)
+          errors.push({ path, message: 'The estimate is for another customer' });
+        else if (
+          !estLines.some((x) => x.estimate_id === l.estimateId && x.line_no === l.estimateLineNo)
+        )
+          errors.push({ path, message: 'That estimate line doesn’t exist' });
+      });
+    }
+    if (errors.length) throw new BadRequestException(validationError(errors));
   }
 
   private async resolveLines(
@@ -737,6 +859,9 @@ export class SalesDocumentsService {
         serviceDate: l.serviceDate ?? null,
         taxable: l.taxable ?? item?.taxable ?? false,
         cogsAccountId: stocked ? item.expense_account_id : null,
+        timeEntryIds: l.timeEntryIds ?? [],
+        estimateId: l.estimateId ?? null,
+        estimateLineNo: l.estimateId ? (l.estimateLineNo ?? null) : null,
       };
     });
     const accountIds = [...new Set(resolved.map((l) => l.accountId).filter(Boolean))];

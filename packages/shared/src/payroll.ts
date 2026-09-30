@@ -654,6 +654,8 @@ export const employeeInputSchema = z
     payScheduleId: z.uuid('Choose a pay schedule'),
     payMethod: z.enum(PAY_METHODS).default('check'),
     overtimeExempt: z.boolean().default(false),
+    /** The company member who approves this employee's time (ADR 0019). */
+    managerUserId: z.uuid().nullable().optional(),
     /** New York: filed Form DB-130 (receiving social security), so no DBL contribution. */
     nyDblExempt: z.boolean().default(false),
     /** Form W-2 box 14b: up to two Treasury tipped occupation codes, e.g. "101" or "101 203". */
@@ -740,6 +742,7 @@ export interface EmployeeDto extends EmployeeSummaryDto {
   terminationReason: string | null;
   defaultHours: string | null;
   overtimeExempt: boolean;
+  managerUserId: string | null;
   nyDblExempt: boolean;
   tippedOccupationCodes: string | null;
   workersCompClassId: string | null;
@@ -1107,6 +1110,8 @@ export interface PayrollLookupsDto {
   vendors: { id: string; displayName: string }[];
   classes: { id: string; fullName: string }[];
   locations: { id: string; fullName: string }[];
+  /** Company members, to name who approves an employee's time. */
+  members: { userId: string; fullName: string }[];
 }
 
 /** A direct deposit account waiting for its prenote. */

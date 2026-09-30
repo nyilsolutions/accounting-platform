@@ -112,6 +112,11 @@ const salesLineBase = z.object({
   classId: z.uuid().nullable().optional(),
   serviceDate: optDate,
   taxable: z.boolean().optional(),
+  /** Invoices and sales receipts: the approved, billable time this line bills (ADR 0019). */
+  timeEntryIds: z.array(z.uuid()).max(500).optional(),
+  /** Progress invoicing: the estimate line this line bills (part of). */
+  estimateId: z.uuid().nullable().optional(),
+  estimateLineNo: z.number().int().min(1).max(1000).nullable().optional(),
 });
 
 export const salesLineInputSchema = salesLineBase.superRefine((l, ctx) => {
@@ -196,6 +201,11 @@ export interface SalesLineDto {
   classId: string | null;
   serviceDate: string | null;
   taxable: boolean;
+  /** The time entries this line bills. */
+  timeEntryIds: string[];
+  /** Progress invoicing: the estimate line this line bills. */
+  estimateId: string | null;
+  estimateLineNo: number | null;
 }
 
 export interface SalesTaxLineDto {
@@ -472,8 +482,50 @@ export interface EstimateDto {
   total: string;
   invoiceId: string | null;
   sentAt: string | null;
-  lines: Array<Omit<SalesLineDto, 'accountId'> & { accountId: string | null }>;
+  lines: Array<
+    Omit<SalesLineDto, 'accountId' | 'timeEntryIds' | 'estimateId' | 'estimateLineNo'> & {
+      accountId: string | null;
+      /** Progress invoicing: invoiced so far on posted invoices, and what remains. */
+      invoiced: string;
+      remaining: string;
+    }
+  >;
+  /** Progress invoicing totals and the invoices made from this estimate. */
+  invoicedTotal: string;
+  remainingTotal: string;
+  progressInvoices: Array<{ id: string; number: string | null; txnDate: string; amount: string }>;
 }
+
+/** Creates an invoice for part of an estimate (progress invoicing). */
+export const progressInvoiceSchema = z
+  .object({
+    txnDate: isoDate,
+    /**
+     * - percent: the same share of every line's estimate amount;
+     * - remaining: everything not invoiced yet;
+     * - amounts: an amount per estimate line.
+     */
+    mode: z.enum(['percent', 'remaining', 'amounts']),
+    percent: z
+      .string()
+      .trim()
+      .regex(/^\d{1,3}(\.\d{1,2})?$/, 'Enter a percentage like 25 or 12.5')
+      .optional(),
+    lines: z
+      .array(z.object({ lineNo: z.number().int().min(1).max(1000), amount: signedAmount }))
+      .max(1000)
+      .optional(),
+    closingPassword: z.string().max(128).optional(),
+  })
+  .refine((v) => v.mode !== 'percent' || !!v.percent, {
+    message: 'Enter the percentage to invoice',
+    path: ['percent'],
+  })
+  .refine((v) => v.mode !== 'amounts' || (v.lines?.length ?? 0) > 0, {
+    message: 'Enter an amount for at least one line',
+    path: ['lines'],
+  });
+export type ProgressInvoiceInput = z.input<typeof progressInvoiceSchema>;
 
 // ---------------------------------------------------------------------------------------------
 // Lists, customer center, statements

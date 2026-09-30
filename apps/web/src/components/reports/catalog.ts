@@ -254,6 +254,39 @@ export const CATALOG: CatalogGroup[] = [
     ],
   },
   {
+    title: 'Time and projects',
+    reports: [
+      {
+        slug: 'time-by-customer',
+        title: 'Time by Customer Summary',
+        description: 'Hours by customer and service: all, billable, and billable not billed yet.',
+        pointInTime: false,
+        defaultPreset: 'this_month',
+      },
+      {
+        slug: 'time-detail',
+        title: 'Time Activities by Person Detail',
+        description: 'Every time entry by employee or contractor, with its status and billing.',
+        pointInTime: false,
+        defaultPreset: 'this_week',
+      },
+      {
+        slug: 'unbilled-time',
+        title: 'Unbilled Time',
+        description: 'Approved, billable time not on an invoice yet, by customer.',
+        pointInTime: true,
+        defaultPreset: 'today',
+      },
+      {
+        slug: 'estimates-progress',
+        title: 'Estimates Progress',
+        description: 'Each estimate’s amount, what has been invoiced from it, and what remains.',
+        pointInTime: true,
+        defaultPreset: 'today',
+      },
+    ],
+  },
+  {
     title: 'Inventory',
     reports: [
       {

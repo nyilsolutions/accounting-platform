@@ -21,6 +21,7 @@ import { PurchasesModule } from './purchases/purchases.module';
 import { ReportsModule } from './reports/reports.module';
 import { SalesModule } from './sales/sales.module';
 import { SalesTaxModule } from './sales-tax/sales-tax.module';
+import { TimeModule } from './time/time.module';
 
 @Module({})
 export class AppModule {
@@ -43,6 +44,7 @@ export class AppModule {
         MembersModule,
         LedgerModule,
         InventoryModule,
+        TimeModule,
         ListsModule,
         ReportsModule,
         SalesModule,

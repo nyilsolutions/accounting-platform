@@ -164,6 +164,15 @@ export class EmployeesService {
         .where('id', '=', input.payScheduleId)
         .executeTakeFirst();
       if (!schedule) throw bad('payScheduleId', 'Choose a pay schedule');
+      if (input.managerUserId) {
+        const member = await tx
+          .selectFrom('memberships')
+          .select('id')
+          .where('company_id', '=', ctx.companyId)
+          .where('user_id', '=', input.managerUserId)
+          .executeTakeFirst();
+        if (!member) throw bad('managerUserId', 'Choose a member of this company');
+      }
       const employeeId = id ?? randomUUID();
       const values = {
         employee_number: input.employeeNumber ?? null,
@@ -192,6 +201,7 @@ export class EmployeesService {
         pay_schedule_id: input.payScheduleId,
         pay_method: input.payMethod,
         overtime_exempt: input.overtimeExempt,
+        manager_user_id: input.managerUserId ?? null,
         ny_dbl_exempt: input.nyDblExempt,
         tipped_occupation_codes: input.tippedOccupationCodes ?? null,
         workers_comp_class_id: input.workersCompClassId ?? null,
@@ -839,6 +849,7 @@ export class EmployeesService {
       terminationReason: r.termination_reason,
       defaultHours: trimNumber(r.default_hours),
       overtimeExempt: r.overtime_exempt,
+      managerUserId: r.manager_user_id,
       nyDblExempt: r.ny_dbl_exempt,
       tippedOccupationCodes: r.tipped_occupation_codes,
       workersCompClassId: r.workers_comp_class_id,
