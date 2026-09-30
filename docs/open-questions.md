@@ -168,19 +168,30 @@ Add new questions here instead of guessing.
 
 ## Payroll setup (Phase 8)
 
-44. **Payroll tax data:** `tax-data/2026/federal.json` and `states/{il,ny,ca,fl,tx}.json` are built
-    from the documents you supplied and wait for your sign-off before any tax code is written.
-    Still needed:
-    - **New York**: Paid Family Leave 2026 rate and cap; Disability Benefits employee limit;
-      Publication 420 (MCTMT rates); which table applies to IT-2104 "Married, but withhold at
-      higher single rate" (expected: single);
-    - **California**: the 2026 California Employer's Guide (DE 44) for income tax withholding;
-    - **Texas**: the 2026 new-employer rate (the TWC page you supplied gives the $9,000 wage base
-      and the 0.32%–6.32% range, but not the rate for new employers);
-    - **Illinois**: what to withhold when no IL-W-4 is on file (IL-W-4 instructions);
+44. **Payroll tax data:** `tax-data/2026/federal.json` and `states/{il,ny,ca,fl,tx}.json` are
+    approved by you for building (2026-09-30) and wait for a CPA or payroll specialist's review
+    (`reviewedBy`) before real paychecks. The tax engine refuses anything not sourced, with the
+    reason. Still needed:
+    - **New York**: Paid Family Leave 2026 rate and cap (every New York paycheck waits on this);
+      Disability Benefits employee limit; Publication 420 (MCTMT rates); which table applies to
+      IT-2104 "Married, but withhold at higher single rate" (expected: single); how employee
+      pre-tax deductions (401(k), cafeteria plan, FSA, HSA) count for unemployment;
+    - **California**: the 2026 California Employer's Guide (DE 44) for income tax withholding
+      (every California paycheck waits on this), and how pre-tax deductions count for SDI and
+      unemployment;
+    - **Illinois**: what to withhold when no IL-W-4 is on file; the rule for bonuses paid
+      separately; how pre-tax deductions and company contributions count for withholding and
+      unemployment;
+    - **Texas and Florida**: how pre-tax deductions, tips, reimbursements and company
+      contributions count for unemployment; the Texas new-employer rate;
     - **Roth 401(k)/403(b)**: a citation that designated Roth contributions are wages (Form W-2
       instructions or Pub. 525);
-    - the **2026 FUTA credit reduction states** (Department of Labor, November 2026).
+    - the **2026 FUTA credit reduction states** (Department of Labor, November 2026). Paychecks
+      use the 0.6% net rate; a credit reduction is added on Form 940 at year end.
+
+    Until the state treatment of pre-tax deductions is sourced, paychecks with a 401(k),
+    cafeteria plan, FSA or HSA deduction are refused in every state.
+
 45. **Your direct deposit bank (ODFI):** which bank will originate the ACH files? Banks differ on:
     - a balanced file (an offsetting debit to your account) or credits only (built today);
     - line endings (CRLF today) and the immediate origin and company ID they assign;

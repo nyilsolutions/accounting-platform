@@ -889,6 +889,31 @@
         ],
         "note": "This kind is for taxable fringe benefits; excluded benefits use their own kinds."
       }
+    },
+    "regularWageKinds": {
+      "kinds": [
+        "hourly",
+        "overtime",
+        "double_time",
+        "salary",
+        "bonus",
+        "commission",
+        "vacation",
+        "sick",
+        "holiday",
+        "other_earning"
+      ],
+      "fit": "taxable",
+      "fica": "taxable",
+      "futa": "taxable",
+      "note": "Pay for services: salaries and hourly wages, overtime, bonuses, commissions, and vacation, sick and holiday pay the employer pays. Bonuses and commissions are supplemental wages when paid separately.",
+      "cite": [
+        {
+          "source": "p15",
+          "page": 18,
+          "ref": "Section 5, Wages and Other Compensation: \"Wages subject to federal employment taxes generally include all pay you give to an employee for services performed... It includes salaries, vacation allowances, bonuses, commissions, and taxable fringe benefits.\""
+        }
+      ]
     }
   },
   "workedExamples": [
@@ -899,6 +924,28 @@
       "published": {
         "1000.00": "2",
         "1500.00": "53"
+      },
+      "wageBracketRows": {
+        "1000.00": {
+          "page": 50,
+          "table": "Monthly, Forms W-4 from 2019 or earlier, Single, 1 allowance",
+          "atLeast": "990.00",
+          "lessThan": "1020.00",
+          "published": "2"
+        },
+        "1500.00": {
+          "page": 50,
+          "table": "Monthly, Forms W-4 from 2019 or earlier, Single, 1 allowance",
+          "atLeast": "1500.00",
+          "lessThan": "1530.00",
+          "published": "53"
+        }
+      },
+      "inputs": {
+        "formVersion": "pre2020",
+        "filingStatus": "single",
+        "allowances": 1,
+        "frequency": "monthly"
       }
     },
     {
@@ -908,6 +955,27 @@
       "published": {
         "2000.00": "65",
         "3000.00": "179"
+      },
+      "wageBracketRows": {
+        "2000.00": {
+          "page": 23,
+          "table": "Monthly, Forms W-4 from 2020 or later, Single or Married filing separately, standard",
+          "atLeast": "1975.00",
+          "lessThan": "2005.00",
+          "published": "65"
+        },
+        "3000.00": {
+          "page": 24,
+          "table": "Monthly, Forms W-4 from 2020 or later, Single or Married filing separately, standard",
+          "atLeast": "2985.00",
+          "lessThan": "3025.00",
+          "published": "179"
+        }
+      },
+      "inputs": {
+        "formVersion": "2020",
+        "filingStatus": "single",
+        "frequency": "monthly"
       }
     },
     {
@@ -916,6 +984,22 @@
       "what": "Nonresident alien, 2019 W-4 Single 1 allowance, weekly $300 + $226.90 (wage bracket method)",
       "published": {
         "526.90": "31"
+      },
+      "wageBracketRows": {
+        "526.90": {
+          "page": 32,
+          "table": "Weekly, Forms W-4 from 2019 or earlier, Single, 1 allowance",
+          "atLeast": "520.00",
+          "lessThan": "535.00",
+          "published": "31"
+        }
+      },
+      "inputs": {
+        "formVersion": "pre2020",
+        "filingStatus": "single",
+        "allowances": 1,
+        "frequency": "weekly",
+        "wagesBeforeNonresidentAddition": "300.00"
       }
     },
     {
@@ -924,6 +1008,14 @@
       "what": "Successor employer: $2,000 paid by predecessor leaves $182,500 subject to social security"
     }
   ],
+  "workedExamplesMethod": {
+    "note": "The wage bracket tables are the percentage method applied to the middle of each row, rounded to the whole dollar. Golden tests apply the percentage method to the row midpoint and compare to the published dollar amount."
+  },
+  "ownerApproval": {
+    "date": "2026-09-30",
+    "by": "product owner",
+    "scope": "Figures checked as copied from the supplied documents, for building and testing the tax calculations. Not a professional review: reviewedBy stays null until a CPA or payroll specialist signs off, which is required before real paychecks."
+  },
   "reviewedBy": null,
-  "note": "Built from the documents the user supplied on 2026-09-30 (Pub. 15-T, Pub. 15, Pub. 15-B, SSA). The worked examples use the wage bracket method; the percentage method used by the app can differ by a dollar or so, so golden tests compare within the wage bracket's rounding. Pending sign-off."
+  "note": "Built from the documents the user supplied on 2026-09-30 (Pub. 15-T, Pub. 15, Pub. 15-B, SSA). The worked examples use the wage bracket method; see workedExamplesMethod for how the golden tests reproduce them with the percentage method."
 }

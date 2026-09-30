@@ -76,6 +76,12 @@
       "source": "il-700-t",
       "page": 4,
       "what": "Weekly $800, IL-W-4 Line 1 = 2, Line 2 = 2 (automated method)",
+      "inputs": {
+        "period": "weekly",
+        "wages": "800.00",
+        "basicAllowances": 2,
+        "additionalAllowances": 2
+      },
       "published": {
         "withholding": "32.13"
       }
@@ -86,9 +92,29 @@
       "what": "Weekly $300, Line 1 = 2, Line 2 = 1 (wage bracket table)",
       "published": {
         "withholding": "8.38"
-      }
+      },
+      "note": "Wage bracket table example; the golden tests use the automated method example."
     }
   ],
+  "taxableWages": {
+    "incomeTax": {
+      "regularWages": "taxable",
+      "kinds": {},
+      "otherKinds": "pending",
+      "note": "Pay for services is subject to state withholding. Which pre-tax deductions and company contributions reduce or add to withholding wages is not in the supplied documents; paychecks with them are refused until sourced."
+    },
+    "unemployment": {
+      "regularWages": "taxable",
+      "kinds": {},
+      "otherKinds": "pending",
+      "note": "Pay for services is subject to unemployment tax. How pre-tax deductions, tips, reimbursements and company contributions are treated is not in the supplied documents; paychecks with them are refused until sourced."
+    }
+  },
+  "ownerApproval": {
+    "date": "2026-09-30",
+    "by": "product owner",
+    "scope": "Figures checked as copied from the supplied documents, for building and testing the tax calculations. Not a professional review: reviewedBy stays null until a CPA or payroll specialist signs off, which is required before real paychecks."
+  },
   "reviewedBy": null,
-  "note": "Pending sign-off."
+  "note": "Approved by the product owner for building (see ownerApproval); awaiting professional review."
 }

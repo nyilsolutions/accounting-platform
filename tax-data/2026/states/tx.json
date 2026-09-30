@@ -55,6 +55,19 @@
       }
     ]
   },
+  "taxableWages": {
+    "unemployment": {
+      "regularWages": "taxable",
+      "kinds": {},
+      "otherKinds": "pending",
+      "note": "Pay for services is subject to unemployment tax. How pre-tax deductions, tips, reimbursements and company contributions are treated is not in the supplied documents; paychecks with them are refused until sourced."
+    }
+  },
+  "ownerApproval": {
+    "date": "2026-09-30",
+    "by": "product owner",
+    "scope": "Figures checked as copied from the supplied documents, for building and testing the tax calculations. Not a professional review: reviewedBy stays null until a CPA or payroll specialist signs off, which is required before real paychecks."
+  },
   "reviewedBy": null,
-  "note": "Pending sign-off. The source is page text you supplied (the TWC site blocks downloads), not the page itself."
+  "note": "The source is page text you supplied (the TWC site blocks downloads), not the page itself."
 }

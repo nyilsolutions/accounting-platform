@@ -1933,6 +1933,9 @@
       "published": {
         "withholding": "258.51"
       },
+      "expectedFromTables": {
+        "withholding": "258.50"
+      },
       "discrepancy": "The tables give $258.50: $165.00 x 0.0753 = $12.4245, which rounds to $12.42, but the booklet shows $12.43. The other six examples round to the nearest cent, so this is a one-cent error in the booklet; the engine follows the tables."
     },
     {
@@ -1989,6 +1992,9 @@
       },
       "published": {
         "withholding": "248.11"
+      },
+      "expectedFromTables": {
+        "withholding": "248.12"
       },
       "discrepancy": "The tables give $248.12: $58.80 x 0.0707 = $4.157, which rounds to $4.16, but the booklet prints the rate as 0.070 and the result as $4.15. A one-cent error in the booklet; the engine follows the tables."
     },
@@ -2176,6 +2182,9 @@
       "published": {
         "withholding": "599.08"
       },
+      "expectedFromTables": {
+        "withholding": "599.09"
+      },
       "discrepancy": "$3,576.63 x 0.1675 = $599.0855, which rounds to $599.09; the booklet shows $599.08, although on the same page $44.10 x 0.1675 = $7.38675 is rounded up to $7.39. A one-cent inconsistency in the booklet; the engine rounds to the nearest cent."
     },
     {
@@ -2293,6 +2302,48 @@
       }
     }
   ],
+  "taxableWages": {
+    "incomeTax": {
+      "basis": "federal_fit",
+      "note": "New York State, New York City and Yonkers withholding apply to the wages subject to federal income tax withholding.",
+      "cite": [
+        {
+          "source": "nys-50",
+          "page": "Part 3",
+          "ref": "E. Income subject to withholding: \"Compensation that is considered as wages for federal income tax withholding purposes, including tips... is generally considered wages for purposes of withholding New York State income tax, New York City income tax, Yonkers resident tax surcharge, and Yonkers nonresident earnings tax\""
+        }
+      ]
+    },
+    "unemployment": {
+      "regularWages": "taxable",
+      "kinds": {
+        "cash_tips": "taxable",
+        "paid_tips": "taxable",
+        "retirement_match": "exempt",
+        "employer_health": "exempt",
+        "employer_hsa": "exempt"
+      },
+      "otherKinds": "pending",
+      "note": "Employee pre-tax deductions (401(k), cafeteria plan, FSA, HSA) are not addressed in the supplied guide, so paychecks with them are refused for New York unemployment until sourced.",
+      "cite": [
+        {
+          "source": "nys-50",
+          "page": "Part 2",
+          "ref": "Remuneration \"includes every form of compensation paid to covered employees including salary, cash wages, commissions, bonuses, tips, vacation pay...\""
+        },
+        {
+          "source": "nys-50",
+          "page": "Part 2",
+          "ref": "Payments to employees not reportable: \"Any payment made under a plan or system providing for retirement, sickness, or accident disability, or medical or hospital expenses for an employee... including amounts paid for insurance\"; \"Payments from or to a trust described in IRC § 401(a)\""
+        }
+      ]
+    }
+  },
+  "ownerApproval": {
+    "date": "2026-09-30",
+    "by": "product owner",
+    "scope": "Figures checked as copied from the supplied documents, for building and testing the tax calculations. Not a professional review: reviewedBy stays null until a CPA or payroll specialist signs off, which is required before real paychecks."
+  },
   "reviewedBy": null,
-  "note": "Pending sign-off."
+  "note": "Approved by the product owner for building (see ownerApproval); awaiting professional review."
 }
