@@ -8,6 +8,19 @@
       "title": "Florida Department of Revenue, Reemployment Tax Rate Information",
       "revision": "page as supplied 2026-09-30 (no revision date shown)",
       "url": "https://floridarevenue.com/taxes/taxesfees/Pages/rt_rate_info.aspx"
+    },
+    {
+      "id": "fs-443-1217",
+      "title": "The 2026 Florida Statutes, s. 443.1217 Wages (Reemployment Assistance)",
+      "revision": "2026 Florida Statutes (captured 2026-09-29)",
+      "url": "http://www.leg.state.fl.us/statutes/index.cfm?App_mode=Display_Statute&URL=0400-0499/0443/Sections/0443.1217.html"
+    },
+    {
+      "id": "rt-800002",
+      "title": "Florida Department of Revenue, Employer Guide to Reemployment Tax (RT-800002)",
+      "revision": "PDF modified 2025-09-23",
+      "url": null,
+      "urlNote": "The supplied copy does not show its own address; publisher site floridarevenue.com."
     }
   ],
   "incomeTaxWithholding": {
@@ -32,9 +45,47 @@
   "taxableWages": {
     "unemployment": {
       "regularWages": "taxable",
-      "kinds": {},
+      "kinds": {
+        "cash_tips": "taxable",
+        "paid_tips": "taxable",
+        "fringe_benefit": "taxable",
+        "traditional_403b": "taxable",
+        "section_125": "exempt",
+        "health_fsa": "exempt",
+        "dependent_care_fsa": "exempt",
+        "hsa": "exempt",
+        "employer_health": "exempt",
+        "retirement_match": "exempt"
+      },
       "otherKinds": "pending",
-      "note": "Pay for services is subject to unemployment tax. How pre-tax deductions, tips, reimbursements and company contributions are treated is not in the supplied documents; paychecks with them are refused until sourced."
+      "note": "Employee 401(k) deferrals stay pending: s. 443.1217(2)(f)1 exempts payments \"to a trust described in s. 401(a)\" without the salary-reduction exception it makes for 403(b) in (f)4, and the Employer Guide does not mention 401(k). Whether Florida counts employee 401(k) deferrals as wages needs a Florida Department of Revenue source. Company HSA contributions and reimbursements are also not addressed.",
+      "cite": [
+        {
+          "source": "fs-443-1217",
+          "page": null,
+          "ref": "(1) \"The wages subject to this chapter include all remuneration for employment, including commissions, bonuses, back pay awards, and the cash value of all remuneration paid in any medium other than cash... include tips or gratuities received while performing services... included in a written statement furnished to the employer\""
+        },
+        {
+          "source": "fs-443-1217",
+          "page": null,
+          "ref": "(2)(b) exempt: payments under a plan for employees generally, \"including any amount paid... for insurance,\" on account of \"2. Medical and hospitalization expenses in connection with sickness or accident disability\""
+        },
+        {
+          "source": "fs-443-1217",
+          "page": null,
+          "ref": "(2)(f) exempt: payments \"1. From or to a trust described in s. 401(a)...\"; \"4. Under or to an annuity contract described in s. 403(b)..., other than a payment for the purchase of an annuity contract as part of a salary reduction agreement\"; \"7. Under a cafeteria plan, as defined in s. 125...\""
+        },
+        {
+          "source": "rt-800002",
+          "page": 10,
+          "ref": "Exempt Wages: \"Cafeteria Plan payments if they are not reportable to the Internal Revenue Service.\" Taxable Wages include tips in a written statement and the \"Cash value of all remuneration paid in any medium other than cash.\""
+        },
+        {
+          "source": "rt-800002",
+          "page": 18,
+          "ref": "Glossary, Cafeteria Plan Exemption: \"When the cash option is chosen, the payments are considered wages and are subject to reemployment tax.\""
+        }
+      ]
     }
   },
   "ownerApproval": {

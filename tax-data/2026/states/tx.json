@@ -8,6 +8,12 @@
       "title": "Texas Workforce Commission, Your 2026 Tax Rates",
       "revision": "page text captured 2026-09-29 and supplied 2026-09-30 (no revision date shown)",
       "url": "https://www.twc.texas.gov/programs/unemployment-tax/your-tax-rates"
+    },
+    {
+      "id": "twc-taxable-wages",
+      "title": "Texas Workforce Commission, Reporting & Determining Taxable Wages: Taxable & Non-Taxable Benefits",
+      "revision": "page text captured 2026-09-29 and supplied 2026-09-30 (no revision date shown)",
+      "url": "https://www.twc.texas.gov/programs/unemployment-tax/reporting-determining-taxable-wages"
     }
   ],
   "incomeTaxWithholding": {
@@ -58,9 +64,29 @@
   "taxableWages": {
     "unemployment": {
       "regularWages": "taxable",
-      "kinds": {},
+      "kinds": {
+        "traditional_401k": "taxable",
+        "traditional_403b": "taxable",
+        "section_125": "taxable",
+        "hsa": "taxable",
+        "health_fsa": "taxable",
+        "dependent_care_fsa": "taxable",
+        "retirement_match": "exempt"
+      },
       "otherKinds": "pending",
-      "note": "Pay for services is subject to unemployment tax. How pre-tax deductions, tips, reimbursements and company contributions are treated is not in the supplied documents; paychecks with them are refused until sourced."
+      "note": "Employee salary reductions are taxable wages in Texas whatever they fund. Employer contributions to a 401(k) trust are not wages when the trust meets IRC 401(a) and is exempt under 501(a) (the retirement_match kind assumes a qualified plan). Company-paid health insurance outside a cafeteria plan, tips, reimbursements and taxable fringe benefits are not addressed and stay pending.",
+      "cite": [
+        {
+          "source": "twc-taxable-wages",
+          "page": null,
+          "ref": "\"Employee contributions used to fund benefits by salary reduction or deduction from the employee's base pay would be taxable as wages, regardless of what they are used to purchase or provide.\""
+        },
+        {
+          "source": "twc-taxable-wages",
+          "page": null,
+          "ref": "401(k): \"Employer contributions into a 401(k) trust are not considered taxable wages for state unemployment tax purposes only if... the trust meets the requirements of Section 401(a)... [and] is exempt under Section 501(a).\" \"Employee contributions from a salary reduction or deduction from the employee's base pay are taxable under Texas state unemployment tax laws.\""
+        }
+      ]
     }
   },
   "ownerApproval": {

@@ -22,6 +22,25 @@
       "revision": "PUB-130 (R-02/26)",
       "url": null,
       "urlNote": "The supplied copy does not show its own address; publisher site tax.illinois.gov."
+    },
+    {
+      "id": "86-iac-100-7050",
+      "title": "86 Ill. Adm. Code 100.7050, Computation of Amount Withheld (IITA Section 702)",
+      "revision": "amended at 41 Ill. Reg. 14217, effective November 7, 2017 (captured 2026-09-29)",
+      "url": "https://ilga.gov/agencies/JCAR/EntirePart?titlepart=08600100"
+    },
+    {
+      "id": "56-iac-2730",
+      "title": "56 Ill. Adm. Code Part 2730, Wages (Unemployment Insurance)",
+      "revision": "amended at 50 Ill. Reg. 2143, effective February 2, 2026 (captured 2026-09-29)",
+      "url": "https://ilga.gov/agencies/JCAR/EntirePart?titlepart=05602730"
+    },
+    {
+      "id": "ides-guide",
+      "title": "IDES, Guide to the Illinois U.I. Act",
+      "revision": "Part IV pages dated (5/19); PDF modified 2025-10-16",
+      "url": null,
+      "urlNote": "The supplied copy does not show its own address; publisher site ides.illinois.gov."
     }
   ],
   "incomeTaxWithholding": {
@@ -41,7 +60,18 @@
         "page": 4,
         "ref": "Automated payroll method"
       }
-    ]
+    ],
+    "supplementalWages": {
+      "method": "flat_rate",
+      "note": "Supplemental wages (bonuses, commissions) paid separately: the employer may elect to withhold at the tax rate in effect (4.95%) on the supplemental amount; the engine uses that election for bonus runs.",
+      "cite": [
+        {
+          "source": "86-iac-100-7050",
+          "page": null,
+          "ref": "(c) \"When supplemental wages are paid, the amount of tax required to be withheld shall be determined in accordance with the same methods provided for withholding on those wages under the Internal Revenue Code... However, an employer may elect to compute the amount of tax to be withheld using the tax rate in effect for the date the compensation is paid.\""
+        }
+      ]
+    }
   },
   "unemployment": {
     "wageBase": "14250.00",
@@ -134,9 +164,55 @@
     },
     "unemployment": {
       "regularWages": "taxable",
-      "kinds": {},
+      "kinds": {
+        "traditional_401k": "taxable",
+        "retirement_match": [
+          {
+            "before": "2026-07-01",
+            "taxability": "taxable"
+          },
+          {
+            "from": "2026-07-01",
+            "taxability": "exempt"
+          }
+        ],
+        "section_125": "exempt",
+        "health_fsa": "exempt",
+        "dependent_care_fsa": "taxable",
+        "employer_health": "exempt",
+        "cash_tips": "taxable",
+        "paid_tips": "taxable",
+        "fringe_benefit": "taxable"
+      },
       "otherKinds": "pending",
-      "note": "Pay for services is subject to unemployment tax. How pre-tax deductions, tips, reimbursements and company contributions are treated is not in the supplied documents; paychecks with them are refused until sourced."
+      "note": "Company 401(k) contributions are wages when paid before July 1, 2026 and not wages after June 30, 2026 (the February 2026 amendment of Section 2730.155; the IDES guide's 2019 text predates it). A health FSA is treated as a cafeteria-plan benefit for medical expenses, which Section 2730.150 and the IDES guide exclude; a reviewer should confirm. 403(b), HSA and reimbursements are not addressed.",
+      "cite": [
+        {
+          "source": "56-iac-2730",
+          "page": null,
+          "ref": "Section 2730.155: 401(k) \"Amounts deducted from an individual's taxable income pursuant to salary reduction arrangements, as well as employer contributions made before July 1, 2026, are also 'wages'. However, beginning with payments made after June 30, 2026, employer contributions to a 401(k) plan are not 'wages'.\""
+        },
+        {
+          "source": "56-iac-2730",
+          "page": null,
+          "ref": "Section 2730.150: cafeteria plan payments are not wages to the extent the benefit is excluded under Section 235 of the Act and not FUTA wages; (a) medical insurance premiums are not wages; (c) dependent care assistance is wages."
+        },
+        {
+          "source": "56-iac-2730",
+          "page": null,
+          "ref": "Section 2730.130(b)(2): payments under a plan \"made on account of medical or hospitalization expenses in connection with sickness or accident disability\" are not wages."
+        },
+        {
+          "source": "56-iac-2730",
+          "page": null,
+          "ref": "Section 2730.105: gratuities reported by employees are included in the employer's reports; Section 2730.100: remuneration in kind is wages at fair market value."
+        },
+        {
+          "source": "ides-guide",
+          "page": "G-12, G-13",
+          "ref": "Tips as wages; excluded payments: \"Payments under a plan or into a fund... for medical or hospital expenses in connection with sickness or accident disability\"; cafeteria plan examples (medical premiums excluded, dependent care included)."
+        }
+      ]
     }
   },
   "ownerApproval": {

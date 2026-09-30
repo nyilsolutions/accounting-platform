@@ -53,6 +53,7 @@ export interface RecurringFacts {
 }
 
 export interface PaycheckFacts {
+  payDate: string;
   taxData: PayrollTaxData | null;
   taxYear: number;
   frequency: PayFrequency;
@@ -238,6 +239,7 @@ export function buildPaycheck(f: PaycheckFacts): PaycheckResult {
   } else if (gross > ZERO && f.stateRegistered) {
     try {
       const taxes = calculatePaycheckTaxes(f.taxData, {
+        payDate: f.payDate,
         frequency: f.frequency,
         workState: f.workState,
         w4: f.w4,

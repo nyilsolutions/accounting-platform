@@ -44,6 +44,19 @@
       "revision": "page updated July 24, 2026",
       "url": null,
       "urlNote": "The supplied page copy does not include its address; publisher site tax.ny.gov."
+    },
+    {
+      "id": "nys-pfl-2026",
+      "title": "New York State Paid Family Leave, New York Paid Family Leave Updates for 2026",
+      "revision": "page text captured 2026-09-29 and supplied 2026-09-30",
+      "url": "https://paidfamilyleave.ny.gov/2026"
+    },
+    {
+      "id": "pfl-notice-2026",
+      "title": "NYS Workers' Compensation Board, Employee Notice of Paid Family Leave Payroll Deduction for 2026",
+      "revision": "PFL-PayDeduction-notice-2026 9-25",
+      "url": null,
+      "urlNote": "The supplied copy does not show its own address; publisher site paidfamilyleave.ny.gov."
     }
   ],
   "stateIncomeTaxWithholding": {
@@ -1912,8 +1925,22 @@
     ]
   },
   "paidFamilyLeave": {
-    "status": "pending",
-    "note": "2026 employee contribution rate and annual cap (paidfamilyleave.ny.gov) not supplied."
+    "employeeRatePercent": "0.432",
+    "annualMaxContribution": "411.91",
+    "paidBy": "employee",
+    "note": "Employees contribute 0.432% of their wages each pay period until they reach $411.91 for the year with this employer. Wages here are pay for services; how pre-tax deductions, tips and other kinds count is not stated, so paychecks with them are refused for PFL until sourced.",
+    "cite": [
+      {
+        "source": "nys-pfl-2026",
+        "page": null,
+        "ref": "\"For 2026, employees will contribute 0.432% of their gross wages per pay period, with a maximum annual contribution of $411.91.\" \"The maximum employee contribution for each covered employer in 2026 is $411.91.\""
+      },
+      {
+        "source": "pfl-notice-2026",
+        "page": 1,
+        "ref": "\"The 2026 payroll contribution is 0.432% of an employee's wages each pay period and is capped at an annual maximum of $411.91.\""
+      }
+    ]
   },
   "disabilityBenefits": {
     "status": "pending",
@@ -2364,6 +2391,19 @@
           "source": "nys-50",
           "page": "Part 2",
           "ref": "Payments to employees not reportable: \"Any payment made under a plan or system providing for retirement, sickness, or accident disability, or medical or hospital expenses for an employee... including amounts paid for insurance\"; \"Payments from or to a trust described in IRC § 401(a)\""
+        }
+      ]
+    },
+    "paidFamilyLeave": {
+      "regularWages": "taxable",
+      "kinds": {},
+      "otherKinds": "pending",
+      "note": "Pay for services; other kinds are not addressed by the supplied PFL sources.",
+      "cite": [
+        {
+          "source": "nys-pfl-2026",
+          "page": null,
+          "ref": "\"0.432% of their gross wages per pay period\""
         }
       ]
     }

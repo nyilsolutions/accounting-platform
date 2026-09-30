@@ -1107,6 +1107,7 @@ export const PAYROLL_TAX_CODES = [
   'ny_reemployment_fund',
   'ca_ett',
   'ca_sdi',
+  'ny_pfl',
 ] as const;
 export type PayrollTaxCode = (typeof PAYROLL_TAX_CODES)[number];
 /** Labels; state taxes are prefixed with the state on screen ("NY income tax"). */
@@ -1125,6 +1126,7 @@ export const PAYROLL_TAX_LABELS: Record<PayrollTaxCode, string> = {
   ny_reemployment_fund: 'NY Re-employment Service Fund',
   ca_ett: 'CA Employment Training Tax',
   ca_sdi: 'CA SDI',
+  ny_pfl: 'NY Paid Family Leave',
 };
 export function payrollTaxLabel(code: PayrollTaxCode, state: string | null): string {
   const label = PAYROLL_TAX_LABELS[code];

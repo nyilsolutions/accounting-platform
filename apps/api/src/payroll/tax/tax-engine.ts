@@ -84,6 +84,8 @@ export interface YtdWages {
   sdi: Money;
   /** Supplemental wages, for the $1 million mandatory rate. */
   supplemental: Money;
+  /** New York Paid Family Leave contributions (not wages), for the annual cap. */
+  nyPflContributions: Money;
 }
 export const NO_YTD: YtdWages = {
   socialSecurity: ZERO,
@@ -92,9 +94,12 @@ export const NO_YTD: YtdWages = {
   stateUnemployment: ZERO,
   sdi: ZERO,
   supplemental: ZERO,
+  nyPflContributions: ZERO,
 };
 
 export interface PaycheckTaxInput {
+  /** The pay date: treatments that change during the year are chosen by it. */
+  payDate: string;
   frequency: PayFrequency;
   workState: PayrollState;
   /** The Form W-4 in effect on the pay date, or null when none is on file. */
@@ -211,6 +216,7 @@ export function stateWages(
   fitWages: Q,
   what: string,
   refuse: string[],
+  payDate: string,
 ): Q {
   if (!rule || isPending(rule)) {
     refuse.push(`${what}: which wages are taxable isn't sourced yet.`);
@@ -223,7 +229,10 @@ export function stateWages(
     const listed = rule.kinds[kind];
     const taxability = fed.taxabilityByItemKind.regularWageKinds.kinds.includes(kind)
       ? rule.regularWages
-      : (listed ?? null);
+      : Array.isArray(listed)
+        ? (listed.find((d) => (!d.from || payDate >= d.from) && (!d.before || payDate < d.before))
+            ?.taxability ?? null)
+        : (listed ?? null);
     if (taxability === null) {
       // After-tax deductions (the federal check refuses the unsourced ones).
       if (category === 'post_tax_deduction') continue;
@@ -553,6 +562,7 @@ export function calculatePaycheckTaxes(
         fitWages,
         `${stateName} income tax`,
         refuse,
+        input.payDate,
       );
       stateIncomeTax(sd, input, periods, stateIncomeWages, refuse, line);
     }
@@ -565,6 +575,7 @@ export function calculatePaycheckTaxes(
       fitWages,
       `${stateName} unemployment tax`,
       refuse,
+      input.payDate,
     );
     const ui = sd.unemployment;
     if (!ui) refuse.push(`${stateName} unemployment tax: the wage base isn't sourced yet.`);
@@ -606,14 +617,39 @@ export function calculatePaycheckTaxes(
         fitWages,
         'California SDI',
         refuse,
+        input.payDate,
       );
       const taxable = underBase(sdiWages, sdi.wageBase, input.ytd.sdi);
       line('ca_sdi', 'employee', taxable, mul(taxable, pct(sdi.ratePercent)), state);
     }
 
-    // New York Paid Family Leave is a required employee contribution.
-    if (isPending(sd.paidFamilyLeave))
+    // New York Paid Family Leave: an employee contribution, a percentage of wages each paycheck
+    // up to an annual maximum contribution.
+    const pfl = sd.paidFamilyLeave;
+    if (isPending(pfl))
       refuse.push("New York Paid Family Leave: the 2026 rate and cap aren't sourced yet.");
+    else if (pfl) {
+      const pflWages = stateWages(
+        fed,
+        sd.taxableWages.paidFamilyLeave,
+        input.items,
+        fitWages,
+        'New York Paid Family Leave',
+        refuse,
+        input.payDate,
+      );
+      const room = max(
+        sub(dec(pfl.annualMaxContribution), fromMoney(input.ytd.nyPflContributions)),
+        Q0,
+      );
+      line(
+        'ny_pfl',
+        'employee',
+        pflWages,
+        min(roundCents(mul(pflWages, pct(pfl.employeeRatePercent))), room),
+        state,
+      );
+    }
   }
 
   if (refuse.length) throw new TaxCalculationRefused(refuse);
@@ -656,12 +692,6 @@ function stateIncomeTax(
   }
   if (state === 'IL') {
     const il = sd.incomeTaxWithholding as IlWithholding;
-    if (input.supplemental) {
-      refuse.push(
-        "Illinois income tax: the rule for supplemental wages paid separately isn't sourced yet.",
-      );
-      return;
-    }
     // Pub. 130: without an IL-W-4, or when it must be disregarded (it claims exemption but the
     // federal Form W-4 doesn't), withhold with no allowances.
     let fields: IlW4Fields | null = cert?.state === 'IL' ? cert.fields : null;
@@ -677,6 +707,23 @@ function stateIncomeTax(
         refuse.push("Illinois income tax: what to withhold without an IL-W-4 isn't sourced yet.");
         return;
       }
+    }
+    if (input.supplemental) {
+      // 86 Ill. Adm. Code 100.7050(c): the elected flat rate on supplemental wages.
+      if (il.supplementalWages?.method !== 'flat_rate') {
+        refuse.push(
+          "Illinois income tax: the rule for supplemental wages paid separately isn't sourced yet.",
+        );
+        return;
+      }
+      line(
+        'state_income',
+        'employee',
+        wages,
+        fields.exempt ? Q0 : mul(wages, pct(il.ratePercent)),
+        state,
+      );
+      return;
     }
     line('state_income', 'employee', wages, illinoisIncomeTax(il, fields, periods, wages), state);
     return;

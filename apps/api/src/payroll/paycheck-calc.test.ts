@@ -27,6 +27,7 @@ const items = new Map<string, ItemFacts>(
 
 function facts(over: Partial<PaycheckFacts> = {}): PaycheckFacts {
   return {
+    payDate: '2026-03-06',
     taxData,
     taxYear: 2026,
     frequency: 'weekly',

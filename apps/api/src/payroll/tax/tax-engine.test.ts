@@ -223,6 +223,7 @@ describe('New York: golden tests from the NYS-50-T-NYS, -NYC and -Y worked examp
 
 function baseInput(state: PaycheckTaxInput['workState']): PaycheckTaxInput {
   return {
+    payDate: '2026-03-06',
     frequency: 'biweekly',
     workState: state,
     w4: w4({}),
@@ -302,14 +303,47 @@ describe('a paycheck', () => {
     ]);
   });
 
-  it('refuses state taxes on pre-tax deductions until their state treatment is sourced', () => {
+  it('refuses state taxes on pay kinds whose state treatment is not sourced', () => {
     const reasons = refusal(() =>
       calculatePaycheckTaxes(data, {
-        ...baseInput('TX'),
+        ...baseInput('FL'),
         items: items(['salary', '2000'], ['traditional_401k', '100']),
       }),
     );
-    expect(reasons).toEqual(["Texas unemployment tax: the treatment of 401(k) isn't sourced yet."]);
+    expect(reasons).toEqual([
+      "Florida unemployment tax: the treatment of 401(k) isn't sourced yet.",
+    ]);
+  });
+
+  it('Texas: salary reductions are unemployment wages whatever they fund; a 401(k) match is not', () => {
+    const r = calculatePaycheckTaxes(data, {
+      ...baseInput('TX'),
+      items: items(
+        ['salary', '2000'],
+        ['traditional_401k', '100'],
+        ['section_125', '50'],
+        ['retirement_match', '80'],
+      ),
+    });
+    expect(str(line(r, 'state_unemployment').taxableWages)).toBe('2000.00');
+    expect(str(line(r, 'state_unemployment').amount)).toBe('54.00');
+    expect(str(line(r, 'federal_income').taxableWages)).toBe('1850.00');
+  });
+
+  it('Florida: cafeteria plan deductions and company health and 401(k) contributions are not wages', () => {
+    const r = calculatePaycheckTaxes(data, {
+      ...baseInput('FL'),
+      items: items(
+        ['salary', '2000'],
+        ['section_125', '100'],
+        ['health_fsa', '50'],
+        ['employer_health', '300'],
+        ['retirement_match', '80'],
+        ['traditional_403b', '60'],
+      ),
+    });
+    // 403(b) salary reductions stay in; cafeteria plan deductions come out.
+    expect(str(line(r, 'state_unemployment').taxableWages)).toBe('1850.00');
   });
 
   it('stops social security at the wage base (Pub. 15 p.30: $2,000 already paid leaves $182,500)', () => {
@@ -398,20 +432,32 @@ describe('a paycheck', () => {
     );
   });
 
-  it('refuses New York until Paid Family Leave is sourced', () => {
-    const reasons = refusal(() =>
-      calculatePaycheckTaxes(data, {
-        ...baseInput('NY'),
-        stateCertificate: nyCert({}),
-        items: items(['salary', '2000']),
-      }),
-    );
-    expect(reasons).toEqual([
-      "New York Paid Family Leave: the 2026 rate and cap aren't sourced yet.",
-    ]);
+  it('New York Paid Family Leave: 0.432% of wages each paycheck, up to $411.91 a year', () => {
+    const r = calculatePaycheckTaxes(data, {
+      ...baseInput('NY'),
+      stateCertificate: nyCert({}),
+      items: items(['salary', '2000']),
+    });
+    expect(line(r, 'ny_pfl')).toMatchObject({ payer: 'employee', state: 'NY' });
+    expect(str(line(r, 'ny_pfl').amount)).toBe('8.64');
+    // The PFL example: $1,000 a week is $4.32.
+    const weekly = calculatePaycheckTaxes(data, {
+      ...baseInput('NY'),
+      frequency: 'weekly',
+      stateCertificate: nyCert({}),
+      items: items(['salary', '1000']),
+    });
+    expect(str(line(weekly, 'ny_pfl').amount)).toBe('4.32');
+    const nearCap = calculatePaycheckTaxes(data, {
+      ...baseInput('NY'),
+      stateCertificate: nyCert({}),
+      items: items(['salary', '2000']),
+      ytd: { ...NO_YTD, nyPflContributions: m('405') },
+    });
+    expect(str(line(nearCap, 'ny_pfl').amount)).toBe('6.91');
   });
 
-  it('Illinois without an IL-W-4 withholds with no allowances (Pub. 130); supplemental is refused', () => {
+  it('Illinois without an IL-W-4 withholds with no allowances (Pub. 130); bonuses at the flat rate', () => {
     const r = calculatePaycheckTaxes(data, {
       ...baseInput('IL'),
       items: items(['salary', '2000']),
@@ -441,29 +487,33 @@ describe('a paycheck', () => {
       stateCertificate: exemptIl,
     });
     expect(line(honored, 'state_income').amount).toBe(0n);
-    expect(
-      refusal(() =>
-        calculatePaycheckTaxes(data, {
-          ...baseInput('IL'),
-          supplemental: true,
-          items: items(['bonus', '1000']),
-        }),
-      ),
-    ).toEqual([
-      "Illinois income tax: the rule for supplemental wages paid separately isn't sourced yet.",
-    ]);
+    // 86 Ill. Adm. Code 100.7050(c): a bonus paid separately at the rate in effect.
+    const bonus = calculatePaycheckTaxes(data, {
+      ...baseInput('IL'),
+      supplemental: true,
+      items: items(['bonus', '1000']),
+    });
+    expect(str(line(bonus, 'state_income').amount)).toBe('49.50');
   });
 
-  it('Illinois withholding follows federal wages: a 401(k) reduces it (unemployment still pending)', () => {
-    const reasons = refusal(() =>
-      calculatePaycheckTaxes(data, {
-        ...baseInput('IL'),
-        items: items(['salary', '2000'], ['traditional_401k', '200']),
-      }),
-    );
-    expect(reasons).toEqual([
-      "Illinois unemployment tax: the treatment of 401(k) isn't sourced yet.",
-    ]);
+  it('Illinois: a 401(k) reduces withholding wages but not unemployment wages', () => {
+    const r = calculatePaycheckTaxes(data, {
+      ...baseInput('IL'),
+      items: items(['salary', '2000'], ['traditional_401k', '200']),
+    });
+    expect(str(line(r, 'state_income').amount)).toBe('89.10');
+    expect(str(line(r, 'state_unemployment').taxableWages)).toBe('2000.00');
+  });
+
+  it('Illinois: a company 401(k) match is unemployment wages until June 30, 2026, then not', () => {
+    const pay = {
+      ...baseInput('IL'),
+      items: items(['salary', '2000'], ['retirement_match', '100']),
+    };
+    const june = calculatePaycheckTaxes(data, { ...pay, payDate: '2026-06-30' });
+    const july = calculatePaycheckTaxes(data, { ...pay, payDate: '2026-07-01' });
+    expect(str(line(june, 'state_unemployment').taxableWages)).toBe('2100.00');
+    expect(str(line(july, 'state_unemployment').taxableWages)).toBe('2000.00');
   });
 
   it('California: pay-type rules from DE 231A and DE 231EB (income tax itself still waits on DE 44)', () => {
@@ -480,16 +530,22 @@ describe('a paycheck', () => {
     const refuse: string[] = [];
     const fit = federalWages(fed, pay, 'fit', refuse);
     // PIT: 401(k) and cafeteria plan excluded; HSA (both sides) included; reimbursement excluded.
-    expect(str(toCents(stateWages(fed, ca.taxableWages.incomeTax, pay, fit, 'CA', refuse)))).toBe(
-      '2625.00',
-    );
+    expect(
+      str(
+        toCents(stateWages(fed, ca.taxableWages.incomeTax, pay, fit, 'CA', refuse, '2026-03-06')),
+      ),
+    ).toBe('2625.00');
     // UI and SDI: 401(k) included; cafeteria plan excluded; HSA included; match excluded.
     expect(
-      str(toCents(stateWages(fed, ca.taxableWages.unemployment, pay, fit, 'CA', refuse))),
+      str(
+        toCents(
+          stateWages(fed, ca.taxableWages.unemployment, pay, fit, 'CA', refuse, '2026-03-06'),
+        ),
+      ),
     ).toBe('2925.00');
-    expect(str(toCents(stateWages(fed, ca.taxableWages.sdi, pay, fit, 'CA', refuse)))).toBe(
-      '2925.00',
-    );
+    expect(
+      str(toCents(stateWages(fed, ca.taxableWages.sdi, pay, fit, 'CA', refuse, '2026-03-06'))),
+    ).toBe('2925.00');
     expect(refuse).toEqual([]);
   });
 

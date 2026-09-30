@@ -172,30 +172,32 @@ Add new questions here instead of guessing.
     approved by you for building (2026-09-30) and wait for a CPA or payroll specialist's review
     (`reviewedBy`) before real paychecks. The tax engine refuses anything not sourced, with the
     reason. Still needed:
-    - **New York**: Paid Family Leave 2026 rate and cap (every New York paycheck waits on this);
-      Disability Benefits employee limit; Publication 420 (MCTMT rates); which table applies to
-      IT-2104 "Married, but withhold at higher single rate" (expected: single); how employee
-      pre-tax deductions (401(k), cafeteria plan, FSA, HSA) count for unemployment (withholding
-      is settled: it follows federal wages, TSB-M-84(7)I);
+    - **New York**: Disability Benefits employee limit (DBL withholding is optional, so paychecks
+      don't wait on it); Publication 420 (MCTMT rates); which table applies to IT-2104 "Married,
+      but withhold at higher single rate" (expected: single); how employee pre-tax deductions
+      (401(k), cafeteria plan, FSA, HSA), tips and company contributions count for unemployment
+      and for Paid Family Leave. Paid Family Leave itself is now calculated (0.432%, $411.91 cap);
     - **California**: the 2026 California Employer's Guide (DE 44) for income tax withholding
-      (every California paycheck waits on this). Which pay counts for income tax, SDI and
-      unemployment is now sourced (DE 231A, DE 231EB). One conflict for the reviewer: DE 231EB
-      (2017) shows employer 401(k) contributions as subject to unemployment and SDI, the newer
-      DE 231A (2023) says they are not; payroll follows DE 231A;
-    - **Illinois**: the rule for bonuses paid separately (Pub. 130 doesn't cover it); how
-      pre-tax deductions and company contributions count for unemployment. Withholding without
-      an IL-W-4 (no allowances) and which wages count (federal wages) are now sourced
-      (Pub. 130);
-    - **Texas and Florida**: how pre-tax deductions, tips, reimbursements and company
-      contributions count for unemployment; the Texas new-employer rate;
+      (every California paycheck waits on this). One conflict for the reviewer: DE 231EB (2017)
+      shows employer 401(k) contributions as subject to unemployment and SDI, the newer DE 231A
+      (2023) says they are not; payroll follows DE 231A;
+    - **Florida**: whether employee 401(k) deferrals are reemployment tax wages. Section
+      443.1217(2)(f)1 exempts payments "to a trust described in s. 401(a)" without the
+      salary-reduction exception it makes for 403(b), and the Employer Guide (RT-800002) doesn't
+      mention 401(k). Florida paychecks with a 401(k) deduction wait on this; also company HSA
+      contributions and reimbursements;
+    - **Illinois**: how 403(b), HSA and reimbursements count for unemployment. A health FSA is
+      treated as excluded (a cafeteria-plan benefit for medical expenses); a reviewer should
+      confirm;
+    - **Texas**: company-paid health insurance outside a cafeteria plan, tips, reimbursements and
+      taxable fringe benefits for unemployment; the new-employer rate;
     - **Roth 401(k)/403(b)**: a citation that designated Roth contributions are wages (Form W-2
       instructions or Pub. 525);
     - the **2026 FUTA credit reduction states** (Department of Labor, November 2026). Paychecks
       use the 0.6% net rate; a credit reduction is added on Form 940 at year end.
 
-    Until the unemployment treatment of pre-tax deductions is sourced for Illinois, New York,
-    Texas and Florida, paychecks with a 401(k), cafeteria plan, FSA or HSA deduction are refused
-    in those states.
+    A paycheck with a kind of pay whose treatment isn't sourced for its state is refused with the
+    reason; everything else is calculated.
 
 45. **Your direct deposit bank (ODFI):** which bank will originate the ACH files? Banks differ on:
     - a balanced file (an offsetting debit to your account) or credits only (built today);

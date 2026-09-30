@@ -885,6 +885,7 @@ export class PayRunsService {
     const ytd = await this.ytd(tx, companyId, e.id, pc.id, yearStart, pc.pay_date, workState);
 
     const result = buildPaycheck({
+      payDate: pc.pay_date,
       taxData: loadPayrollTaxData(year),
       taxYear: year,
       frequency: pc.frequency as PayFrequency,
@@ -1091,6 +1092,7 @@ export class PayRunsService {
         'l.state',
         'p.supplemental',
         sql<string>`sum(l.taxable_wages)`.as('wages'),
+        sql<string>`sum(l.amount)`.as('amount'),
       ])
       .where('l.company_id', '=', companyId)
       .where('l.line_type', '=', 'tax')
@@ -1119,6 +1121,9 @@ export class PayRunsService {
           break;
         case 'ca_sdi':
           ytd.sdi += wages;
+          break;
+        case 'ny_pfl':
+          ytd.nyPflContributions += parseMoney(r.amount);
           break;
         case 'federal_income':
           if (r.supplemental) ytd.supplemental += wages;
@@ -1419,6 +1424,7 @@ const PAYROLL_TAX_ORDER: PayrollTaxCode[] = [
   'nyc_income',
   'yonkers_income',
   'ca_sdi',
+  'ny_pfl',
   'social_security_employer',
   'medicare_employer',
   'futa',

@@ -62,11 +62,18 @@ export interface FederalTaxData {
 }
 
 /** How a state tax finds its taxable wages. */
+/** A treatment that changes on a date (by pay date): `before` is exclusive, `from` inclusive. */
+export interface DatedTaxability {
+  from?: string;
+  before?: string;
+  taxability: Taxability;
+}
+
 export type StateWageRule =
   | { basis: 'federal_fit' }
   | {
       regularWages: Taxability;
-      kinds: Record<string, Taxability>;
+      kinds: Record<string, Taxability | DatedTaxability[]>;
       otherKinds: 'pending';
     }
   | Pending;
@@ -94,7 +101,7 @@ export interface StateTaxData {
   employmentTrainingTax?: { ratePercent: string; wageBase: string };
   stateDisabilityInsurance?: { ratePercent: string; wageBase: string | null };
   noCertificate?: Pending | { rule: string };
-  paidFamilyLeave?: Pending;
+  paidFamilyLeave?: Pending | { employeeRatePercent: string; annualMaxContribution: string };
   stateIncomeTaxWithholding?: {
     tableA_deductionPlusExemptions: { values: Record<NyPeriod, Record<NyStatus, string[]>> };
     tableC_exemptionValue: Record<NyPeriod, string>;
@@ -119,11 +126,14 @@ export interface StateTaxData {
     incomeTax?: StateWageRule;
     unemployment: StateWageRule;
     sdi?: StateWageRule;
+    paidFamilyLeave?: StateWageRule;
   };
 }
 
 export interface IlWithholding {
   ratePercent: string;
+  /** Supplemental wages paid separately: the elected flat rate (the rate in effect). */
+  supplementalWages?: { method: 'flat_rate' };
   line1AllowanceAnnual: string;
   line2AllowanceAnnual: string;
 }
