@@ -307,7 +307,7 @@ export class DepositsService {
     });
   }
 
-  private async load(tx: Tx, companyId: string, id: string): Promise<DepositDto> {
+  async load(tx: Tx, companyId: string, id: string): Promise<DepositDto> {
     const d = await tx
       .selectFrom('transactions')
       .selectAll()

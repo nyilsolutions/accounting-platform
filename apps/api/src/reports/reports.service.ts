@@ -61,7 +61,7 @@ import {
   cashFlowReport,
   profitAndLossReport,
 } from './financial-reports';
-import { netIncomeOf, trialBalance } from './report-builder';
+import { adjustedTrialBalance, netIncomeOf, trialBalance } from './report-builder';
 import {
   basisOf,
   dimension,
@@ -95,6 +95,7 @@ export class ReportsService {
     profit_and_loss: profitAndLossReport,
     balance_sheet: balanceSheetReport,
     trial_balance: (s, q) => this.trialBalance(s, q),
+    adjusted_trial_balance: (s, q) => this.adjustedTrialBalance(s, q),
     general_ledger: (s, q) => ledgerReport(s, q, 'general_ledger'),
     profit_and_loss_detail: (s, q) => ledgerReport(s, q, 'profit_and_loss_detail'),
     balance_sheet_detail: (s, q) => ledgerReport(s, q, 'balance_sheet_detail'),
@@ -209,6 +210,55 @@ export class ReportsService {
       useNumbers: company.use_account_numbers,
     });
     return reportDto(scope, 'trial_balance', basis, null, q.to, ['Debit', 'Credit'], rows, fys);
+  }
+
+  /** Before and after adjusting entries (journal entries marked adjusting), ADR 0021. */
+  private async adjustedTrialBalance(scope: ReportScope, q: ReportQuery): Promise<ReportDto> {
+    const { tx, companyId, company, accounts } = scope;
+    const fys = fiscalYearStart(q.to, company.fiscal_year_start_month);
+    const basis = basisOf(q, company);
+    const sets: Array<boolean | undefined> = [false, true, undefined];
+    const nets = [] as Map<string, Money>[];
+    const priors = [] as Money[];
+    for (const adjusting of sets) {
+      const bsNet = await ledgerNet(tx, companyId, { to: q.to, basis, adjusting });
+      const plNet = await ledgerNet(tx, companyId, { from: fys, to: q.to, basis, adjusting });
+      const prior = await ledgerNet(tx, companyId, { to: addDays(fys, -1), basis, adjusting });
+      const combined = new Map<string, Money>();
+      for (const a of accounts) {
+        const src =
+          ACCOUNT_TYPE_INFO[a.account_type as AccountType].statement === 'balance_sheet'
+            ? bsNet
+            : plNet;
+        const v = src.get(a.id);
+        if (v !== undefined) combined.set(a.id, v);
+      }
+      nets.push(combined);
+      priors.push(netIncomeOf(accounts, prior));
+    }
+    const rows = adjustedTrialBalance(
+      accounts,
+      nets as [Map<string, Money>, Map<string, Money>, Map<string, Money>],
+      priors as [Money, Money, Money],
+      { useNumbers: company.use_account_numbers },
+    );
+    return reportDto(
+      scope,
+      'adjusted_trial_balance',
+      basis,
+      null,
+      q.to,
+      [
+        'Unadjusted debit',
+        'Unadjusted credit',
+        'Adjustments debit',
+        'Adjustments credit',
+        'Adjusted debit',
+        'Adjusted credit',
+      ],
+      rows,
+      fys,
+    );
   }
 
   // ---- Receivables and payables ----------------------------------------------------------------

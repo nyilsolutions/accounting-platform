@@ -1271,6 +1271,32 @@ export interface ExchangeRatesTable extends Audited {
   source: string;
 }
 
+export interface AuditReviewsTable {
+  company_id: string;
+  audit_id: string;
+  reviewed_by: string | null;
+  reviewed_at: Generated<Date>;
+}
+
+export interface CloseStepMarksTable {
+  company_id: string;
+  period_end: DateCol;
+  step: string;
+  note: string | null;
+  marked_by: string | null;
+  marked_at: Generated<Date>;
+}
+
+export interface PeriodClosesTable {
+  id: Generated<string>;
+  company_id: string;
+  period_end: DateCol;
+  note: string | null;
+  checklist: ColumnType<unknown, string, string>;
+  closed_by: string | null;
+  closed_at: Generated<Date>;
+}
+
 export interface Database {
   users: UsersTable;
   mfa_recovery_codes: MfaRecoveryCodesTable;
@@ -1354,6 +1380,9 @@ export interface Database {
   tax_filings: TaxFilingsTable;
   company_currencies: CompanyCurrenciesTable;
   exchange_rates: ExchangeRatesTable;
+  audit_reviews: AuditReviewsTable;
+  close_step_marks: CloseStepMarksTable;
+  period_closes: PeriodClosesTable;
   assembly_components: AssemblyComponentsTable;
   inventory_moves: InventoryMovesTable;
   inventory_adjustment_lines: InventoryAdjustmentLinesTable;

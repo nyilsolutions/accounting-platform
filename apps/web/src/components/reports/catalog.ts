@@ -367,6 +367,15 @@ export const CATALOG: CatalogGroup[] = [
         basis: true,
       },
       {
+        slug: 'adjusted-trial-balance',
+        title: 'Adjusted Trial Balance',
+        description:
+          'The trial balance before adjusting entries, the adjustments, and the balances after them.',
+        pointInTime: true,
+        defaultPreset: 'this_fiscal_year_to_date',
+        basis: true,
+      },
+      {
         slug: 'general-ledger',
         title: 'General Ledger',
         description: 'Every transaction by account with running balances.',

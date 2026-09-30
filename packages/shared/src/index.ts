@@ -23,3 +23,4 @@ export * from './payroll';
 export * from './inventory';
 export * from './time';
 export * from './currency';
+export * from './accountant';
