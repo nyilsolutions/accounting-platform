@@ -41,7 +41,9 @@ A single package: `pnpm --filter @acct/api test`, `pnpm --filter @acct/db test`,
   key in `reports.service.ts` over a `ReportScope`; statements in `financial-reports.ts`, detail
   and banking reports in `detail-reports.ts`, the custom builder in `custom-report.ts`, exports
   in `reports/export/`, memorized reports and the email scheduler in
-  `memorized-reports.service.ts`; cash basis in `cash-basis.ts`).
+  `memorized-reports.service.ts`; cash basis in `cash-basis.ts`), payroll (setup in
+  `payroll-setup.service.ts`, employees with W-4/state certificate history, direct deposit and
+  prenotes in `employees.service.ts`, NACHA records in `nacha.ts` behind `PaymentRail`).
   The A/R and A/P subledgers share one engine: `ledger/subledger.ts`.
 - `apps/desktop-agent`: QuickBooks Desktop migration agent (C#/.NET 8; `Core` is portable and
   tested on Linux with `dotnet test`, `Windows` is the WinForms wizard and QBXMLRP2 session).
@@ -121,6 +123,14 @@ A single package: `pnpm --filter @acct/api test`, `pnpm --filter @acct/db test`,
   catalog (`components/reports/catalog.ts`); exports, memorizing and schedules then work.
   Multi-column reports set `columnDrill` so every amount drills down. Custom report columns and
   filters map to fixed SQL expressions only.
+- Payroll (ADR 0015): nothing in payroll code is a tax rate, wage base or taxability rule; those
+  come from `tax-data` (the federal file waits for sign-off, `docs/phase-8.md`). Supported states
+  are in `docs/states.md` (`PAYROLL_STATES`). SSNs and direct deposit account numbers are
+  encrypted with row-bound AADs (`employee:<id>:ssn`,
+  `employee_bank_account:<id>:account_number`), shown masked, never audited; ACH files are
+  returned to the caller and never stored (only `ach_batches` metadata). Withholding
+  certificates are effective-dated history: add a new one, never edit. Employees are terminated,
+  not deleted.
 - Database errors map to HTTP in `common/pg-error.filter.ts`; add friendly messages for new unique
   indexes there.
 
@@ -134,7 +144,7 @@ A single package: `pnpm --filter @acct/api test`, `pnpm --filter @acct/db test`,
 - [x] Phase 5: Documents (library, attachments, versions, scanning, encrypted storage, receipt capture, email-in, retention)
 - [x] Phase 6: QuickBooks migration (QBO connector + attachments, Desktop agent, IIF/CSV, Migration Report, Match attachments)
 - [x] Phase 7: Reports suite, sales tax, budgets (columns/comparisons, cash flow, detail reports, custom builder, PDF/Excel/CSV, memorized + scheduled, sales tax, budgets)
-- [ ] Phase 8: Payroll core
+- [ ] Phase 8: Payroll core (part 1 done: setup, employees, W-4/state certificates, direct deposit + prenotes, W-9; part 2 waits on federal.json sign-off)
 - [ ] Phase 9: Payroll and 1099 tax forms
 - [ ] Phase 10: Advanced (inventory, time, multi-currency, …)
 - [ ] Phase 11: E-file and partners

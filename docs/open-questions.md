@@ -165,3 +165,27 @@ Add new questions here instead of guessing.
     - Budgets longer than twelve months?
 43. **Branded report PDFs:** exports use a plain layout with the company name. Should PDFs carry
     the company logo (the same question as item 14 for invoices)?
+
+## Payroll setup (Phase 8)
+
+44. **Federal tax data:** `tax-data/2026/federal.json` (Pub 15-T tables, Social Security wage
+    base, Medicare, FUTA, supplemental rates) is waiting for access to www.irs.gov and
+    www.ssa.gov, which this environment's network policy still blocks. The federal tax engine,
+    pay runs and everything after them are built only once you have checked that file.
+45. **Your direct deposit bank (ODFI):** which bank will originate the ACH files? Banks differ on:
+    - a balanced file (an offsetting debit to your account) or credits only (built today);
+    - line endings (CRLF today) and the immediate origin and company ID they assign;
+    - whether prenotes are required, and how many business days to wait after one.
+46. **Pay dates on bank holidays:** a pay date on a weekend moves to the Friday before. Should
+    Federal Reserve holidays move it too? If so, the holiday list would live in `tax-data`.
+47. **State certificate fields:** the IL-W-4, DE 4 and IT-2104 fields follow the forms as we know
+    them. The state sites are blocked here, so the fields have not been checked against the
+    current forms. Please confirm them, or allow the state hosts so we can.
+48. **Paid sick leave:** California and New York require minimum paid sick leave, and some cities
+    have their own rules. Should PTO policies enforce those minimums, or is that the employer's
+    job?
+49. **Who can see full SSNs:** owners, admins, accountants and payroll admins can reveal an
+    employee's SSN, and every reveal is audit-logged. Is that the right group?
+50. **Missing Form W-4:** an employee without a W-4 is flagged. Pub 15-T says to withhold as
+    single with no adjustments until one arrives. Should payroll allow paying them that way, or
+    block the paycheck until a W-4 is on file?

@@ -288,16 +288,4 @@ export const NAV: NavItem[] = [
 export const UPCOMING_MODULES: Record<
   string,
   { title: string; phase: string; features: string[] }
-> = {
-  payroll: {
-    title: 'Payroll',
-    phase: 'Phases 8–9',
-    features: [
-      'Employees, W-4 and pay schedules',
-      'Pay runs with federal and state withholding',
-      'Direct deposit (NACHA)',
-      'Tax liabilities and deposits',
-      'Forms 941, 940, W-2/W-3, 1099-NEC/MISC',
-    ],
-  },
-};
+> = {};
