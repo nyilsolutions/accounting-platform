@@ -117,6 +117,12 @@ export interface PaycheckTaxInput {
   ytd: YtdWages;
   /** The employer's unemployment rate for the year in the work state (percent), if entered. */
   unemploymentRatePercent: string | null;
+  /**
+   * New York: whether the company collects the employee Paid Family Leave and disability
+   * benefits contributions (it may pay them itself), and whether the employee filed Form DB-130.
+   * Omitted: both collected, not exempt.
+   */
+  newYork?: { pflDeducted: boolean; dblDeducted: boolean; dblExempt: boolean };
 }
 
 export interface TaxLine {
@@ -625,8 +631,11 @@ export function calculatePaycheckTaxes(
 
     // New York Paid Family Leave: an employee contribution, a percentage of wages each paycheck
     // up to an annual maximum contribution.
+    const ny = input.newYork ?? { pflDeducted: true, dblDeducted: true, dblExempt: false };
     const pfl = sd.paidFamilyLeave;
-    if (isPending(pfl))
+    if (!ny.pflDeducted) {
+      // The company pays the premium itself: nothing is withheld.
+    } else if (isPending(pfl))
       refuse.push("New York Paid Family Leave: the 2026 rate and cap aren't sourced yet.");
     else if (pfl) {
       const pflWages = stateWages(
@@ -649,6 +658,38 @@ export function calculatePaycheckTaxes(
         min(roundCents(mul(pflWages, pct(pfl.employeeRatePercent))), room),
         state,
       );
+    }
+
+    // New York disability benefits (DBL): 0.5% of wages, at most the weekly maximum times the
+    // weeks in the pay period.
+    const dbl = sd.disabilityBenefits;
+    if (ny.dblDeducted && !ny.dblExempt && dbl) {
+      if (isPending(dbl) || !dbl.perPayPeriodMax) {
+        refuse.push("New York disability benefits: the contribution isn't sourced yet.");
+      } else {
+        const dblWages = stateWages(
+          fed,
+          sd.taxableWages.disabilityBenefits,
+          input.items,
+          fitWages,
+          'New York disability benefits',
+          refuse,
+          input.payDate,
+        );
+        const cap = roundCents(
+          div(
+            mul(dec(dbl.weeklyMaxContribution), q(BigInt(dbl.perPayPeriodMax.weeksPerYear))),
+            q(BigInt(periods)),
+          ),
+        );
+        line(
+          'ny_dbl',
+          'employee',
+          dblWages,
+          min(roundCents(mul(dblWages, pct(dbl.employeeRatePercent))), cap),
+          state,
+        );
+      }
     }
   }
 

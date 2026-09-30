@@ -873,6 +873,11 @@ export class PayRunsService {
       .where('employee_id', '=', e.id)
       .execute();
 
+    const settings = await tx
+      .selectFrom('payroll_settings')
+      .select(['ny_pfl_deducted', 'ny_dbl_deducted'])
+      .where('company_id', '=', companyId)
+      .executeTakeFirstOrThrow();
     const items = await this.items(tx, companyId);
     const recurring = await this.recurring(
       tx,
@@ -907,6 +912,11 @@ export class PayRunsService {
       recurring,
       ytd,
       unemploymentRatePercent: registration?.rate ? trimDecimal(registration.rate) : null,
+      newYork: {
+        pflDeducted: settings.ny_pfl_deducted,
+        dblDeducted: settings.ny_dbl_deducted,
+        dblExempt: e.ny_dbl_exempt,
+      },
       payMethod: pc.pay_method as 'check' | 'direct_deposit',
       hasDepositAccounts: accounts.length > 0,
     });
@@ -1434,6 +1444,7 @@ const PAYROLL_TAX_ORDER: PayrollTaxCode[] = [
   'yonkers_income',
   'ca_sdi',
   'ny_pfl',
+  'ny_dbl',
   'social_security_employer',
   'medicare_employer',
   'futa',

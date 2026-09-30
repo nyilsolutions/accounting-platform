@@ -376,6 +376,16 @@ describe('a paycheck', () => {
     ]);
   });
 
+  it('Florida: company HSA contributions are wages unless made through the cafeteria plan', () => {
+    const r = calculatePaycheckTaxes(data, {
+      ...baseInput('FL'),
+      items: items(['salary', '2000'], ['employer_hsa', '50'], ['employer_hsa_cafeteria', '30']),
+    });
+    expect(str(line(r, 'state_unemployment').taxableWages)).toBe('2050.00');
+    // Federally both are excluded.
+    expect(str(line(r, 'futa').taxableWages)).toBe('2000.00');
+  });
+
   it('Florida: cafeteria plan deductions and company health and 401(k) contributions are not wages', () => {
     const r = calculatePaycheckTaxes(data, {
       ...baseInput('FL'),
@@ -501,6 +511,73 @@ describe('a paycheck', () => {
       ytd: { ...NO_YTD, nyPflContributions: m('405') },
     });
     expect(str(line(nearCap, 'ny_pfl').amount)).toBe('6.91');
+  });
+
+  it('New York DBL: 0.5% of wages, at most $0.60 for each week in the pay period (WCB)', () => {
+    const dbl = (frequency: PaycheckTaxInput['frequency'], salary: string) =>
+      str(
+        line(
+          calculatePaycheckTaxes(data, {
+            ...baseInput('NY'),
+            frequency,
+            stateCertificate: nyCert({}),
+            items: items(['salary', salary]),
+          }),
+          'ny_dbl',
+        ).amount,
+      );
+    expect(dbl('weekly', '100')).toBe('0.50');
+    expect(dbl('weekly', '1000')).toBe('0.60');
+    expect(dbl('biweekly', '2000')).toBe('1.20');
+    // 52 weeks over 24 or 12 pay periods.
+    expect(dbl('semimonthly', '2000')).toBe('1.30');
+    expect(dbl('monthly', '4000')).toBe('2.60');
+  });
+
+  it('New York PFL and DBL: pre-tax deductions stay in wages, company contributions stay out', () => {
+    const pay = items(
+      ['salary', '2000'],
+      ['traditional_401k', '100'],
+      ['section_125', '50'],
+      ['retirement_match', '80'],
+      ['employer_hsa_cafeteria', '25'],
+    );
+    const refuse: string[] = [];
+    for (const rule of [ny.taxableWages.paidFamilyLeave, ny.taxableWages.disabilityBenefits])
+      expect(str(toCents(stateWages(fed, rule, pay, dec('0'), 'NY', refuse, '2026-03-06')))).toBe(
+        '2000.00',
+      );
+    expect(refuse).toEqual([]);
+    // New York unemployment still waits on the pre-tax deductions.
+    expect(
+      refusal(() =>
+        calculatePaycheckTaxes(data, {
+          ...baseInput('NY'),
+          stateCertificate: nyCert({}),
+          items: pay,
+        }),
+      ),
+    ).toEqual([
+      "New York unemployment tax: the treatment of 401(k) isn't sourced yet.",
+      "New York unemployment tax: the treatment of Section 125 (cafeteria plan) health isn't sourced yet.",
+    ]);
+  });
+
+  it('New York: a company that pays PFL or DBL itself, and a DB-130 employee, have nothing withheld', () => {
+    const run = (newYork: PaycheckTaxInput['newYork']) =>
+      calculatePaycheckTaxes(data, {
+        ...baseInput('NY'),
+        stateCertificate: nyCert({}),
+        items: items(['salary', '2000']),
+        newYork,
+      }).lines.map((l) => l.code);
+    expect(run(undefined)).toEqual(expect.arrayContaining(['ny_pfl', 'ny_dbl']));
+    const companyPays = run({ pflDeducted: false, dblDeducted: false, dblExempt: false });
+    expect(companyPays).not.toContain('ny_pfl');
+    expect(companyPays).not.toContain('ny_dbl');
+    const exempt = run({ pflDeducted: true, dblDeducted: true, dblExempt: true });
+    expect(exempt).toContain('ny_pfl');
+    expect(exempt).not.toContain('ny_dbl');
   });
 
   it('New York: more than 14 allowances on an IT-2104 means sending the state a copy (IT-2104-I)', () => {

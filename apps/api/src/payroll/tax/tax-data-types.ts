@@ -139,6 +139,14 @@ export interface StateTaxData {
   stateDisabilityInsurance?: { ratePercent: string; wageBase: string | null };
   noCertificate?: Pending | { rule: string };
   paidFamilyLeave?: Pending | { employeeRatePercent: string; annualMaxContribution: string };
+  disabilityBenefits?:
+    | Pending
+    | {
+        employeeRatePercent: string;
+        weeklyMaxContribution: string;
+        /** The cap per pay period: the weekly maximum times weeksPerYear ÷ pay periods. */
+        perPayPeriodMax?: { rule: 'weekly_max_times_weeks_in_period'; weeksPerYear: number };
+      };
   stateIncomeTaxWithholding?: {
     tableA_deductionPlusExemptions: { values: Record<NyPeriod, Record<NyStatus, string[]>> };
     tableC_exemptionValue: Record<NyPeriod, string>;
@@ -164,6 +172,7 @@ export interface StateTaxData {
     unemployment: StateWageRule;
     sdi?: StateWageRule;
     paidFamilyLeave?: StateWageRule;
+    disabilityBenefits?: StateWageRule;
   };
 }
 

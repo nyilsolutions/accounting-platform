@@ -408,6 +408,23 @@ describe('pay runs (migration 0011)', () => {
         })
         .execute(),
     );
+    // New York disability benefits (migration 0015).
+    await asA((tx) =>
+      tx
+        .insertInto('paycheck_lines')
+        .values({
+          company_id: A,
+          paycheck_id: paycheckId,
+          line_no: 3,
+          line_type: 'tax',
+          tax_code: 'ny_dbl',
+          state: 'NY',
+          payer: 'employee',
+          amount: '0.50',
+          taxable_wages: '100',
+        })
+        .execute(),
+    );
   });
 
   it('a posted paycheck is frozen: its lines and amounts cannot change, and it is voided, not deleted', async () => {
@@ -573,6 +590,9 @@ describe('payroll liability payments (migration 0013)', () => {
         .values(values('federal_941'))
         .returning('id')
         .executeTakeFirstOrThrow(),
+    );
+    await asA((tx) =>
+      tx.insertInto('payroll_liability_payments').values(values('ny_dbl')).execute(),
     );
     expect(
       await asB((tx) => tx.selectFrom('payroll_liability_payments').select('id').execute()),

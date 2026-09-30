@@ -181,7 +181,6 @@ Add new questions here instead of guessing.
       - how employee pre-tax deductions (401(k), cafeteria plan, FSA, HSA) count for
         unemployment. Labor Law § 517 excludes plan payments and 401(a) trust payments but doesn't
         address salary reductions. (Noncash pay and certified tips are now sourced, IA 318.15);
-      - Paid Family Leave and DBL wages: see question 55;
     - **California**: the 2026 California Employer's Guide (DE 44) for income tax withholding
       (every California paycheck waits on this). One conflict for the reviewer: DE 231EB (2017)
       shows employer 401(k) contributions as subject to unemployment and SDI, the newer DE 231A
@@ -190,8 +189,7 @@ Add new questions here instead of guessing.
       443.1217(2)(f)1 exempts payments "to a trust described in s. 401(a)" without the
       salary-reduction exception it makes for 403(b). Neither the Employer Guide (RT-800002) nor
       the Department's return page settles it: the page lists both plans as excluded without that
-      exception. Florida paychecks with a 401(k) deduction wait on this. Also reimbursements, and
-      company HSA contributions (question 56);
+      exception. Florida paychecks with a 401(k) deduction wait on this. Also reimbursements;
     - **Illinois**: how 403(b), HSA and reimbursements count for unemployment. A health FSA is
       treated as excluded (a cafeteria-plan benefit for medical expenses); a reviewer should
       confirm;
@@ -248,22 +246,17 @@ Add new questions here instead of guessing.
 54. **Paper paychecks:** paychecks paid by check are marked "to print" but can't be printed yet
     with the check printing from Phase 3 (voucher stubs differ). Do customers print paychecks, or
     is direct deposit plus a pay stub enough for now?
-55. **New York Paid Family Leave and Disability Benefits (DBL):** the WCB page supplied says an
-    employer "is allowed, but not required" to collect either from employees.
-    - **Wages:** Workers' Compensation Law § 201(12) defines them as "the money rate at which
-      employment... is recompensed under the contract of hiring", and the 2026 notice says
-      "gross wages". My reading is that employee pre-tax deductions (401(k), cafeteria plan, FSA,
-      HSA) don't lower PFL or DBL wages, and company contributions aren't wages. Should payroll
-      follow that reading (for the CPA to confirm), or wait for a written source? Until then, New
-      York paychecks with those items are refused for PFL.
-    - **DBL:** 0.5% of wages, at most $0.60 a week, is now in `ny.json`, but payroll doesn't deduct
-      it. Should payroll deduct DBL? If so, is the cap $0.60 times the weeks in each pay period
-      ($1.20 every two weeks, $1.30 twice a month, $2.60 monthly)? And should employees exempt on
-      Form DB-130 be marked on the employee?
-    - **Company pays:** should a company be able to pay the employee share of PFL or DBL itself
-      instead of deducting it?
-56. **Florida company HSA contributions:** Florida excludes HSA contributions only when they are
-    made through a cafeteria plan. Company HSA contributions (the "HSA (company contribution)"
-    item) can be made either way. Should payroll:
-    - split the item into "through the cafeteria plan" and "outside it" (recommended); or
-    - treat all company HSA contributions as outside a cafeteria plan (taxable in Florida)?
+55. **New York Paid Family Leave and Disability Benefits (DBL):** decided 2026-09-30 ("go with
+    your recommendations"), for the CPA to confirm:
+    - **Wages:** PFL and DBL wages are gross pay: employee pre-tax deductions (401(k), cafeteria
+      plan, FSA, HSA) don't lower them, and company contributions aren't part of them (WCL
+      § 201(12)). Tips, noncash pay and reimbursements stay pending.
+    - **DBL** is deducted: 0.5% of wages, at most $0.60 times the weeks in the pay period ($1.20
+      every two weeks, $1.30 twice a month, $2.60 monthly). A bonus or off-cycle check gets its own
+      period's cap, so a week with two checks can go over $0.60; a reviewer should say whether to
+      track the cap by week instead.
+    - Employees who filed **Form DB-130** are marked on the employee and have no DBL withheld.
+    - **Company pays:** Payroll › Setup can turn off collecting PFL or DBL from employees.
+56. **Florida company HSA contributions:** decided 2026-09-30. The item is split into "HSA
+    (company contribution through the cafeteria plan)", excluded from Florida reemployment wages,
+    and "HSA (company contribution outside a cafeteria plan)", which counts.

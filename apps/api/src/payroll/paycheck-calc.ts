@@ -73,6 +73,8 @@ export interface PaycheckFacts {
   recurring: RecurringFacts[];
   ytd: YtdWages;
   unemploymentRatePercent: string | null;
+  /** New York PFL/DBL collection and the employee's DB-130 exemption (omitted: collected). */
+  newYork?: { pflDeducted: boolean; dblDeducted: boolean; dblExempt: boolean };
   payMethod: 'check' | 'direct_deposit';
   hasDepositAccounts: boolean;
 }
@@ -251,6 +253,7 @@ export function buildPaycheck(f: PaycheckFacts): PaycheckResult {
         supplemental: f.supplemental,
         ytd: f.ytd,
         unemploymentRatePercent: f.unemploymentRatePercent,
+        newYork: f.newYork,
       });
       notices.push(...taxes.notices);
       for (const t of taxes.lines) {

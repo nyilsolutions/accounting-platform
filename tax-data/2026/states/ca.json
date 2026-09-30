@@ -164,7 +164,8 @@
         "cash_tips": "taxable",
         "paid_tips": "taxable",
         "reimbursement": "exempt",
-        "fringe_benefit": "taxable"
+        "fringe_benefit": "taxable",
+        "employer_hsa_cafeteria": "taxable"
       },
       "otherKinds": "pending",
       "note": "Personal income tax (PIT) wages. Sick pay here is employer-paid sick leave in the first six months; vacation and holiday pay are paid during employment.",
@@ -286,7 +287,8 @@
         "cash_tips": "taxable",
         "paid_tips": "taxable",
         "reimbursement": "exempt",
-        "fringe_benefit": "taxable"
+        "fringe_benefit": "taxable",
+        "employer_hsa_cafeteria": "taxable"
       },
       "otherKinds": "pending",
       "note": "UI and ETT wages (the same rules).",
@@ -408,7 +410,8 @@
         "cash_tips": "taxable",
         "paid_tips": "taxable",
         "reimbursement": "exempt",
-        "fringe_benefit": "taxable"
+        "fringe_benefit": "taxable",
+        "employer_hsa_cafeteria": "taxable"
       },
       "otherKinds": "pending",
       "note": "SDI wages (includes Paid Family Leave).",

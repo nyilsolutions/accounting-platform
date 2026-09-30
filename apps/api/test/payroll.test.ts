@@ -143,6 +143,23 @@ describe('setup', () => {
     expect(s).toMatchObject({ bankAccountId: acct('Checking'), depositSchedule: 'semiweekly' });
     // Omitted default accounts keep their values.
     expect(s.wageExpenseAccountId).toBe(acct('Wages'));
+    // New York PFL and DBL are collected from employees unless the company pays them itself.
+    expect(s).toMatchObject({ nyPflDeducted: true, nyDblDeducted: true });
+    const paysDbl: PayrollSettingsDto = (
+      await owner.agent
+        .put(`${base()}/settings`)
+        .send({
+          bankAccountId: acct('Checking'),
+          depositSchedule: 'semiweekly',
+          nyDblDeducted: false,
+        })
+        .expect(200)
+    ).body;
+    expect(paysDbl).toMatchObject({ nyPflDeducted: true, nyDblDeducted: false });
+    await owner.agent
+      .put(`${base()}/settings`)
+      .send({ bankAccountId: acct('Checking'), depositSchedule: 'semiweekly', nyDblDeducted: true })
+      .expect(200);
   });
 
   it('lists the accounts, vendors, classes and locations payroll admins choose from', async () => {
@@ -280,6 +297,7 @@ describe('employees', () => {
       payRate: '24.5',
       defaultHours: '80',
       payMethod: 'direct_deposit',
+      nyDblExempt: false,
     });
     expect(employee.missing).toEqual(['Form W-4', 'Form IT-2104', 'Direct deposit account']);
     expect(JSON.stringify(employee)).not.toContain('45-6789');

@@ -49,6 +49,7 @@ describe('agencies', () => {
     expect(a('ca_ett', 'CA')).toBe('state_unemployment:CA');
     expect(a('ny_reemployment_fund', 'NY')).toBe('state_unemployment:NY');
     expect(a('ny_pfl', 'NY')).toBe('ny_pfl');
+    expect(a('ny_dbl', 'NY')).toBe('ny_dbl');
     expect(
       agencyOf({ lineType: 'deduction', taxCode: null, state: null, payrollItemId: 'k401' }),
     ).toBe('item:k401');

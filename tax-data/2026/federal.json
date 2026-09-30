@@ -744,7 +744,7 @@
             "ref": "Health Savings Accounts, Employer contributions (2026 limits)"
           }
         ],
-        "note": "If it is reasonable to believe the contributions are excludable from the employee's income.",
+        "note": "Company HSA contributions made outside a cafeteria plan. If it is reasonable to believe the contributions are excludable from the employee's income.",
         "annualLimit": {
           "selfOnly": "4400.00",
           "family": "8750.00",
@@ -924,6 +924,29 @@
           }
         ],
         "note": "This kind is for taxable fringe benefits; excluded benefits use their own kinds."
+      },
+      "employer_hsa_cafeteria": {
+        "fit": "exempt",
+        "fica": "exempt",
+        "futa": "exempt",
+        "cite": [
+          {
+            "source": "p15",
+            "page": 20,
+            "ref": "Section 5, Health savings accounts"
+          },
+          {
+            "source": "p15b",
+            "page": 17,
+            "ref": "Health Savings Accounts, Employer contributions (2026 limits)"
+          }
+        ],
+        "note": "Company HSA contributions made through a section 125 cafeteria plan (for example, flex credits the employee directs to the HSA). Federally treated like any company HSA contribution; some states (Florida) exclude only these. If it is reasonable to believe the contributions are excludable from the employee's income.",
+        "annualLimit": {
+          "selfOnly": "4400.00",
+          "family": "8750.00",
+          "catchUpAge55": "1000.00"
+        }
       }
     },
     "regularWageKinds": {

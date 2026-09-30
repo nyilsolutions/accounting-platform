@@ -61,10 +61,12 @@
         "dependent_care_fsa": "exempt",
         "hsa": "exempt",
         "employer_health": "exempt",
-        "retirement_match": "exempt"
+        "retirement_match": "exempt",
+        "employer_hsa": "taxable",
+        "employer_hsa_cafeteria": "exempt"
       },
       "otherKinds": "pending",
-      "note": "Employee 401(k) deferrals stay pending: s. 443.1217(2)(f)1 exempts payments \"to a trust described in s. 401(a)\" without the salary-reduction exception it makes for 403(b) in (f)4, and neither the Employer Guide nor the Department's return page (which lists both plans as excluded without that exception) says how deferrals count. HSA contributions are excluded only through a cafeteria plan (the hsa kind); whether a company HSA contribution (employer_hsa) is excluded depends on whether it is made through the cafeteria plan, so it stays pending. Reimbursements are not addressed.",
+      "note": "Employee 401(k) deferrals stay pending: s. 443.1217(2)(f)1 exempts payments \"to a trust described in s. 401(a)\" without the salary-reduction exception it makes for 403(b) in (f)4, and neither the Employer Guide nor the Department's return page (which lists both plans as excluded without that exception) says how deferrals count. HSA contributions are excluded only through a cafeteria plan: the employee hsa kind and company contributions through the cafeteria plan (employer_hsa_cafeteria) are excluded; company contributions outside it (employer_hsa) are wages. Reimbursements are not addressed.",
       "cite": [
         {
           "source": "fs-443-1217",

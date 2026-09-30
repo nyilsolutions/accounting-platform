@@ -28,7 +28,8 @@ payroll specialist's review (`reviewedBy`) is still required before real paychec
 - **Which pay is taxable, and for which tax, is data:**
   - Federal: `taxabilityByItemKind` (`regularWageKinds`, plus each kind for income tax, FICA and
     FUTA).
-  - Each state: `taxableWages` has a rule for income tax, unemployment, SDI and Paid Family Leave.
+  - Each state: `taxableWages` has a rule for income tax, unemployment, SDI, Paid Family Leave
+    and disability benefits.
     A rule is either `basis: federal_fit`, where the state follows federal withholding wages (New
     York per TSB-M-84(7)I, Illinois per Pub. 130), or a list of kinds.
   - A kind's treatment can change on a date. Illinois stops counting a company 401(k) match as
@@ -65,7 +66,12 @@ payroll specialist's review (`reviewedBy`) is still required before real paychec
   - New York State: Method II, and Method III for top incomes.
   - New York City and Yonkers resident withholding. The Yonkers nonresident Method VIII is
     implemented and tested but not wired in, because nothing yet records who works in Yonkers.
-  - New York Paid Family Leave, up to its annual cap.
+  - New York Paid Family Leave, up to its annual cap, and disability benefits (DBL), 0.5% up to
+    $0.60 for each week in the pay period (52 weeks ÷ pay periods). Both are employee
+    contributions a company may pay itself instead (`payroll_settings.ny_pfl_deducted`,
+    `ny_dbl_deducted`, migration 0015); an employee with Form DB-130 (`ny_dbl_exempt`) pays no
+    DBL. PFL and DBL wages are gross pay before employee pre-tax deductions, without company
+    contributions (the owner's reading of WCL § 201(12), for the CPA to confirm).
   - Unemployment for every state at the employer's own rate for the year, plus the New York
     Re-employment Service Fund, California ETT and California SDI.
 - **Year to date comes from posted paychecks.** Wage bases and caps use the taxable wages recorded

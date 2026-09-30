@@ -1987,7 +1987,7 @@
     "employeeRatePercent": "0.432",
     "annualMaxContribution": "411.91",
     "paidBy": "employee",
-    "note": "Employees contribute 0.432% of their wages each pay period until they reach $411.91 for the year with this employer. An employer may collect this from employees but doesn't have to (it can pay the cost itself); payroll deducts it. PFL wages are \"the money rate at which employment... is recompensed under the contract of hiring\" (commissions and bonuses included); how employee pre-tax deductions, tips and company contributions count is not stated, so paychecks with them are refused for PFL until sourced.",
+    "note": "Employees contribute 0.432% of their wages each pay period until they reach $411.91 for the year with this employer. An employer may collect this from employees but doesn't have to: a company that pays it itself turns deduction off in Payroll › Setup. Which pay counts is taxableWages.paidFamilyLeave.",
     "cite": [
       {
         "source": "nys-pfl-2026",
@@ -2011,8 +2011,7 @@
     "employeeRatePercent": "0.5",
     "weeklyMaxContribution": "0.60",
     "optional": true,
-    "status": "not_deducted",
-    "note": "Employees may be charged 0.5% of wages, up to $0.60 a week, toward the employer's disability benefits (DBL) policy; the employer may collect it but doesn't have to. Payroll doesn't deduct DBL yet (docs/open-questions.md): how the weekly cap applies to semimonthly and monthly pay, and which wages count, are not stated in the supplied sources. Employees receiving social security old-age benefits are exempt once they file Form DB-130.",
+    "note": "Employees contribute 0.5% of their wages, up to $0.60 a week, toward the employer's disability benefits (DBL) policy. An employer may collect it but doesn't have to: a company that pays it itself turns deduction off in Payroll › Setup. Employees receiving social security old-age benefits are exempt once they file Form DB-130 (marked on the employee). Which pay counts is taxableWages.disabilityBenefits.",
     "cite": [
       {
         "source": "wcb-db-pfl",
@@ -2024,7 +2023,13 @@
         "page": null,
         "ref": "§ 201(12), definition of wages (as for Paid Family Leave)"
       }
-    ]
+    ],
+    "perPayPeriodMax": {
+      "rule": "weekly_max_times_weeks_in_period",
+      "weeksPerYear": 52,
+      "note": "The cap for a pay period is $0.60 times the weeks in it: 52 weeks divided by the pay periods in the year (weekly $0.60, every other week $1.20, twice a month $1.30, monthly $2.60), rounded to the cent.",
+      "decision": "Owner decision 2026-09-30 (\"go with your recommendations\"); for the CPA to confirm."
+    }
   },
   "workedExamples": [
     {
@@ -2458,7 +2463,8 @@
         "retirement_match": "exempt",
         "employer_health": "exempt",
         "employer_hsa": "exempt",
-        "fringe_benefit": "taxable"
+        "fringe_benefit": "taxable",
+        "employer_hsa_cafeteria": "exempt"
       },
       "otherKinds": "pending",
       "note": "Salaries, commissions, bonuses, certified tips and the reasonable value of noncash pay (taxable fringe benefits) are remuneration. Employer payments under a plan for retirement or for medical or hospitalization expenses, and payments to a 401(a) trust, are not. Employee pre-tax deductions (401(k), cafeteria plan, FSA, HSA) are not addressed by § 517 or the Department of Labor sources supplied, so paychecks with them are refused for New York unemployment until sourced. Dismissal (severance) payments are excluded by § 517(2)(h); payroll has no severance kind, so don't pay severance with an earnings kind until one is added.",
@@ -2487,19 +2493,63 @@
     },
     "paidFamilyLeave": {
       "regularWages": "taxable",
-      "kinds": {},
+      "kinds": {
+        "traditional_401k": "taxable",
+        "traditional_403b": "taxable",
+        "section_125": "taxable",
+        "hsa": "taxable",
+        "health_fsa": "taxable",
+        "dependent_care_fsa": "taxable",
+        "retirement_match": "exempt",
+        "employer_health": "exempt",
+        "employer_hsa": "exempt",
+        "employer_hsa_cafeteria": "exempt",
+        "other_employer_contribution": "exempt"
+      },
       "otherKinds": "pending",
-      "note": "Pay for services; other kinds are not addressed by the supplied PFL sources.",
+      "note": "Paid Family Leave wages are the pay rate under the contract of hiring (WCL § 201(12)), a percentage of gross wages: employee pre-tax deductions don't lower them, and company contributions aren't part of them. This reading of the definition was decided by the owner on 2026-09-30 for the CPA to confirm. Tips, noncash pay and reimbursements are not addressed and stay pending.",
+      "decision": "Owner decision 2026-09-30 (\"go with your recommendations\"); for the CPA to confirm.",
       "cite": [
-        {
-          "source": "nys-pfl-2026",
-          "page": null,
-          "ref": "\"0.432% of their gross wages per pay period\""
-        },
         {
           "source": "ny-wcl-201",
           "page": null,
           "ref": "§ 201(12): \"'Wages' means the money rate at which employment with a covered employer is recompensed under the contract of hiring with the covered employer and shall include the reasonable value of board, rent, housing, lodging, or similar advantage received under the contract of hiring.\" Supplied with it, from paidfamilyleave.ny.gov/cost: \"Commissions and bonuses are considered wages for PFL purposes.\""
+        },
+        {
+          "source": "nys-pfl-2026",
+          "page": null,
+          "ref": "\"0.432% of their gross wages per pay period\""
+        }
+      ]
+    },
+    "disabilityBenefits": {
+      "regularWages": "taxable",
+      "kinds": {
+        "traditional_401k": "taxable",
+        "traditional_403b": "taxable",
+        "section_125": "taxable",
+        "hsa": "taxable",
+        "health_fsa": "taxable",
+        "dependent_care_fsa": "taxable",
+        "retirement_match": "exempt",
+        "employer_health": "exempt",
+        "employer_hsa": "exempt",
+        "employer_hsa_cafeteria": "exempt",
+        "other_employer_contribution": "exempt"
+      },
+      "otherKinds": "pending",
+      "note": "Disability benefits wages are the pay rate under the contract of hiring (WCL § 201(12)), a percentage of gross wages: employee pre-tax deductions don't lower them, and company contributions aren't part of them. This reading of the definition was decided by the owner on 2026-09-30 for the CPA to confirm. Tips, noncash pay and reimbursements are not addressed and stay pending.",
+      "decision": "Owner decision 2026-09-30 (\"go with your recommendations\"); for the CPA to confirm.",
+      "cite": [
+        {
+          "source": "ny-wcl-201",
+          "page": null,
+          "ref": "§ 201(12): \"'Wages' means the money rate at which employment with a covered employer is recompensed under the contract of hiring with the covered employer and shall include the reasonable value of board, rent, housing, lodging, or similar advantage received under the contract of hiring.\" Supplied with it, from paidfamilyleave.ny.gov/cost: \"Commissions and bonuses are considered wages for PFL purposes.\""
+        },
+        {
+          "source": "wcb-db-pfl",
+          "page": null,
+          "ref": "\"An employee's contribution is computed at the rate of one-half of one percent of their wages, but no more than sixty cents a week.\""
         }
       ]
     }

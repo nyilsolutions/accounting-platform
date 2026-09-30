@@ -806,6 +806,8 @@ export interface PayrollSettingsTable extends Audited {
   ach_odfi_name: string | null;
   ach_company_name: string | null;
   ach_company_id: string | null;
+  ny_pfl_deducted: Generated<boolean>;
+  ny_dbl_deducted: Generated<boolean>;
 }
 
 export interface PaySchedulesTable extends Audited {
@@ -904,6 +906,7 @@ export interface EmployeesTable extends Audited {
   pay_schedule_id: string;
   pay_method: Generated<string>;
   overtime_exempt: Generated<boolean>;
+  ny_dbl_exempt: Generated<boolean>;
   workers_comp_class_id: string | null;
   class_id: string | null;
   location_id: string | null;

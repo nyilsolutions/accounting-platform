@@ -92,6 +92,7 @@ function Setup({ companyId, settings }: { companyId: string; settings: PayrollSe
   const lookups = usePayrollLookups(companyId);
   const schedules = usePaySchedules(companyId);
   const states = usePayrollStates(companyId);
+  const hasNewYork = (states.data ?? []).some((s) => s.state === 'NY');
   const workersComp = useWorkersComp(companyId);
   const pto = usePtoPolicies(companyId);
   const items = usePayrollItems(companyId);
@@ -123,6 +124,12 @@ function Setup({ companyId, settings }: { companyId: string; settings: PayrollSe
       achOdfiName: t('achOdfiName'),
       achCompanyName: t('achCompanyName'),
       achCompanyId: t('achCompanyId'),
+      ...(hasNewYork
+        ? {
+            nyPflDeducted: f.get('nyPflDeducted') === 'on',
+            nyDblDeducted: f.get('nyDblDeducted') === 'on',
+          }
+        : {}),
     });
     if (result) setSaved(true);
   }
@@ -334,6 +341,24 @@ function Setup({ companyId, settings }: { companyId: string; settings: PayrollSe
               hint="From your bank. Leave blank to use 1 followed by the EIN."
               error={fe('achCompanyId')}
             />
+            {hasNewYork && (
+              <div className="space-y-2 sm:col-span-3">
+                <Checkbox
+                  label="Deduct New York Paid Family Leave from employees' pay"
+                  name="nyPflDeducted"
+                  defaultChecked={settings.nyPflDeducted}
+                />
+                <Checkbox
+                  label="Deduct New York disability benefits (DBL) from employees' pay"
+                  name="nyDblDeducted"
+                  defaultChecked={settings.nyDblDeducted}
+                />
+                <p className="text-xs text-gray-600">
+                  New York lets you collect these from employees or pay them yourself. Employees who
+                  filed Form DB-130 are marked on the employee.
+                </p>
+              </div>
+            )}
           </fieldset>
           {canManage && (
             <div className="flex justify-end">

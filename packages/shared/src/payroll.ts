@@ -191,6 +191,10 @@ export const payrollSettingsInputSchema = z.object({
     ])
     .nullable()
     .optional(),
+  /** New York: collect the employee Paid Family Leave contribution (else the company pays it). */
+  nyPflDeducted: z.boolean().optional(),
+  /** New York: collect the employee disability benefits (DBL) contribution. */
+  nyDblDeducted: z.boolean().optional(),
 });
 export type PayrollSettingsInput = z.input<typeof payrollSettingsInputSchema>;
 
@@ -206,6 +210,8 @@ export interface PayrollSettingsDto {
   achOdfiName: string | null;
   achCompanyName: string | null;
   achCompanyId: string | null;
+  nyPflDeducted: boolean;
+  nyDblDeducted: boolean;
   /** Whether the company has an EIN on file (payroll needs one). */
   hasEin: boolean;
 }
@@ -492,7 +498,14 @@ export const PAYROLL_ITEM_KINDS = {
   other_deduction: { category: 'post_tax_deduction', label: 'Other after-tax deduction' },
   retirement_match: { category: 'employer_contribution', label: 'Retirement plan match' },
   employer_health: { category: 'employer_contribution', label: 'Health insurance (company paid)' },
-  employer_hsa: { category: 'employer_contribution', label: 'HSA (company contribution)' },
+  employer_hsa: {
+    category: 'employer_contribution',
+    label: 'HSA (company contribution outside a cafeteria plan)',
+  },
+  employer_hsa_cafeteria: {
+    category: 'employer_contribution',
+    label: 'HSA (company contribution through the cafeteria plan)',
+  },
   other_employer_contribution: {
     category: 'employer_contribution',
     label: 'Other company contribution',
@@ -641,6 +654,8 @@ export const employeeInputSchema = z
     payScheduleId: z.uuid('Choose a pay schedule'),
     payMethod: z.enum(PAY_METHODS).default('check'),
     overtimeExempt: z.boolean().default(false),
+    /** New York: filed Form DB-130 (receiving social security), so no DBL contribution. */
+    nyDblExempt: z.boolean().default(false),
     workersCompClassId: z.uuid().nullable().optional(),
     classId: z.uuid().nullable().optional(),
     locationId: z.uuid().nullable().optional(),
@@ -709,6 +724,7 @@ export interface EmployeeDto extends EmployeeSummaryDto {
   terminationReason: string | null;
   defaultHours: string | null;
   overtimeExempt: boolean;
+  nyDblExempt: boolean;
   workersCompClassId: string | null;
   classId: string | null;
   locationId: string | null;
@@ -1116,6 +1132,7 @@ export const PAYROLL_TAX_CODES = [
   'ca_ett',
   'ca_sdi',
   'ny_pfl',
+  'ny_dbl',
 ] as const;
 export type PayrollTaxCode = (typeof PAYROLL_TAX_CODES)[number];
 /** Labels; state taxes are prefixed with the state on screen ("NY income tax"). */
@@ -1135,6 +1152,7 @@ export const PAYROLL_TAX_LABELS: Record<PayrollTaxCode, string> = {
   ca_ett: 'CA Employment Training Tax',
   ca_sdi: 'CA SDI',
   ny_pfl: 'NY Paid Family Leave',
+  ny_dbl: 'NY Disability Benefits (DBL)',
 };
 export function payrollTaxLabel(code: PayrollTaxCode, state: string | null): string {
   const label = PAYROLL_TAX_LABELS[code];
@@ -1307,8 +1325,8 @@ export interface PaycheckDto extends PaycheckSummaryDto {
  * Who a payroll liability is owed to:
  *   federal_941 (income tax withheld, social security, Medicare), federal_940 (FUTA),
  *   state_withholding:<ST> (state and local income tax, CA SDI), state_unemployment:<ST>
- *   (unemployment, NY Re-employment Service Fund, CA ETT), ny_pfl (the employer's Paid Family
- *   Leave carrier), item:<payroll item id> (a deduction or contribution's payee).
+ *   (unemployment, NY Re-employment Service Fund, CA ETT), ny_pfl and ny_dbl (the employer's Paid
+ *   Family Leave and disability benefits carrier), item:<payroll item id> (a deduction or contribution's payee).
  */
 export type PayrollAgency = string;
 

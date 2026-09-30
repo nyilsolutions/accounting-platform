@@ -95,6 +95,7 @@ export function agencyOf(
   if (FEDERAL_941.includes(code)) return 'federal_941';
   if (code === 'futa') return 'federal_940';
   if (code === 'ny_pfl') return 'ny_pfl';
+  if (code === 'ny_dbl') return 'ny_dbl';
   if (STATE_WITHHOLDING.includes(code)) return `state_withholding:${l.state}`;
   if (STATE_UNEMPLOYMENT.includes(code)) return `state_unemployment:${l.state}`;
   throw new Error(`No agency for ${code}`);
@@ -105,6 +106,7 @@ export function agencyLabel(agency: string, itemNames: Map<string, string>): str
     return 'IRS: Form 941 taxes (income tax, social security, Medicare)';
   if (agency === 'federal_940') return 'IRS: Form 940 (FUTA)';
   if (agency === 'ny_pfl') return 'New York Paid Family Leave (your carrier)';
+  if (agency === 'ny_dbl') return 'New York disability benefits (your carrier)';
   const [kind, rest] = agency.split(':') as [string, string];
   if (kind === 'state_withholding') return `${STATE_NAMES[rest] ?? rest}: income tax withholding`;
   if (kind === 'state_unemployment') return `${STATE_NAMES[rest] ?? rest}: unemployment`;
@@ -425,8 +427,11 @@ export function payrollLiabilities(
         g.dueNote = returns!.dueNote ?? null;
       } else
         g.dueNote = `Due with ${STATE_NAMES[state] ?? state}'s quarterly unemployment return; its due date isn't in tax-data yet.`;
-    } else if (agency === 'ny_pfl') {
-      g.dueNote = 'Pay your Paid Family Leave insurance carrier as it bills you.';
+    } else if (agency === 'ny_pfl' || agency === 'ny_dbl') {
+      g.dueNote =
+        agency === 'ny_pfl'
+          ? 'Pay your Paid Family Leave insurance carrier as it bills you.'
+          : 'Pay your disability benefits insurance carrier as it bills you.';
     } else {
       g.dueNote = `${STATE_NAMES[state] ?? state}'s withholding deposit schedule isn't in tax-data yet; check your state notice.`;
     }

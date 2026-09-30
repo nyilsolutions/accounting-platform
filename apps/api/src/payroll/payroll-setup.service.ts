@@ -225,6 +225,8 @@ export class PayrollSetupService {
       ach_odfi_name: input.achOdfiName ?? null,
       ach_company_name: input.achCompanyName ?? null,
       ach_company_id: input.achCompanyId ?? null,
+      ...(input.nyPflDeducted !== undefined ? { ny_pfl_deducted: input.nyPflDeducted } : {}),
+      ...(input.nyDblDeducted !== undefined ? { ny_dbl_deducted: input.nyDblDeducted } : {}),
     };
   }
 
@@ -302,6 +304,8 @@ export class PayrollSetupService {
         's.ach_odfi_name',
         's.ach_company_name',
         's.ach_company_id',
+        's.ny_pfl_deducted',
+        's.ny_dbl_deducted',
         'c.ein_last4',
       ])
       .where('s.company_id', '=', companyId)
@@ -319,6 +323,8 @@ export class PayrollSetupService {
       achOdfiName: r.ach_odfi_name,
       achCompanyName: r.ach_company_name,
       achCompanyId: r.ach_company_id,
+      nyPflDeducted: r.ny_pfl_deducted,
+      nyDblDeducted: r.ny_dbl_deducted,
       hasEin: r.ein_last4 !== null,
     };
   }

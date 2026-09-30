@@ -92,6 +92,7 @@ export function EmployeeForm({
       payScheduleId: text('payScheduleId'),
       payMethod: text('payMethod'),
       overtimeExempt: f.get('overtimeExempt') === 'on',
+      nyDblExempt: f.get('nyDblExempt') === 'on',
       workersCompClassId: text('workersCompClassId') || null,
       classId: text('classId') || null,
       locationId: text('locationId') || null,
@@ -315,6 +316,13 @@ export function EmployeeForm({
               label="Exempt from overtime"
               name="overtimeExempt"
               defaultChecked={e?.overtimeExempt ?? false}
+            />
+          </div>
+          <div className="flex items-end pb-2">
+            <Checkbox
+              label="New York: no DBL contribution (Form DB-130 filed)"
+              name="nyDblExempt"
+              defaultChecked={e?.nyDblExempt ?? false}
             />
           </div>
         </Fieldset>
