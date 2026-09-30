@@ -292,20 +292,13 @@ Add new questions here instead of guessing.
 
 ## Inventory (Phase 10a)
 
-61. **QuickBooks inventory items:** they still import as non-inventory items, with their history
-    as QuickBooks posted it (cost of goods sold arrives with the imported GL lines). Replaying
-    that history through our costing would fail or differ:
-    - QuickBooks allows negative stock and we don't;
-    - imports don't arrive in date order;
-    - our cost of goods sold would differ from what QuickBooks posted.
+61. **QuickBooks inventory items:** decided 2026-09-30 ("go with your recommendation"). They keep
+    importing as non-inventory items with their history as QuickBooks posted it. **Inventory ›
+    Start tracking items** converts them on a cut-over date, with each item's quantity and value
+    from QuickBooks' Inventory Valuation Summary on that date:
+    - the value is already in the imported Inventory Asset balance, so nothing is posted;
+    - from then on the item is tracked here, using QuickBooks' method (Desktop: average, Online:
+      FIFO);
+    - transactions before the cut-over stay as QuickBooks posted them.
 
-    **Recommendation:** after the import, convert each inventory item on a cut-over date, with
-    its quantity and value from QuickBooks' Inventory Valuation Summary on that date:
-    - the value is already in the imported Inventory Asset balance, so the opening movement
-      posts nothing;
-    - from then on the item is tracked here, using the method QuickBooks used (Desktop: average,
-      Online: FIFO);
-    - transactions before the cut-over stay as QuickBooks posted them (the closing date protects
-      them).
-
-    To decide: this approach, or another.
+    See ADR 0018 and migration 0019.

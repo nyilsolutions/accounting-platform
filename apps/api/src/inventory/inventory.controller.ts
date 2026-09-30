@@ -13,8 +13,10 @@ import {
   closingPasswordSchema,
   inventoryAdjustmentInputSchema,
   inventoryBuildInputSchema,
+  startTrackingInputSchema,
   type InventoryAdjustmentDto,
   type InventoryBuildDto,
+  type InventoryOpeningDto,
   type InventoryTxnSummaryDto,
 } from '@acct/shared';
 import { CurrentAuth, CurrentCompany, Meta, RequirePermission } from '../common/decorators';
@@ -114,6 +116,49 @@ export class InventoryController {
       'inventory_adjustment',
       id,
       'deleted',
+      body.closingPassword,
+      meta,
+    );
+  }
+
+  // ---- Starting to track inventory (QuickBooks cut-over) ------------------------------------
+  @Post('start-tracking')
+  @RequirePermission('inventory.manage')
+  startTracking(
+    @CurrentAuth() a: AuthContext,
+    @CurrentCompany() c: CompanyContext,
+    @Body(new ZodPipe(startTrackingInputSchema)) body: Parsed<typeof startTrackingInputSchema>,
+    @Meta() meta: RequestMeta,
+  ): Promise<InventoryOpeningDto> {
+    return this.documents.startTracking(a, c, body, meta);
+  }
+
+  @Get('openings/:id')
+  @RequirePermission('inventory.manage')
+  getOpening(
+    @CurrentAuth() a: AuthContext,
+    @CurrentCompany() c: CompanyContext,
+    @Param('id', UuidPipe) id: string,
+  ): Promise<InventoryOpeningDto> {
+    return this.documents.getOpening(a, c, id);
+  }
+
+  @Post('openings/:id/void')
+  @HttpCode(204)
+  @RequirePermission('inventory.manage')
+  voidOpening(
+    @CurrentAuth() a: AuthContext,
+    @CurrentCompany() c: CompanyContext,
+    @Param('id', UuidPipe) id: string,
+    @Body(new ZodPipe(closingPasswordSchema)) body: Parsed<typeof closingPasswordSchema>,
+    @Meta() meta: RequestMeta,
+  ): Promise<void> {
+    return this.documents.setStatus(
+      a,
+      c,
+      'inventory_opening',
+      id,
+      'void',
       body.closingPassword,
       meta,
     );

@@ -38,6 +38,8 @@ export function txnHref(companyId: string, txnType: string, id: string): string 
       return `${base}/inventory/adjustments/${id}`;
     case 'inventory_build':
       return `${base}/inventory/builds/${id}`;
+    case 'inventory_opening':
+      return `${base}/inventory/openings/${id}`;
     default:
       return `${base}/accounting/journal-entries/${id}`;
   }

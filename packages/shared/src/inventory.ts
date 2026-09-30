@@ -115,9 +115,59 @@ export interface InventoryBuildDto {
   version: number;
 }
 
+// ---- Starting to track inventory (converting items, e.g. after a QuickBooks import) --------
+
+const money2 = z
+  .string()
+  .trim()
+  .transform((v) => v.replace(/[$,\s]/g, ''))
+  .refine((v) => tryParseMoney(v) !== null && parseMoney(v) >= 0n, 'Enter a value of zero or more')
+  .refine((v) => decimalPlaces(v) <= 2, 'Amounts can have at most 2 decimal places');
+
+export const startTrackingInputSchema = z.object({
+  /** The cut-over date: quantities are tracked from this date on. */
+  startDate: isoDate,
+  /**
+   * Where the starting value comes from: null when it is already in the books (QuickBooks'
+   * Inventory Asset balance came over with the import), else the account to post it against
+   * (such as Opening Balance Equity).
+   */
+  offsetAccountId: z.uuid().nullable(),
+  memo: optText(4000),
+  lines: z
+    .array(
+      z.object({
+        itemId: z.uuid(),
+        quantity: qty('Enter the quantity on hand (above zero)', (v) => v > 0n),
+        /** Total value of that quantity on the start date. */
+        value: money2,
+        /** Defaults to Inventory Asset. */
+        assetAccountId: z.uuid().nullable().optional(),
+        /** Defaults to the item's cost of goods sold account, else Cost of Goods Sold. */
+        cogsAccountId: z.uuid().nullable().optional(),
+      }),
+    )
+    .min(1, 'Choose at least one item')
+    .max(1000)
+    .refine((v) => new Set(v.map((l) => l.itemId)).size === v.length, 'List each item once'),
+  closingPassword: z.string().max(128).optional(),
+});
+export type StartTrackingInput = z.input<typeof startTrackingInputSchema>;
+
+export interface InventoryOpeningDto {
+  id: string;
+  txnDate: string;
+  memo: string | null;
+  offsetAccountId: string | null;
+  lines: Array<{ itemId: string; itemName: string; quantity: string; value: string }>;
+  total: string;
+  status: 'posted' | 'void';
+  version: number;
+}
+
 export interface InventoryTxnSummaryDto {
   id: string;
-  txnType: 'inventory_adjustment' | 'inventory_build';
+  txnType: 'inventory_adjustment' | 'inventory_build' | 'inventory_opening';
   number: string | null;
   txnDate: string;
   memo: string | null;

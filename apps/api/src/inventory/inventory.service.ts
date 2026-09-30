@@ -110,6 +110,11 @@ export class InventoryService {
       const item = items.get(m.itemId);
       if (!item || (item.item_type !== 'inventory' && item.item_type !== 'assembly'))
         throw new ConflictException('Only inventory items and assemblies have quantities.');
+      // Items converted to inventory are tracked from their start date only.
+      if (item.inventory_start_date && txn.date < item.inventory_start_date)
+        throw new ConflictException(
+          `"${item.name}" is tracked as inventory from ${item.inventory_start_date}; its quantity can't change before then.`,
+        );
     }
 
     // Items whose costs depend on these through builds (assemblies made from them).
@@ -304,7 +309,15 @@ export class InventoryService {
     if (ids.length === 0) return new Map();
     const rows = await tx
       .selectFrom('items')
-      .select(['id', 'name', 'item_type', 'asset_account_id', 'expense_account_id', 'cost'])
+      .select([
+        'id',
+        'name',
+        'item_type',
+        'asset_account_id',
+        'expense_account_id',
+        'cost',
+        'inventory_start_date',
+      ])
       .where('company_id', '=', companyId)
       .where('id', 'in', ids)
       .execute();
@@ -432,6 +445,14 @@ export function inventoryLines(
     const into = m.cost > 0n;
     switch (m.kind) {
       case 'purchase':
+        break;
+      case 'opening':
+        // A starting value already in the books posts nothing; otherwise it is posted against
+        // its offset account.
+        if (m.counterAccountId) {
+          add(m.assetAccountId, value, true, m.classId, m.itemName);
+          add(m.counterAccountId, value, false, m.classId, m.itemName);
+        }
         break;
       case 'build_consume':
       case 'build_produce':

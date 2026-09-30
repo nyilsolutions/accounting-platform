@@ -693,6 +693,7 @@ export class SalesDocumentsService {
                 'item_type',
                 'income_account_id',
                 'expense_account_id',
+                'inventory_start_date',
                 'description',
                 'taxable',
               ])
@@ -715,7 +716,11 @@ export class SalesDocumentsService {
           path: `lines.${i}.itemId`,
           message: `"${item.name}" has no income account. Edit it, or choose an account.`,
         });
-      const stocked = item && (item.item_type === 'inventory' || item.item_type === 'assembly');
+      // Inventory is tracked from the item's start date; earlier documents post as they did.
+      const stocked =
+        item &&
+        (item.item_type === 'inventory' || item.item_type === 'assembly') &&
+        (!item.inventory_start_date || input.txnDate >= item.inventory_start_date);
       if (stocked && !(l.quantity && parseMoney(l.quantity) > 0n))
         errors.push({
           path: `lines.${i}.quantity`,

@@ -24,7 +24,8 @@ export type MoveKind =
   | 'sale_return'
   | 'adjustment'
   | 'build_consume'
-  | 'build_produce';
+  | 'build_produce'
+  | 'opening';
 
 export interface CostMove {
   id: string;

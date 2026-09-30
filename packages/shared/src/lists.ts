@@ -258,6 +258,8 @@ export interface ItemDto {
   /** Inventory and assemblies (null for other items). */
   assetAccountId: string | null;
   reorderPoint: string | null;
+  /** Items converted to inventory: tracked from this date (earlier documents have no quantities). */
+  inventoryStartDate: string | null;
   quantityOnHand: string | null;
   /** The value of the quantity on hand, at cost. */
   inventoryValue: string | null;

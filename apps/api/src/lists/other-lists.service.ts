@@ -658,7 +658,7 @@ function qtyString(v: string): string {
  * first time an inventory item needs it. An existing top-level account with the same name is
  * adopted.
  */
-async function inventoryAccount(
+export async function inventoryAccount(
   tx: Tx,
   auth: AuthContext,
   companyId: string,
@@ -748,6 +748,7 @@ function toItemDto(
     isActive: i.is_active,
     assetAccountId: i.asset_account_id,
     reorderPoint: i.reorder_point === null ? null : qtyString(i.reorder_point),
+    inventoryStartDate: i.inventory_start_date,
     ...extra,
   };
 }

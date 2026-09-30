@@ -203,3 +203,70 @@ describe('inventory items and moves (migration 0018)', () => {
     expect(r.rows[0]!.relrowsecurity).toBe(true);
   });
 });
+
+describe('starting to track inventory (migration 0019)', () => {
+  it('only inventory items have a start date; a starting value may post no lines', async () => {
+    await expect(
+      asA((tx) =>
+        tx
+          .insertInto('items')
+          .values({
+            company_id: A,
+            name: 'Service with a date',
+            item_type: 'service',
+            income_account_id: income,
+            inventory_start_date: '2026-03-01',
+          })
+          .execute(),
+      ),
+    ).rejects.toThrow(/items_inventory_start_stocked/);
+    // An inventory starting value already in the books has no journal lines.
+    const id = await asA(async (tx) => {
+      const t = await tx
+        .insertInto('transactions')
+        .values({
+          company_id: A,
+          txn_type: 'inventory_opening',
+          txn_date: '2026-03-01',
+          created_by: userId,
+        })
+        .returning('id')
+        .executeTakeFirstOrThrow();
+      await tx
+        .insertInto('inventory_opening_lines')
+        .values({
+          company_id: A,
+          transaction_id: t.id,
+          line_no: 1,
+          item_id: widget,
+          quantity: '6',
+          value: '18',
+        })
+        .execute();
+      return t.id;
+    });
+    // Other companies can't see it.
+    const seen = await asB((tx) =>
+      tx
+        .selectFrom('inventory_opening_lines')
+        .select('id')
+        .where('transaction_id', '=', id)
+        .execute(),
+    );
+    expect(seen).toEqual([]);
+    // Other transaction types still need lines.
+    await expect(
+      asA((tx) =>
+        tx
+          .insertInto('transactions')
+          .values({
+            company_id: A,
+            txn_type: 'journal_entry',
+            txn_date: '2026-03-01',
+            created_by: userId,
+          })
+          .execute(),
+      ),
+    ).rejects.toThrow(/at least two lines/);
+  });
+});

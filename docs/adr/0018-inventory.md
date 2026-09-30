@@ -147,14 +147,48 @@ recent adjustments and builds.
 `companies.inventory_costing` (`fifo` default, or `average`). It is set in Company settings ›
 Accounting, and refused once any movement exists.
 
+### Starting to track inventory on a date (the QuickBooks cut-over)
+
+Decided 2026-09-30 (open question 61, "go with your recommendation"). Replaying QuickBooks'
+inventory history through our costing would fail or differ:
+
+- QuickBooks allows negative stock;
+- imports don't arrive in date order;
+- QuickBooks' own cost of goods sold would be replaced.
+
+Instead, **Inventory › Start tracking items** converts non-inventory items to inventory from a
+start date, with each item's quantity and value on that date (from QuickBooks' Inventory
+Valuation Summary). Migration 0019:
+
+- **The items** become inventory items with `items.inventory_start_date`:
+  - the asset account is Inventory Asset (the imported account of that name is adopted);
+  - the cost of goods sold account is the item's own when it is one, else Cost of Goods Sold.
+- **Before the start date:** documents keep posting as they did, with no quantities, so imported
+  history is untouched and editing it still works. Adjustments and builds dated before the start
+  are refused.
+- **The starting value** is an `inventory_opening` transaction whose lines
+  (`inventory_opening_lines`) become `opening` movements with the value as their cost:
+  - **already in the books** (the default after a QuickBooks import, since the value came over in
+    the Inventory Asset balance): it posts nothing, and the balance trigger allows that;
+  - **not in the books:** it posts the asset against a chosen account, such as Opening Balance
+    Equity.
+
+  It can be voided (the items stay inventory items), unless later sales depend on it.
+
+- **The costing method:** the first conversion after a QuickBooks import sets QuickBooks'
+  method, while nothing has moved yet: average for Desktop and IIF, FIFO for QuickBooks Online.
+- **The importer** leaves converted items' type and accounts alone on a rerun.
+- **The "only imported transactions" check** that guards reruns ignores starting values that post
+  nothing, since they don't change the books.
+
 ## Consequences
 
 - Backdated entries recost later transactions automatically and keep the books tied to stock. The
   price is that saving an early transaction can write new versions of later ones, each audited
   through its version history.
-- **QuickBooks imports** bring inventory items as non-inventory, with their history as
-  QuickBooks posted it (cost of goods sold arrives with the imported GL lines). Tracking their
-  quantities here is open question 61.
+- **QuickBooks imports** keep bringing inventory items in as non-inventory, with their history as
+  QuickBooks posted it (cost of goods sold arrives with the imported GL lines). Tracking starts at
+  a cut-over (below).
 - A journal entry posted straight to an inventory asset account changes the account but not the
   stock, and then the valuation report no longer agrees with the balance sheet. Use an adjustment
   instead.

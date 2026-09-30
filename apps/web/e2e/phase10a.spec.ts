@@ -146,4 +146,29 @@ test('inventory: items and an assembly, buy, build, adjust, refuse to oversell, 
   // --- The costing method is now fixed ----------------------------------------------------------
   await page.goto(`/c/${companyId}/settings`);
   await expect(page.getByLabel('Inventory costing method')).toBeDisabled();
+
+  // --- Start tracking a non-inventory item (as after a QuickBooks import) -----------------------
+  const accounts = await ok<Array<{ id: string; name: string }>>(api(page, 'GET', `${c}/accounts`));
+  await ok(
+    api(page, 'POST', `${c}/items`, {
+      name: 'Edging',
+      itemType: 'non_inventory',
+      expenseAccountId: accounts.find((a) => a.name === 'Cost of Goods Sold')!.id,
+    }),
+  );
+  await page.goto(`/c/${companyId}/inventory`);
+  await page.getByRole('link', { name: 'Start tracking items' }).click();
+  await page.getByLabel('Start date').fill('2026-09-20');
+  await page.getByRole('radio', { name: /post it against an account/ }).check();
+  await page.getByLabel('Offset account').selectOption({ label: 'Opening Balance Equity' });
+  await page.getByLabel('Track Edging').check();
+  await page.getByLabel('Edging quantity').fill('10');
+  await page.getByLabel('Edging value').fill('50');
+  await shot(page, '103-start-tracking');
+  await page.getByRole('button', { name: 'Start tracking' }).click();
+  await expect(page).toHaveURL(new RegExp(`/c/${companyId}/inventory$`));
+  await expect(stock.getByRole('row', { name: /Edging/ })).toContainText('50.00');
+  await expect(page.getByTestId('inventory-transactions')).toContainText(
+    'Inventory Starting Value',
+  );
 });

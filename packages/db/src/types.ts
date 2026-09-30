@@ -214,6 +214,8 @@ export interface ItemsTable extends Audited {
   /** Inventory and assemblies: the inventory asset account (migration 0018). */
   asset_account_id: string | null;
   reorder_point: Numeric | null;
+  /** Inventory tracked from this date (items converted to inventory); null: from the start. */
+  inventory_start_date: DateCol | null;
 }
 
 export interface TransactionsTable extends Audited {
@@ -1184,6 +1186,17 @@ export interface InventoryBuildsTable {
   quantity: Numeric;
 }
 
+export interface InventoryOpeningLinesTable {
+  id: Generated<string>;
+  company_id: string;
+  transaction_id: string;
+  line_no: number;
+  item_id: string;
+  quantity: Numeric;
+  value: Numeric;
+  offset_account_id: string | null;
+}
+
 export interface Database {
   users: UsersTable;
   mfa_recovery_codes: MfaRecoveryCodesTable;
@@ -1268,6 +1281,7 @@ export interface Database {
   inventory_moves: InventoryMovesTable;
   inventory_adjustment_lines: InventoryAdjustmentLinesTable;
   inventory_builds: InventoryBuildsTable;
+  inventory_opening_lines: InventoryOpeningLinesTable;
 }
 
 export type User = Selectable<UsersTable>;

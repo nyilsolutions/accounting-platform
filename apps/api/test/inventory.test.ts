@@ -493,6 +493,187 @@ describe('inventory reports', () => {
   });
 });
 
+describe('starting to track inventory on a date (the QuickBooks cut-over)', () => {
+  let b: string;
+  let accts: AccountDto[];
+  let widget: ItemDto;
+  let oldInvoice: SalesDocumentDto;
+  let customerId: string;
+  const acctId = (name: string) => accts.find((a) => a.name === name)!.id;
+  const bal = async (name: string) => {
+    accts = (await owner.agent.get(`${b}/accounts`).expect(200)).body;
+    return accts.find((a) => a.name === name)?.balance ?? '0.00';
+  };
+
+  beforeAll(async () => {
+    const company = (
+      await owner.agent
+        .post('/companies')
+        .send({ legalName: 'Converted Stock Co', taxForm: 'form_1120s' })
+        .expect(201)
+    ).body.id;
+    b = `/companies/${company}`;
+    accts = (await owner.agent.get(`${b}/accounts`).expect(200)).body;
+    // As a QuickBooks import leaves it: an Inventory Asset account, and the item as non-inventory
+    // with its purchases in that account and its cost of goods sold posted by journal entry.
+    await owner.agent
+      .post(`${b}/accounts`)
+      .send({
+        name: 'Inventory Asset',
+        accountType: 'other_current_asset',
+        detailType: 'Inventory',
+      })
+      .expect(201);
+    accts = (await owner.agent.get(`${b}/accounts`).expect(200)).body;
+    widget = (
+      await owner.agent
+        .post(`${b}/items`)
+        .send({
+          name: 'Widget',
+          itemType: 'non_inventory',
+          incomeAccountId: acctId('Sales'),
+          expenseAccountId: acctId('Cost of Goods Sold'),
+        })
+        .expect(201)
+    ).body;
+    const v = (await owner.agent.post(`${b}/vendors`).send({ displayName: 'V' }).expect(201)).body
+      .id;
+    customerId = (await owner.agent.post(`${b}/customers`).send({ displayName: 'C' }).expect(201))
+      .body.id;
+    await owner.agent
+      .post(`${b}/purchases/bills`)
+      .send({
+        vendorId: v,
+        txnDate: '2026-02-01',
+        lines: [
+          { itemId: widget.id, quantity: '10', rate: '3', accountId: acctId('Inventory Asset') },
+        ],
+      })
+      .expect(201);
+    oldInvoice = (
+      await owner.agent
+        .post(`${b}/sales/invoices`)
+        .send({
+          customerId,
+          txnDate: '2026-02-10',
+          lines: [{ itemId: widget.id, quantity: '4', rate: '10' }],
+        })
+        .expect(201)
+    ).body;
+    await owner.agent
+      .post(`${b}/journal-entries`)
+      .send({
+        txnDate: '2026-02-10',
+        lines: [
+          { accountId: acctId('Cost of Goods Sold'), debit: '12' },
+          { accountId: acctId('Inventory Asset'), credit: '12' },
+        ],
+      })
+      .expect(201);
+    expect(await bal('Inventory Asset')).toBe('18.00');
+  });
+
+  it('converts the item with its quantity and value on the start date, posting nothing', async () => {
+    const res = await owner.agent.post(`${b}/inventory/start-tracking`).send({
+      startDate: '2026-03-01',
+      offsetAccountId: null,
+      lines: [{ itemId: widget.id, quantity: '6', value: '18' }],
+    });
+    expect(res.status, JSON.stringify(res.body)).toBe(201);
+    expect(await journal(res.body.id)).toEqual([]);
+    const items: ItemDto[] = (await owner.agent.get(`${b}/items`).expect(200)).body;
+    const w = items.find((i) => i.id === widget.id)!;
+    expect([w.itemType, w.inventoryStartDate, w.quantityOnHand, w.inventoryValue]).toEqual([
+      'inventory',
+      '2026-03-01',
+      '6',
+      '18.00',
+    ]);
+    // The imported Inventory Asset account is adopted, and still equals the value on hand.
+    expect(w.assetAccountId).toBe(acctId('Inventory Asset'));
+    expect(w.expenseAccountId).toBe(acctId('Cost of Goods Sold'));
+    expect(await bal('Inventory Asset')).toBe('18.00');
+    // Only non-inventory items can be converted, once.
+    await owner.agent
+      .post(`${b}/inventory/start-tracking`)
+      .send({
+        startDate: '2026-03-01',
+        offsetAccountId: null,
+        lines: [{ itemId: widget.id, quantity: '1', value: '1' }],
+      })
+      .expect(400);
+  });
+
+  it('documents before the start date keep posting as they did', async () => {
+    const res = await owner.agent.put(`${b}/sales/invoices/${oldInvoice.id}`).send({
+      customerId,
+      txnDate: '2026-02-10',
+      memo: 'edited after the cut-over',
+      lines: [{ itemId: widget.id, quantity: '4', rate: '10' }],
+      version: oldInvoice.version,
+    });
+    expect(res.status, JSON.stringify(res.body)).toBe(200);
+    expect((await journal(oldInvoice.id)).some((l) => l.includes('(inventory)'))).toBe(false);
+    // Adjusting before the start date is refused.
+    const adj = await owner.agent.post(`${b}/inventory/adjustments`).send({
+      txnDate: '2026-02-15',
+      accountId: acctId('Cost of Goods Sold'),
+      lines: [{ itemId: widget.id, quantityChange: '-1' }],
+    });
+    expect(adj.status).toBe(409);
+    expect(adj.body.message).toContain('tracked as inventory from 2026-03-01');
+  });
+
+  it('sales after the start date relieve the starting value', async () => {
+    const inv = (
+      await owner.agent
+        .post(`${b}/sales/invoices`)
+        .send({
+          customerId,
+          txnDate: '2026-03-05',
+          lines: [{ itemId: widget.id, quantity: '2', rate: '10' }],
+        })
+        .expect(201)
+    ).body;
+    expect(await journal(inv.id)).toContain('Cost of Goods Sold Dr 6.00 (inventory)');
+    expect(await bal('Inventory Asset')).toBe('12.00');
+    // The starting value can't be voided while later sales depend on it.
+    const list = (await owner.agent.get(`${b}/inventory/transactions`).expect(200)).body;
+    const opening = list.find((t: { txnType: string }) => t.txnType === 'inventory_opening');
+    expect(opening.summary).toBe('Widget');
+    await owner.agent.post(`${b}/inventory/openings/${opening.id}/void`).send({}).expect(409);
+  });
+
+  it('can post the starting value against an account instead', async () => {
+    const gadget = (
+      await owner.agent
+        .post(`${b}/items`)
+        .send({
+          name: 'Gadget',
+          itemType: 'non_inventory',
+          expenseAccountId: acctId('Office Supplies and Software'),
+        })
+        .expect(201)
+    ).body as ItemDto;
+    const res = await owner.agent.post(`${b}/inventory/start-tracking`).send({
+      startDate: '2026-03-01',
+      offsetAccountId: acctId('Opening Balance Equity'),
+      lines: [{ itemId: gadget.id, quantity: '5', value: '25' }],
+    });
+    expect(res.status, JSON.stringify(res.body)).toBe(201);
+    expect(await journal(res.body.id)).toEqual([
+      'Inventory Asset Dr 25.00 (inventory)',
+      'Opening Balance Equity Cr 25.00 (inventory)',
+    ]);
+    // Its expense account wasn't a cost of goods sold account, so it now uses the default one.
+    const g: ItemDto = (await owner.agent.get(`${b}/items`).expect(200)).body.find(
+      (i: ItemDto) => i.id === gadget.id,
+    );
+    expect(g.expenseAccountId).toBe(acctId('Cost of Goods Sold'));
+    expect(await bal('Inventory Asset')).toBe('37.00');
+  });
+});
+
 describe('a random history', () => {
   it('keeps the asset account equal to the value on hand through backdated changes', async () => {
     const company = (

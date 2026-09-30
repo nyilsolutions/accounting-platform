@@ -50,6 +50,14 @@ The owner's decisions for the later parts:
     account for the value;
   - **Build assembly:** shows what each component needs against what's on hand;
   - the list of adjustments and builds, each of which can be edited, voided or deleted.
+- **Start tracking items** (the QuickBooks cut-over, question 61):
+  - converts non-inventory items to inventory from a date, with their quantity and value then;
+  - after a QuickBooks import the value is already in the books, so nothing is posted; otherwise
+    it is posted against an account;
+  - transactions before the date stay as they are;
+  - the first conversion after a QuickBooks import takes QuickBooks' costing method (Desktop:
+    average, Online: FIFO);
+  - reruns of the import keep converted items as inventory.
 - **Reports** (Reports › Inventory):
   - Inventory Valuation Summary;
   - Inventory Valuation Detail;
@@ -75,18 +83,16 @@ The owner's decisions for the later parts:
    recosted, and the valuation still matches the balance sheet.
 
 Screenshots: `docs/screenshots/100-build-assembly.png`, `101-inventory.png`,
-`102-inventory-valuation.png`.
+`102-inventory-valuation.png`, `103-start-tracking.png`.
 
 ### Tests
 
-| Suite                   | Count | Highlights                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
-| ----------------------- | ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `packages/db`           | 87    | +3: inventory item accounts and reorder points, movement sign rules, inventory journal lines, the costing setting, isolation by company                                                                                                                                                                                                                                                                                                                             |
-| `apps/api`              | 467   | +38. **Costing (pure):** FIFO and average worked examples, partial layers, backdating, selling everything, shortages, uncosted inflows, assemblies level by level, properties. **End to end:** default accounts, sales at cost, refusing to oversell, backdated purchases recosting sales, voids, returns both ways, locks, adjustments, builds and nested assemblies, reports, and a random history keeping the inventory asset account equal to the value on hand |
-| `apps/web` (Playwright) | 13    | +1: inventory items and an assembly through the product form, build five kits, count the stock, refuse to oversell, the valuation matching the balance sheet, the costing method locked                                                                                                                                                                                                                                                                             |
+| Suite                   | Count | Highlights                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| ----------------------- | ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `packages/db`           | 88    | +4: inventory item accounts and reorder points, movement sign rules, inventory journal lines, the costing setting, start dates and starting values with no lines, isolation by company                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| `apps/api`              | 472   | +43. **Costing (pure):** FIFO and average worked examples, partial layers, backdating, selling everything, shortages, uncosted inflows, assemblies level by level, properties. **End to end:** default accounts, sales at cost, refusing to oversell, backdated purchases recosting sales, voids, returns both ways, locks, adjustments, builds and nested assemblies, reports, a random history keeping the inventory asset account equal to the value on hand, and the cut-over: converting items with their value already in the books or posted, earlier documents left alone, an IIF import's inventory part converted with Desktop's average costing and kept on a rerun |
+| `apps/web` (Playwright) | 13    | +1: inventory items and an assembly through the product form, build five kits, count the stock, refuse to oversell, the valuation matching the balance sheet, the costing method locked, starting to track a non-inventory item                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 
 ### Not in this part
 
-- **QuickBooks imports:** inventory items still import as non-inventory, with their history as
-  QuickBooks posted it (open question 61).
 - Serial and lot numbers, locations and bins, units of measure, landed costs, pending builds.

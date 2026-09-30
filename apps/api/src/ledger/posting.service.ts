@@ -44,7 +44,8 @@ export type PostingTxnType =
   | 'paycheck'
   | 'payroll_liability_payment'
   | 'inventory_adjustment'
-  | 'inventory_build';
+  | 'inventory_build'
+  | 'inventory_opening';
 
 /** Document fields stored on the transaction header (sales and purchase documents). */
 export interface DocumentDetails {

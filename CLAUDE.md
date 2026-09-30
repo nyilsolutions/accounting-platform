@@ -48,7 +48,9 @@ A single package: `pnpm --filter @acct/api test`, `pnpm --filter @acct/db test`,
   by `pay-runs.service.ts`; liabilities in `liabilities.ts` with payments through `EftpsProvider`;
   payroll reports in `payroll-reports.ts`; tax forms in `payroll/forms/` (pure builders over pay
   records) served by `tax-forms.service.ts`, prior payroll in `prior-payroll.service.ts`, filing
-  records in `tax-filings.ts`).
+  records in `tax-filings.ts`), inventory (costing in `inventory/costing.ts` (pure),
+  `InventoryService` for movements and recosting, adjustments, builds and starting values in
+  `inventory-documents.service.ts`, reports in `reports/inventory-reports.ts`).
   The A/R and A/P subledgers share one engine: `ledger/subledger.ts`.
 - `apps/desktop-agent`: QuickBooks Desktop migration agent (C#/.NET 8; `Core` is portable and
   tested on Linux with `dotnet test`, `Windows` is the WinForms wizard and QBXMLRP2 session).
@@ -155,7 +157,9 @@ A single package: `pnpm --filter @acct/api test`, `pnpm --filter @acct/db test`,
   with no movements. Never write `inventory_moves` or inventory lines directly: `commit` recosts
   later transactions through `PostingService.replaceRoleLines`. Stock never goes below zero on any
   date. The inventory asset accounts must equal the value on hand (tests check it). The costing
-  method is fixed once inventory has moved.
+  method is fixed once inventory has moved. Items converted to inventory (the QuickBooks cut-over)
+  are tracked from `inventory_start_date`: documents dated earlier post as they did, with no
+  quantities.
 - Database errors map to HTTP in `common/pg-error.filter.ts`; add friendly messages for new unique
   indexes there.
 

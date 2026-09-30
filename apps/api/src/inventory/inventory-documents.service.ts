@@ -14,18 +14,22 @@ import {
   type inventoryAdjustmentInputSchema,
   type InventoryBuildDto,
   type inventoryBuildInputSchema,
+  type InventoryOpeningDto,
   type InventoryTxnSummaryDto,
+  type startTrackingInputSchema,
 } from '@acct/shared';
 import type { z } from 'zod';
 import { AuditService } from '../audit/audit.service';
 import type { AuthContext, CompanyContext, RequestMeta } from '../common/request';
 import { DB } from '../db/db.module';
 import { PostingService, type PostingContext } from '../ledger/posting.service';
+import { inventoryAccount } from '../lists/other-lists.service';
 import { mulDivCents } from './costing';
 import { formatQty, InventoryService, type ProposedMove } from './inventory.service';
 
 type AdjustmentInput = z.output<typeof inventoryAdjustmentInputSchema>;
 type BuildInput = z.output<typeof inventoryBuildInputSchema>;
+type StartTrackingInput = z.output<typeof startTrackingInputSchema>;
 
 const ONE = 10_000n;
 /** Accounts an adjustment can't go to: they need a customer or vendor. */
@@ -58,7 +62,7 @@ export class InventoryDocumentsService {
         .selectFrom('transactions')
         .select(['id', 'txn_type', 'txn_number', 'txn_date', 'memo', 'status'])
         .where('company_id', '=', ctx.companyId)
-        .where('txn_type', 'in', ['inventory_adjustment', 'inventory_build'])
+        .where('txn_type', 'in', ['inventory_adjustment', 'inventory_build', 'inventory_opening'])
         .where('status', '!=', 'deleted')
         .orderBy('txn_date', 'desc')
         .orderBy('created_at', 'desc')
@@ -76,6 +80,14 @@ export class InventoryDocumentsService {
         .execute();
       const adjLines = await tx
         .selectFrom('inventory_adjustment_lines as l')
+        .innerJoin('items as i', 'i.id', 'l.item_id')
+        .select(['l.transaction_id', 'i.name'])
+        .where('l.company_id', '=', ctx.companyId)
+        .where('l.transaction_id', 'in', ids)
+        .orderBy('l.line_no')
+        .execute();
+      const openingLines = await tx
+        .selectFrom('inventory_opening_lines as l')
         .innerJoin('items as i', 'i.id', 'l.item_id')
         .select(['l.transaction_id', 'i.name'])
         .where('l.company_id', '=', ctx.companyId)
@@ -100,8 +112,9 @@ export class InventoryDocumentsService {
             .filter((m) => m.kind === 'build_produce')
             .reduce((s, m) => s + parseMoney(m.cost), 0n);
         } else {
+          const source = t.txn_type === 'inventory_opening' ? openingLines : adjLines;
           const names = [
-            ...new Set(adjLines.filter((l) => l.transaction_id === t.id).map((l) => l.name)),
+            ...new Set(source.filter((l) => l.transaction_id === t.id).map((l) => l.name)),
           ];
           summary =
             names.length > 3
@@ -431,12 +444,262 @@ export class InventoryDocumentsService {
     };
   }
 
+  // ---- Starting to track inventory -------------------------------------------------------
+
+  getOpening(auth: AuthContext, ctx: CompanyContext, id: string) {
+    return withTenant(this.db, { userId: auth.userId, companyId: ctx.companyId }, (tx) =>
+      this.loadOpening(tx, ctx.companyId, id),
+    );
+  }
+
+  /**
+   * Converts non-inventory items to inventory from a start date (open question 61: the
+   * QuickBooks cut-over), with each item's quantity and value on that date:
+   * - the items become inventory items, tracked from the start date; documents dated before it
+   *   keep posting as they did, with no quantities;
+   * - an "inventory starting value" transaction records the quantities as opening movements. When
+   *   the value is already in the books (QuickBooks' Inventory Asset balance came over with the
+   *   import) it posts nothing; otherwise it posts the asset against the offset account;
+   * - the first conversion after a QuickBooks import takes QuickBooks' costing method (Desktop
+   *   and IIF: average; QuickBooks Online: FIFO), while no inventory has moved yet.
+   */
+  startTracking(
+    auth: AuthContext,
+    ctx: CompanyContext,
+    input: StartTrackingInput,
+    meta: RequestMeta,
+  ): Promise<InventoryOpeningDto> {
+    return withTenant(this.db, { userId: auth.userId, companyId: ctx.companyId }, (tx) =>
+      this.startTrackingInTx(tx, auth, ctx, input, meta),
+    );
+  }
+
+  async startTrackingInTx(
+    tx: Tx,
+    auth: AuthContext,
+    ctx: CompanyContext,
+    input: StartTrackingInput,
+    meta: RequestMeta,
+  ): Promise<InventoryOpeningDto> {
+    const companyId = ctx.companyId;
+    const items = await tx
+      .selectFrom('items')
+      .select(['id', 'name', 'item_type', 'is_active', 'expense_account_id', 'asset_account_id'])
+      .where('company_id', '=', companyId)
+      .where(
+        'id',
+        'in',
+        input.lines.map((l) => l.itemId),
+      )
+      .forUpdate()
+      .execute();
+    const errors: Array<{ path: string; message: string }> = [];
+    input.lines.forEach((l, i) => {
+      const item = items.find((x) => x.id === l.itemId);
+      if (!item) errors.push({ path: `lines.${i}.itemId`, message: 'Item not found' });
+      else if (item.item_type !== 'non_inventory')
+        errors.push({
+          path: `lines.${i}.itemId`,
+          message: `"${item.name}" isn't a non-inventory item. Only those can start being tracked.`,
+        });
+    });
+    const accountIds = [
+      ...new Set(
+        [
+          input.offsetAccountId,
+          ...input.lines.flatMap((l) => [l.assetAccountId, l.cogsAccountId]),
+          ...items.map((i) => i.expense_account_id),
+        ].filter((v): v is string => !!v),
+      ),
+    ];
+    const accounts = accountIds.length
+      ? await tx
+          .selectFrom('accounts')
+          .select(['id', 'name', 'account_type', 'is_active'])
+          .where('company_id', '=', companyId)
+          .where('id', 'in', accountIds)
+          .execute()
+      : [];
+    const account = (id: string | null | undefined) => accounts.find((a) => a.id === id);
+    const check = (id: string | null | undefined, types: string[] | null, path: string) => {
+      if (!id) return;
+      const a = account(id);
+      if (!a || !a.is_active) errors.push({ path, message: 'Account not found or inactive' });
+      else if (types && !types.includes(a.account_type))
+        errors.push({ path, message: `"${a.name}" can't be used here` });
+      else if (!types && FORBIDDEN_ADJUSTMENT_ACCOUNTS.includes(a.account_type))
+        errors.push({ path, message: `"${a.name}" can't be used here` });
+    };
+    check(input.offsetAccountId, null, 'offsetAccountId');
+    input.lines.forEach((l, i) => {
+      check(l.assetAccountId, ['other_current_asset'], `lines.${i}.assetAccountId`);
+      check(
+        l.cogsAccountId,
+        ['cost_of_goods_sold', 'expense', 'other_expense'],
+        `lines.${i}.cogsAccountId`,
+      );
+    });
+    if (errors.length) throw invalid(errors);
+
+    // The costing method of the QuickBooks company, while nothing has moved yet.
+    const moved = await tx
+      .selectFrom('inventory_moves')
+      .select('id')
+      .where('company_id', '=', companyId)
+      .limit(1)
+      .executeTakeFirst();
+    let methodNote: string | null = null;
+    if (!moved) {
+      const migration = await tx
+        .selectFrom('migrations')
+        .select('source')
+        .where('company_id', '=', companyId)
+        .orderBy('created_at', 'desc')
+        .executeTakeFirst();
+      const method =
+        migration?.source === 'qbo'
+          ? 'fifo'
+          : migration?.source === 'desktop' || migration?.source === 'iif'
+            ? 'average'
+            : null;
+      if (method) {
+        await tx
+          .updateTable('companies')
+          .set({ inventory_costing: method, updated_by: auth.userId })
+          .where('id', '=', companyId)
+          .execute();
+        methodNote = method;
+      }
+    }
+
+    // Convert the items.
+    const defaultAsset = await inventoryAccount(tx, auth, companyId, 'asset');
+    let defaultCogs: string | null = null;
+    for (const l of input.lines) {
+      const item = items.find((x) => x.id === l.itemId)!;
+      const current = account(item.expense_account_id);
+      const cogs =
+        l.cogsAccountId ??
+        (current?.account_type === 'cost_of_goods_sold' ? current.id : null) ??
+        (defaultCogs ??= await inventoryAccount(tx, auth, companyId, 'cogs'));
+      await tx
+        .updateTable('items')
+        .set({
+          item_type: 'inventory',
+          asset_account_id: l.assetAccountId ?? defaultAsset,
+          expense_account_id: cogs,
+          inventory_start_date: input.startDate,
+          updated_by: auth.userId,
+        })
+        .where('id', '=', item.id)
+        .execute();
+      await this.audit.record(
+        tx,
+        {
+          companyId,
+          actorUserId: auth.userId,
+          action: 'item.inventory_started',
+          entityType: 'item',
+          entityId: item.id,
+          before: { type: item.item_type, expenseAccount: item.expense_account_id },
+          after: {
+            type: 'inventory',
+            assetAccount: l.assetAccountId ?? defaultAsset,
+            expenseAccount: cogs,
+            trackedFrom: input.startDate,
+          },
+        },
+        meta,
+      );
+    }
+
+    const moves: ProposedMove[] = input.lines.map((l, i) => ({
+      itemId: l.itemId,
+      lineNo: i + 1,
+      kind: 'opening',
+      quantity: parseMoney(l.quantity),
+      fixedCost: parseMoney(l.value),
+      counterAccountId: input.offsetAccountId,
+      classId: null,
+    }));
+    const txnId = await this.post(
+      tx,
+      auth,
+      ctx,
+      { txnDate: input.startDate, closingPassword: input.closingPassword },
+      null,
+      {
+        txnType: 'inventory_opening',
+        txnDate: input.startDate,
+        number: null,
+        memo: input.memo ?? null,
+        isAdjusting: false,
+      },
+      moves,
+    );
+    await tx
+      .insertInto('inventory_opening_lines')
+      .values(
+        input.lines.map((l, i) => ({
+          company_id: companyId,
+          transaction_id: txnId,
+          line_no: i + 1,
+          item_id: l.itemId,
+          quantity: l.quantity,
+          value: l.value,
+          offset_account_id: input.offsetAccountId,
+        })),
+      )
+      .execute();
+    const after = await this.loadOpening(tx, companyId, txnId);
+    await this.audit.record(
+      tx,
+      {
+        companyId,
+        actorUserId: auth.userId,
+        action: 'inventory_opening.created',
+        entityType: 'transaction',
+        entityId: txnId,
+        after: openingAudit(after),
+        metadata: methodNote ? { costingMethodFromQuickBooks: methodNote } : null,
+      },
+      meta,
+    );
+    return after;
+  }
+
+  async loadOpening(tx: Tx, companyId: string, id: string): Promise<InventoryOpeningDto> {
+    const t = await this.header(tx, companyId, id, 'inventory_opening');
+    const lines = await tx
+      .selectFrom('inventory_opening_lines as l')
+      .innerJoin('items as i', 'i.id', 'l.item_id')
+      .select(['l.item_id', 'l.quantity', 'l.value', 'l.offset_account_id', 'i.name'])
+      .where('l.transaction_id', '=', id)
+      .orderBy('l.line_no')
+      .execute();
+    return {
+      id: t.id,
+      txnDate: t.txn_date,
+      memo: t.memo,
+      offsetAccountId: lines[0]?.offset_account_id ?? null,
+      lines: lines.map((l) => ({
+        itemId: l.item_id,
+        itemName: l.name,
+        quantity: formatQty(parseMoney(l.quantity)),
+        value: moneyToString(parseMoney(l.value)),
+      })),
+      total: moneyToString(lines.reduce((s, l) => s + parseMoney(l.value), 0n)),
+      status: t.status === 'void' ? 'void' : 'posted',
+      version: t.version,
+    };
+  }
+
   // ---- Both ---------------------------------------------------------------------------------
 
   setStatus(
     auth: AuthContext,
     ctx: CompanyContext,
-    type: 'inventory_adjustment' | 'inventory_build',
+    type: 'inventory_adjustment' | 'inventory_build' | 'inventory_opening',
     id: string,
     status: 'void' | 'deleted',
     closingPassword: string | undefined,
@@ -446,7 +709,9 @@ export class InventoryDocumentsService {
       const before =
         type === 'inventory_build'
           ? buildAudit(await this.loadBuild(tx, ctx.companyId, id))
-          : adjustmentAudit(await this.loadAdjustment(tx, ctx.companyId, id));
+          : type === 'inventory_opening'
+            ? openingAudit(await this.loadOpening(tx, ctx.companyId, id))
+            : adjustmentAudit(await this.loadAdjustment(tx, ctx.companyId, id));
       const postingCtx: PostingContext = {
         companyId: ctx.companyId,
         userId: auth.userId,
@@ -484,7 +749,7 @@ export class InventoryDocumentsService {
     input: { txnDate: string; closingPassword?: string; version?: number },
     id: string | null,
     header: {
-      txnType: 'inventory_adjustment' | 'inventory_build';
+      txnType: 'inventory_adjustment' | 'inventory_build' | 'inventory_opening';
       txnDate: string;
       number: string | null;
       memo: string | null;
@@ -515,7 +780,7 @@ export class InventoryDocumentsService {
     tx: Tx,
     companyId: string,
     id: string,
-    type: 'inventory_adjustment' | 'inventory_build',
+    type: 'inventory_adjustment' | 'inventory_build' | 'inventory_opening',
   ) {
     const t = await tx
       .selectFrom('transactions')
@@ -527,7 +792,11 @@ export class InventoryDocumentsService {
       .executeTakeFirst();
     if (!t)
       throw new NotFoundException(
-        type === 'inventory_build' ? 'Build not found' : 'Inventory adjustment not found',
+        type === 'inventory_build'
+          ? 'Build not found'
+          : type === 'inventory_opening'
+            ? 'Inventory starting value not found'
+            : 'Inventory adjustment not found',
       );
     return t;
   }
@@ -579,6 +848,14 @@ function adjustmentAudit(a: InventoryAdjustmentDto): Record<string, unknown> {
       account: l.accountId,
       value: l.value,
     })),
+  };
+}
+
+function openingAudit(o: InventoryOpeningDto): Record<string, unknown> {
+  return {
+    date: o.txnDate,
+    offsetAccount: o.offsetAccountId,
+    lines: o.lines.map((l) => ({ item: l.itemId, quantity: l.quantity, value: l.value })),
   };
 }
 

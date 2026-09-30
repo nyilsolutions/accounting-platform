@@ -21,6 +21,9 @@ export default function InventoryLayout({ children }: { children: ReactNode }) {
           <Link href={`${base}/builds/new`} className={buttonClass('secondary')}>
             Build assembly
           </Link>
+          <Link href={`${base}/start`} className={buttonClass('secondary')}>
+            Start tracking items
+          </Link>
         </div>
       </div>
       {children}

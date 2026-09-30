@@ -506,6 +506,7 @@ export class PurchaseDocumentsService {
                 'item_type',
                 'asset_account_id',
                 'expense_account_id',
+                'inventory_start_date',
                 'purchase_description',
                 'description',
               ])
@@ -537,7 +538,11 @@ export class PurchaseDocumentsService {
           path: `lines.${i}.itemId`,
           message: 'Product/service not found or inactive',
         });
-      const stocked = item && (item.item_type === 'inventory' || item.item_type === 'assembly');
+      // Inventory is tracked from the item's start date; earlier documents post as they did.
+      const stocked =
+        item &&
+        (item.item_type === 'inventory' || item.item_type === 'assembly') &&
+        (!item.inventory_start_date || input.txnDate >= item.inventory_start_date);
       // Inventory posts to its own accounts: the asset when bought, cost of goods sold when
       // returned.
       const accountId = stocked

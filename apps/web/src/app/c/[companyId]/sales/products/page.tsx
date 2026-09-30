@@ -4,6 +4,7 @@ import { useParams } from 'next/navigation';
 import { useState, type FormEvent } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import {
+  formatDate,
   formatMoney,
   isStocked,
   ITEM_TYPE_LABELS,
@@ -229,6 +230,12 @@ export default function ProductsPage() {
                   defaultValue={current?.reorderPoint ?? ''}
                   error={error?.fieldError('reorderPoint')}
                 />
+                {current?.inventoryStartDate && (
+                  <p className="text-sm text-gray-600 sm:col-span-3">
+                    Tracked as inventory from {formatDate(current.inventoryStartDate)}; earlier
+                    transactions have no quantities.
+                  </p>
+                )}
                 {current?.quantityOnHand != null && (
                   <div className="text-sm">
                     <div className="font-medium text-gray-700">On hand</div>
