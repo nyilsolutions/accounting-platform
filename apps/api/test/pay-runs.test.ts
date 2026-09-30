@@ -5,6 +5,9 @@ import {
   type PayrollItemDto,
   type PayRunDto,
   type PayRunSummaryDto,
+  type PayrollLiabilitiesDto,
+  type PayrollLiabilityPaymentDto,
+  type ReportDto,
   type PayScheduleDto,
   type StateRegistrationDto,
 } from '@acct/shared';
@@ -572,5 +575,218 @@ describe('voiding', () => {
       ['bonus', '2026-02-02', 'draft'],
       ['regular', '2026-01-29', 'posted'],
     ]);
+  });
+});
+
+describe('liabilities', () => {
+  let liabilities: PayrollLiabilitiesDto;
+  const row = (agency: string) => liabilities.liabilities.find((l) => l.agency === agency)!;
+  const liabilityBalance = async () => {
+    const [r] = await adminQuery<{ balance: string }>(
+      `select coalesce(sum(l.credit - l.debit), 0)::numeric(19,2)::text as balance
+         from journal_lines l
+         join transactions t on t.id = l.transaction_id and t.version = l.version
+         join accounts a on a.id = l.account_id
+        where t.company_id = $1 and t.status = 'posted' and a.name = 'Payroll Liabilities'`,
+      [companyId],
+    );
+    return r!.balance;
+  };
+
+  it('only people with payroll access see liabilities', async () => {
+    await standard.agent.get(`${base()}/liabilities`).expect(403);
+    await outsider.agent.get(`${base()}/liabilities`).expect(404);
+  });
+
+  it('lists what is owed from posted paychecks, by agency and deposit period', async () => {
+    liabilities = (await payrollAdmin.agent.get(`${base()}/liabilities`).expect(200)).body;
+    // Maria's January paycheck (Ben's was voided): withholding and both halves of FICA.
+    expect(row('federal_941')).toMatchObject({
+      periodStart: '2026-01-01',
+      periodEnd: '2026-01-31',
+      dueDate: '2026-02-16',
+      accrued: '451.23',
+      balance: '451.23',
+    });
+    expect(row('federal_940')).toMatchObject({ accrued: '11.76', dueDate: '2026-07-31' });
+    expect(row('state_unemployment:TX')).toMatchObject({ accrued: '52.92', dueDate: null });
+    expect(row(`item:${item('Child support')}`)).toMatchObject({
+      agencyLabel: 'Child support',
+      accrued: '100.00',
+      dueDate: '2026-01-29',
+    });
+    expect(liabilities.depositSchedule).toMatchObject({
+      setting: 'monthly',
+      effective: 'monthly',
+      lookback: {
+        from: '2024-07-01',
+        to: '2025-06-30',
+        total: '0.00',
+        suggested: 'monthly',
+        incomplete: true,
+      },
+    });
+    // The ledger's Payroll Liabilities balance is what the liabilities add up to.
+    const owed = liabilities.liabilities.reduce((a, l) => a + Number(l.balance), 0);
+    expect(await liabilityBalance()).toBe(owed.toFixed(2));
+  });
+
+  let paymentId = '';
+  it('records an EFTPS payment with what to enter in EFTPS, and posts it', async () => {
+    await payrollAdmin.agent
+      .post(`${base()}/liabilities/payments`)
+      .send({
+        agency: 'federal_941',
+        periodStart: '2026-01-01',
+        periodEnd: '2026-01-31',
+        paymentDate: '2026-02-13',
+        amount: '451.24',
+        method: 'eftps',
+      })
+      .expect(400);
+    await payrollAdmin.agent
+      .post(`${base()}/liabilities/payments`)
+      .send({
+        agency: 'state_unemployment:TX',
+        periodStart: '2026-01-01',
+        periodEnd: '2026-03-31',
+        paymentDate: '2026-04-20',
+        amount: '52.92',
+        method: 'eftps',
+      })
+      .expect(400);
+    const payment: PayrollLiabilityPaymentDto = (
+      await payrollAdmin.agent
+        .post(`${base()}/liabilities/payments`)
+        .send({
+          agency: 'federal_941',
+          periodStart: '2026-01-01',
+          periodEnd: '2026-01-31',
+          paymentDate: '2026-02-13',
+          amount: '451.23',
+          method: 'eftps',
+          reference: '270654321098765',
+        })
+        .expect(201)
+    ).body;
+    paymentId = payment.id;
+    expect(payment).toMatchObject({
+      status: 'posted',
+      amount: '451.23',
+      reference: '270654321098765',
+    });
+    expect(payment.instructions?.[1]).toBe(
+      'Make a business tax payment: Form 941, Federal Tax Deposit, quarter 1 of 2026.',
+    );
+    expect(payment.instructions?.[0]).toContain('ending 6789');
+    liabilities = (await payrollAdmin.agent.get(`${base()}/liabilities`).expect(200)).body;
+    expect(row('federal_941')).toMatchObject({ paid: '451.23', balance: '0.00', status: 'paid' });
+    const owed = liabilities.liabilities.reduce((a, l) => a + Number(l.balance), 0);
+    expect(await liabilityBalance()).toBe(owed.toFixed(2));
+    const [t] = await adminQuery<{ txn_type: string; total: string }>(
+      'select txn_type, total::text from transactions where id = $1',
+      [payment.transactionId],
+    );
+    expect(t).toEqual({ txn_type: 'payroll_liability_payment', total: '451.2300' });
+  });
+
+  it('pays a deduction to its payee by check, and voids a payment', async () => {
+    const agency = `item:${item('Child support')}`;
+    const check: PayrollLiabilityPaymentDto = (
+      await payrollAdmin.agent
+        .post(`${base()}/liabilities/payments`)
+        .send({
+          agency,
+          periodStart: '2026-01-29',
+          periodEnd: '2026-01-29',
+          paymentDate: '2026-01-30',
+          amount: '100',
+          method: 'check',
+          reference: '1001',
+        })
+        .expect(201)
+    ).body;
+    expect(check.agencyLabel).toBe('Child support');
+    const voided: PayrollLiabilityPaymentDto = (
+      await payrollAdmin.agent
+        .post(`${base()}/liabilities/payments/${paymentId}/void`)
+        .send({})
+        .expect(200)
+    ).body;
+    expect(voided.status).toBe('void');
+    await payrollAdmin.agent
+      .post(`${base()}/liabilities/payments/${paymentId}/void`)
+      .send({})
+      .expect(409);
+    liabilities = (await payrollAdmin.agent.get(`${base()}/liabilities`).expect(200)).body;
+    expect(row('federal_941').balance).toBe('451.23');
+    expect(row(agency).status).toBe('paid');
+    const list: PayrollLiabilityPaymentDto[] = (
+      await payrollAdmin.agent.get(`${base()}/liabilities/payments`).expect(200)
+    ).body;
+    expect(list.map((p) => [p.agency, p.status])).toEqual([
+      ['federal_941', 'void'],
+      [agency, 'posted'],
+    ]);
+  });
+});
+
+describe('payroll reports', () => {
+  const q = '?from=2026-01-01&to=2026-01-31';
+
+  it('only people with payroll access see payroll reports', async () => {
+    await standard.agent.get(`${base()}/reports/payroll-summary${q}`).expect(403);
+    await payrollAdmin.agent.get(`${base()}/reports/no-such-report${q}`).expect(404);
+  });
+
+  it('Payroll Summary: each item and tax by employee, net pay and total cost', async () => {
+    const r: ReportDto = (
+      await payrollAdmin.agent.get(`${base()}/reports/payroll-summary${q}`).expect(200)
+    ).body;
+    expect(r.columns).toEqual(['Maria Lopez', 'Total']);
+    const amounts = Object.fromEntries(r.rows.map((x) => [x.label, x.amounts.at(-1)]));
+    expect(amounts).toMatchObject({
+      'Hourly wage': '1960.00',
+      'Total earnings': '1960.00',
+      'Child support': '100.00',
+      'Federal income tax': '151.35',
+      'Total employee taxes': '301.29',
+      'Net pay': '1558.71',
+      'Total company taxes': '214.62',
+      'Total payroll cost': '2174.62',
+    });
+  });
+
+  it('Paycheck History lists voided paychecks at zero', async () => {
+    const r: ReportDto = (
+      await payrollAdmin.agent.get(`${base()}/reports/paycheck-history${q}`).expect(200)
+    ).body;
+    expect(r.textColumns).toEqual(['Pay date', 'Employee', 'Run', 'Paid by', 'Status']);
+    expect(r.rows.map((x) => [x.cells?.[1], x.cells?.[4], x.amounts[3]])).toEqual([
+      ['Ben Carter', 'Void', '0.00'],
+      ['Maria Lopez', 'Posted', '1558.71'],
+      ['', '', '1558.71'],
+    ]);
+    expect(r.rows[1]!.txnType).toBe('paycheck');
+  });
+
+  it('Payroll Tax and Wage Summary: taxable wages once, employee and company halves together', async () => {
+    const r: ReportDto = (
+      await payrollAdmin.agent.get(`${base()}/reports/payroll-tax-liability${q}`).expect(200)
+    ).body;
+    const byLabel = Object.fromEntries(r.rows.map((x) => [x.label, x.amounts]));
+    expect(byLabel['Social security']).toEqual(['1960.00', '121.52', '121.52', '243.04']);
+    expect(byLabel['TX unemployment']).toEqual(['1960.00', '0.00', '52.92', '52.92']);
+    expect(byLabel['Total payroll taxes']).toEqual([null, '301.29', '214.62', '515.91']);
+  });
+
+  it('exports a payroll report', async () => {
+    const res = await payrollAdmin.agent
+      .get(`${base()}/reports/payroll-summary/export${q}&format=csv`)
+      .expect(200);
+    expect(res.headers['content-disposition']).toBe(
+      'attachment; filename="Payroll-Summary-2026-01-31.csv"',
+    );
+    expect(res.text).toContain('Net pay');
   });
 });

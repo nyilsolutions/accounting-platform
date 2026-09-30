@@ -36,7 +36,8 @@ export type PostingTxnType =
   | 'transfer'
   | 'sales_tax_payment'
   | 'sales_tax_adjustment'
-  | 'paycheck';
+  | 'paycheck'
+  | 'payroll_liability_payment';
 
 /** Document fields stored on the transaction header (sales and purchase documents). */
 export interface DocumentDetails {

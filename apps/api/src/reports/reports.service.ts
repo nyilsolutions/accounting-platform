@@ -198,7 +198,7 @@ export class ReportsService {
   private async subledger(
     scope: ReportScope,
     q: ReportQuery,
-    key: ReportDto['key'],
+    key: Exclude<ReportKey, LedgerReportKey>,
     side: LedgerSide,
   ): Promise<ReportDto> {
     const party: Party = side === 'ar' ? 'customer' : 'vendor';

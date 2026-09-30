@@ -1055,6 +1055,24 @@ export interface PaycheckLinesTable {
   description: string | null;
 }
 
+export interface PayrollLiabilityPaymentsTable {
+  id: Generated<string>;
+  company_id: string;
+  agency: string;
+  period_start: DateCol;
+  period_end: DateCol;
+  payment_date: DateCol;
+  amount: Numeric;
+  method: string;
+  reference: string | null;
+  status: Generated<string>;
+  transaction_id: string;
+  created_by: string | null;
+  created_at: Generated<Date>;
+  voided_by: string | null;
+  voided_at: Date | null;
+}
+
 export interface Database {
   users: UsersTable;
   mfa_recovery_codes: MfaRecoveryCodesTable;
@@ -1130,6 +1148,7 @@ export interface Database {
   pay_runs: PayRunsTable;
   paychecks: PaychecksTable;
   paycheck_lines: PaycheckLinesTable;
+  payroll_liability_payments: PayrollLiabilityPaymentsTable;
 }
 
 export type User = Selectable<UsersTable>;

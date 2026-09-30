@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { isIsoDate } from './dates';
+import type { PayrollReportKey } from './payroll';
 
 export const REPORT_KEYS = [
   'profit_and_loss',
@@ -182,7 +183,8 @@ export interface ReportRow {
 }
 
 export interface ReportDto {
-  key: Exclude<ReportKey, LedgerReportKey>;
+  /** Payroll reports are served by payroll (payroll permission), not the reports hub. */
+  key: Exclude<ReportKey, LedgerReportKey> | PayrollReportKey;
   /** Headers for the leading text `cells` of tabular (detail) reports. */
   textColumns?: string[];
   title: string;

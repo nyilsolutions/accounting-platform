@@ -30,12 +30,29 @@ export interface KindTaxability {
   futa: Taxability;
 }
 
+/** Federal deposit rules (Pub. 15): lookback, monthly/semiweekly, $100,000 next-day. */
+export interface DepositRules {
+  lookbackThreshold: string;
+  nextDayThreshold: string;
+  returnPaymentThreshold: string;
+  monthlyDueDayOfFollowingMonth: number;
+  semiweekly: { wednesday_to_friday: string; saturday_to_tuesday: string };
+  /** The lookback period for this tax year's Form 941 schedule. */
+  [key: `lookbackPeriod${number}`]: { form941: { from: string; to: string } } | undefined;
+}
+
 export interface FederalTaxData {
   year: number;
   socialSecurity: { employeeRatePercent: string; employerRatePercent: string; wageBase: string };
   medicare: { employeeRatePercent: string; employerRatePercent: string };
   additionalMedicare: { employeeRatePercent: string; withholdingThreshold: string };
-  futa: { netRatePercent: string; wageBase: string };
+  futa: {
+    netRatePercent: string;
+    wageBase: string;
+    quarterlyDepositThreshold: string;
+    depositDue: Record<'Q1' | 'Q2' | 'Q3' | 'Q4', string>;
+  };
+  deposits: DepositRules;
   supplementalWages: {
     optionalFlatRatePercent: string;
     mandatoryRatePercent: string;

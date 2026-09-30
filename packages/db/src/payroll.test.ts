@@ -506,3 +506,82 @@ describe('pay runs (migration 0011)', () => {
     expect(r.rows).toHaveLength(3);
   });
 });
+
+describe('payroll liability payments (migration 0013)', () => {
+  it('names a known agency, is invisible to other companies, and is never deleted', async () => {
+    const { expense, liability } = await asA(async (tx) => {
+      const s = await tx
+        .selectFrom('payroll_settings')
+        .select(['wage_expense_account_id as expense', 'liability_account_id as liability'])
+        .executeTakeFirstOrThrow();
+      return s;
+    });
+    const txnId = await asA(async (tx) => {
+      const t = await tx
+        .insertInto('transactions')
+        .values({
+          company_id: A,
+          txn_type: 'payroll_liability_payment',
+          txn_date: '2026-02-13',
+          created_by: userId,
+        })
+        .returning('id')
+        .executeTakeFirstOrThrow();
+      await tx
+        .insertInto('journal_lines')
+        .values([
+          {
+            company_id: A,
+            transaction_id: t.id,
+            version: 1,
+            line_no: 1,
+            txn_date: '2026-02-13',
+            account_id: liability,
+            debit: '10',
+            credit: '0',
+          },
+          {
+            company_id: A,
+            transaction_id: t.id,
+            version: 1,
+            line_no: 2,
+            txn_date: '2026-02-13',
+            account_id: expense,
+            debit: '0',
+            credit: '10',
+          },
+        ])
+        .execute();
+      return t.id;
+    });
+    const values = (agency: string) => ({
+      company_id: A,
+      agency,
+      period_start: '2026-01-01',
+      period_end: '2026-01-31',
+      payment_date: '2026-02-13',
+      amount: '10',
+      method: 'eftps',
+      transaction_id: txnId,
+    });
+    await expect(
+      asA((tx) => tx.insertInto('payroll_liability_payments').values(values('irs')).execute()),
+    ).rejects.toThrow(/check constraint/);
+    const p = await asA((tx) =>
+      tx
+        .insertInto('payroll_liability_payments')
+        .values(values('federal_941'))
+        .returning('id')
+        .executeTakeFirstOrThrow(),
+    );
+    expect(
+      await asB((tx) => tx.selectFrom('payroll_liability_payments').select('id').execute()),
+    ).toEqual([]);
+    await expect(
+      asA((tx) => tx.deleteFrom('payroll_liability_payments').where('id', '=', p.id).execute()),
+    ).rejects.toThrow(/permission denied/);
+    const r = await sql<{ relrowsecurity: boolean }>`
+      select relrowsecurity from pg_class where relname = 'payroll_liability_payments'`.execute(db);
+    expect(r.rows[0]!.relrowsecurity).toBe(true);
+  });
+});

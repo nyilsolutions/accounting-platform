@@ -1277,3 +1277,114 @@ export interface PaycheckDto extends PaycheckSummaryDto {
   deposits: { accountMasked: string; accountType: BankAccountType; amount: string }[];
   voidedAt: string | null;
 }
+
+// ---------------------------------------------------------------------------------------------
+// Payroll liabilities and payments (Phase 8, part 2)
+// ---------------------------------------------------------------------------------------------
+/**
+ * Who a payroll liability is owed to:
+ *   federal_941 (income tax withheld, social security, Medicare), federal_940 (FUTA),
+ *   state_withholding:<ST> (state and local income tax, CA SDI), state_unemployment:<ST>
+ *   (unemployment, NY Re-employment Service Fund, CA ETT), ny_pfl (the employer's Paid Family
+ *   Leave carrier), item:<payroll item id> (a deduction or contribution's payee).
+ */
+export type PayrollAgency = string;
+
+export const LIABILITY_PAYMENT_METHODS = ['eftps', 'ach', 'check', 'other'] as const;
+export type LiabilityPaymentMethod = (typeof LIABILITY_PAYMENT_METHODS)[number];
+export const LIABILITY_PAYMENT_METHOD_LABELS: Record<LiabilityPaymentMethod, string> = {
+  eftps: 'EFTPS',
+  ach: 'Electronic payment',
+  check: 'Check',
+  other: 'Other',
+};
+
+export type PayrollLiabilityStatus = 'paid' | 'overdue' | 'due_soon' | 'open' | 'no_due_date';
+
+export interface PayrollLiabilityDto {
+  agency: PayrollAgency;
+  agencyLabel: string;
+  periodStart: string;
+  periodEnd: string;
+  /** When it must be paid; null when the due date isn't in tax-data (see dueNote). */
+  dueDate: string | null;
+  dueNote: string | null;
+  /** The $100,000 next-day deposit rule applied. */
+  nextDay: boolean;
+  accrued: string;
+  paid: string;
+  balance: string;
+  status: PayrollLiabilityStatus;
+  /** What makes up the amount (each tax, or the item). */
+  parts: { label: string; amount: string }[];
+}
+
+export interface PayrollLiabilitiesDto {
+  asOf: string;
+  liabilities: PayrollLiabilityDto[];
+  depositSchedule: {
+    /** The schedule in Payroll › Setup. */
+    setting: 'monthly' | 'semiweekly';
+    /** The schedule in effect today (semiweekly after a $100,000 day this year). */
+    effective: 'monthly' | 'semiweekly';
+    lookback: {
+      from: string;
+      to: string;
+      /** Form 941 taxes recorded here for the lookback period. */
+      total: string;
+      suggested: 'monthly' | 'semiweekly';
+      /** Payroll here doesn't cover the whole lookback period, so the total may be short. */
+      incomplete: boolean;
+    } | null;
+  };
+  notes: string[];
+}
+
+export const payrollLiabilityPaymentSchema = z.object({
+  agency: z.string().trim().min(1).max(80),
+  periodStart: isoDate,
+  periodEnd: isoDate,
+  paymentDate: isoDate,
+  amount: money,
+  method: z.enum(LIABILITY_PAYMENT_METHODS),
+  /** The EFT acknowledgement number, check number or confirmation. */
+  reference: optText(40),
+  /** Defaults to the account paychecks are paid from. */
+  bankAccountId: z.uuid().nullable().optional(),
+});
+export type PayrollLiabilityPaymentInput = z.input<typeof payrollLiabilityPaymentSchema>;
+
+export interface PayrollLiabilityPaymentDto {
+  id: string;
+  agency: PayrollAgency;
+  agencyLabel: string;
+  periodStart: string;
+  periodEnd: string;
+  paymentDate: string;
+  amount: string;
+  method: LiabilityPaymentMethod;
+  reference: string | null;
+  status: 'posted' | 'void';
+  transactionId: string;
+  createdAt: string;
+  /** For EFTPS without a connected provider: what to enter in EFTPS. */
+  instructions?: string[];
+}
+
+export const PAYROLL_REPORT_KEYS = [
+  'payroll_summary',
+  'paycheck_history',
+  'payroll_tax_liability',
+] as const;
+export type PayrollReportKey = (typeof PAYROLL_REPORT_KEYS)[number];
+export const PAYROLL_REPORT_TITLES: Record<PayrollReportKey, string> = {
+  payroll_summary: 'Payroll Summary',
+  paycheck_history: 'Paycheck History',
+  payroll_tax_liability: 'Payroll Tax and Wage Summary',
+};
+export const payrollReportQuerySchema = z
+  .object({ from: isoDate, to: isoDate })
+  .refine((v) => v.from <= v.to, {
+    message: 'The start date is after the end date',
+    path: ['from'],
+  });
