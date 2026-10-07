@@ -228,7 +228,7 @@ export class CustomersService {
     if (!row) throw new NotFoundException('Customer not found');
     const names = [row.display_name];
     const seen = new Set([row.id]);
-    for (let parentId = row.parent_id; parentId && !seen.has(parentId); ) {
+    for (let parentId = row.parent_id; parentId && !seen.has(parentId);) {
       const parent = await tx
         .selectFrom('customers')
         .select(['id', 'display_name', 'parent_id'])

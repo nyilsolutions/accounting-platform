@@ -74,9 +74,13 @@ per second with 210 timeouts. The fixes:
   are now worked out in one query, and payees and other accounts are looked up for the page
   only. A search still reads every entry (it matches payees). A test checks that pages, totals
   and date ranges match the full read.
-- **One query for P&L columns.** A P&L by month over three years ran one query per column (37).
-  `ledgerNets` reads all the columns in one query, joining a `values` list of date ranges.
-  Cash basis still runs per column.
+- **One pass for P&L columns.** A P&L by month over three years ran one query per column (37).
+  `ledgerNets` reads all the columns in one query, joining a `values` list of date ranges. On
+  the cash basis each column also worked out every payment application since the start of the
+  books (26 s in all). The recognitions are now worked out once for the whole range and added
+  to each column containing their date, which gives the same amounts: a recognition depends
+  only on the applications before it. A single period loads the lines only of documents with
+  an application in it. Tests check by-month columns against each month run alone.
 - **Saving a customer** loaded every customer to build the new one's full name, so creating
   customers got slower as the list grew. It now walks up from the one customer.
 - **Sorting names.** `a.localeCompare(b, 'en', options)` builds a collator on every comparison.
@@ -120,7 +124,8 @@ Full scale, on the development container (4 vCPUs, 16 GB, Postgres 16 on the sam
 
 ## Not in this part
 
-- **Cash basis P&L columns** still run one query per column (question 88).
+- **Lists that return every row:** the customers list sends all 5,000 customers at once
+  (question 88).
 - **Larger companies:** past the targets, reports that list every row grow with the data. The
   General Ledger, Journal and transaction detail reports stop at 20,000 rows and say so; the
   aging detail and open invoices reports list every open item, so they grow with what is

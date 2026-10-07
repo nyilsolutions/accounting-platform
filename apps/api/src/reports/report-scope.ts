@@ -9,7 +9,13 @@ import {
   type LedgerReportKey,
   type ReportKey,
 } from '@acct/shared';
-import { ACCRUAL_ONLY_TYPES, cashRecognition, type CashFilter } from './cash-basis';
+import {
+  ACCRUAL_ONLY_TYPES,
+  cashRecognition,
+  recognitionMatches,
+  recognitions,
+  type CashFilter,
+} from './cash-basis';
 import type { ReportAccount } from './report-builder';
 
 export interface ReportCompany {
@@ -94,8 +100,12 @@ export async function ledgerNet(
 
 /**
  * `ledgerNet` for several periods at once (a report's columns), in one pass over the journal when
- * the filters differ only in their dates and the basis is accrual (ADR 0028). Otherwise each is
- * run on its own. Periods may overlap.
+ * the filters differ only in their dates (ADR 0028). Otherwise each is run on its own. Periods
+ * may overlap.
+ *
+ * On the cash basis the recognitions are worked out once for the whole range and each is added
+ * to every period containing its date. That gives the same amounts as one period at a time: a
+ * recognition depends only on the applications before it, never on the period asked for.
  */
 export async function ledgerNets(
   tx: Tx,
@@ -104,16 +114,12 @@ export async function ledgerNets(
 ): Promise<Array<Map<string, Money>>> {
   const rest = ({ from: _from, to: _to, ...r }: NetFilter) => JSON.stringify(r);
   const first = filters[0];
-  if (
-    !first ||
-    filters.length < 2 ||
-    first.basis === 'cash' ||
-    filters.some((f) => rest(f) !== rest(first))
-  ) {
+  if (!first || filters.length < 2 || filters.some((f) => rest(f) !== rest(first))) {
     const out: Array<Map<string, Money>> = [];
     for (const f of filters) out.push(await ledgerNet(tx, companyId, f));
     return out;
   }
+  const cash = first.basis === 'cash';
   const to = filters.reduce((m, f) => (f.to > m ? f.to : m), first.to);
   const open = filters.some((f) => !f.from);
   const from = open ? null : filters.reduce((m, f) => (f.from! < m ? f.from! : m), first.from!);
@@ -134,9 +140,20 @@ export async function ledgerNets(
       ${dimension('l.customer_id', first.customerId)}
       ${dimension('l.vendor_id', first.vendorId)}
       ${first.adjusting !== undefined ? sql`and t.is_adjusting = ${first.adjusting}` : sql``}
+      ${cash ? sql`and t.txn_type not in (${sql.join([...ACCRUAL_ONLY_TYPES])})` : sql``}
     group by p.i, l.account_id`.execute(tx);
   const out = filters.map(() => new Map<string, Money>());
   for (const r of rows.rows) out[r.i]!.set(r.account_id, parseMoney(r.net));
+  // Recognitions come from documents and payments, which are never adjusting entries.
+  if (cash && first.adjusting !== true) {
+    for (const r of await recognitions(tx, companyId, { from, to })) {
+      if (!recognitionMatches(first, r)) continue;
+      filters.forEach((f, i) => {
+        if (r.date > f.to || (f.from && r.date < f.from)) return;
+        out[i]!.set(r.accountId, (out[i]!.get(r.accountId) ?? 0n) + r.amount);
+      });
+    }
+  }
   return out;
 }
 

@@ -196,7 +196,11 @@ export async function profitAndLossReport(scope: ReportScope, q: ReportQuery): P
   }
 
   let cols = await columnsFor(scope, q, from, base, false);
-  let nets = await ledgerNets(scope.tx, scope.companyId, cols.map((c) => c.filter));
+  let nets = await ledgerNets(
+    scope.tx,
+    scope.companyId,
+    cols.map((c) => c.filter),
+  );
   if (cols.length > 1 && q.columns && !['months', 'quarters', 'years'].includes(q.columns))
     ({ cols, nets } = dropEmpty(cols, nets, true));
   const { rows } = profitAndLossColumns(scope.accounts, nets, opts(scope));

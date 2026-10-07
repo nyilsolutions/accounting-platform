@@ -492,6 +492,7 @@ Add new questions here instead of guessing.
     instance on the development machine serves about 16 requests a second and some requests
     take over 10 s. Should the target be that harder case, or a number of users per instance
     that 12d scales out to?
-88. **Cash basis P&L by period:** accrual P&L columns are read in one query; cash basis still
-    runs one query per column, which a 36-month cash basis P&L will feel (about 3–4 s at
-    100,000 transactions). Worth doing before launch, or after the first customers use it?
+88. **Very long lists:** the customers and vendors lists, and the pickers built on them, load
+    every record at once. At 5,000 customers that is about 120 ms and 2.3 MB per load (ADR 0028),
+    within budget. Should lists page and pickers search on the server before launch, or only
+    when a company reaches, say, 20,000 customers?

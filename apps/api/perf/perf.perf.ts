@@ -269,6 +269,15 @@ describe(`reports and lists (${scaleName})`, () => {
       'Profit and Loss by month, 3 years',
       () => c(`/reports/profit-and-loss?from=${threeYearsAgo}&to=${today}&columns=months`),
     ],
+    [
+      'Profit and Loss, this year, cash basis',
+      () => c(`/reports/profit-and-loss?from=${yearStart}&to=${today}&basis=cash`),
+    ],
+    [
+      'Profit and Loss by month, 3 years, cash basis',
+      () =>
+        c(`/reports/profit-and-loss?from=${threeYearsAgo}&to=${today}&columns=months&basis=cash`),
+    ],
     ['Balance Sheet', () => c(`/reports/balance-sheet?to=${today}`)],
     ['Trial Balance', () => c(`/reports/trial-balance?to=${today}`)],
     ['A/R Aging Summary', () => c(`/reports/ar-aging-summary?to=${today}`)],
@@ -350,7 +359,7 @@ describe(`50 concurrent users (${scaleName})`, () => {
     const failures: string[] = [];
     const rnd = (() => {
       let a = 7;
-      return () => ((a = (a * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff);
+      return () => (a = (a * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff;
     })();
     await Promise.all(
       Array.from({ length: 50 }, async (_, user) => {
