@@ -12,7 +12,8 @@
     "ats": "node --env-file-if-exists=../../.env dist/efile/ats/run-ats.js",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "eslint src test",
-    "test": "vitest run"
+    "test": "vitest run",
+    "perf": "vitest run -c vitest.perf.config.mts"
   },
   "dependencies": {
     "@acct/crypto": "workspace:*",
@@ -48,12 +49,14 @@
     "@nestjs/cli": "^11.0.24",
     "@nestjs/testing": "^11.2.6",
     "@swc/core": "^1.16.2",
+    "@types/autocannon": "^7.12.7",
     "@types/cookie-parser": "^1.4.10",
     "@types/express": "^5.0.6",
     "@types/mailparser": "^3.9.0",
     "@types/node": "^22.20.4",
     "@types/pg": "^8.23.1",
     "@types/supertest": "^7.2.1",
+    "autocannon": "^8.0.0",
     "fast-check": "^4.10.2",
     "supertest": "^7.3.0",
     "unplugin-swc": "^2.0.0",

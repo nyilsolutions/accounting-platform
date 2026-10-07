@@ -41,7 +41,9 @@ export class AppModule {
           providers: [{ provide: APP_CONFIG, useValue: config }],
           exports: [APP_CONFIG],
         },
-        ThrottlerModule.forRoot([{ name: 'default', ttl: 60_000, limit: 600 }]),
+        ThrottlerModule.forRoot([
+          { name: 'default', ttl: 60_000, limit: config.RATE_LIMIT_PER_MINUTE },
+        ]),
         DbModule,
         JobsModule,
         MailModule,

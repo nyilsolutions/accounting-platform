@@ -22,6 +22,8 @@ const envSchema = z.object({
     .default(12),
   COOKIE_SECURE: bool.default(true),
   RATE_LIMIT_AUTH_PER_MINUTE: z.coerce.number().int().min(1).default(20),
+  /** Requests per minute per client address, across the API (sign-in has its own, lower limit). */
+  RATE_LIMIT_PER_MINUTE: z.coerce.number().int().min(1).default(600),
   LOGIN_MAX_FAILED_ATTEMPTS: z.coerce.number().int().min(3).default(10),
   LOGIN_LOCKOUT_MINUTES: z.coerce.number().int().min(1).default(15),
   INVITATION_TTL_DAYS: z.coerce.number().int().min(1).max(30).default(7),
