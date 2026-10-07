@@ -2,12 +2,14 @@ import {
   Inject,
   Injectable,
   Logger,
+  Optional,
   type OnApplicationBootstrap,
   type OnApplicationShutdown,
   type OnModuleInit,
 } from '@nestjs/common';
-import type { Tx } from '@acct/db';
+import { sql, type Db, type Tx } from '@acct/db';
 import { APP_CONFIG, type AppConfig } from '../config';
+import { DB } from '../db/db.module';
 import { logContext } from '../observability/logger';
 import { JOB_SCHEMA } from './install';
 import { JOBS, JOB_NAMES, type JobName, type JobPayloads } from './jobs';
@@ -42,7 +44,11 @@ export class JobQueue implements OnModuleInit, OnApplicationBootstrap, OnApplica
   private lib: PgBossModule | null = null;
   private stopping = false;
 
-  constructor(@Inject(APP_CONFIG) private readonly config: AppConfig) {}
+  constructor(
+    @Inject(APP_CONFIG) private readonly config: AppConfig,
+    /** Inline mode only, to wait for a sending transaction to commit (absent in the seed). */
+    @Optional() @Inject(DB) private readonly db?: Db,
+  ) {}
 
   get mode(): 'pg-boss' | 'inline' {
     return this.config.JOB_QUEUE;
@@ -127,8 +133,14 @@ export class JobQueue implements OnModuleInit, OnApplicationBootstrap, OnApplica
       if (this.stopping) return;
       const handler = this.handlers.get(name);
       if (!handler) throw new Error(`No handler is registered for ${name}`);
+      // Like pg-boss, a job sent in a transaction exists only once that transaction commits:
+      // wait for it (or drop the job if it rolls back), so the job sees what was written.
+      const xid = opts.tx && this.db ? await currentXid(opts.tx) : null;
       const p = new Promise((resolve) => setImmediate(resolve))
-        .then(() => this.run(name, data, `inline-${crypto.randomUUID()}`))
+        .then(() => (xid ? this.waitForCommit(xid) : true))
+        .then((committed) =>
+          committed ? this.run(name, data, `inline-${crypto.randomUUID()}`) : undefined,
+        )
         .catch(() => undefined)
         .finally(() => this.inflight.delete(p));
       this.inflight.add(p);
@@ -167,6 +179,18 @@ export class JobQueue implements OnModuleInit, OnApplicationBootstrap, OnApplica
       await Promise.allSettled([...this.inflight]);
     }
     return ran;
+  }
+
+  /** Inline mode: whether the transaction `xid` committed, once it has ended. */
+  private async waitForCommit(xid: string): Promise<boolean> {
+    for (;;) {
+      const r = await sql<{ status: string | null }>`
+        select pg_xact_status(${xid}::xid8) as status`.execute(this.db!);
+      const status = r.rows[0]?.status;
+      if (status === 'committed') return true;
+      if (status === 'aborted') return false;
+      await new Promise((resolve) => setTimeout(resolve, 5));
+    }
   }
 
   /** Runs one job now through its handler (scheduled jobs on demand, and tests). */
@@ -208,4 +232,10 @@ export class JobQueue implements OnModuleInit, OnApplicationBootstrap, OnApplica
       throw e;
     }
   }
+}
+
+/** The id of the transaction `tx` (assigning one if it hasn't written yet). */
+async function currentXid(tx: Tx): Promise<string> {
+  const r = await sql<{ xid: string }>`select pg_current_xact_id()::text as xid`.execute(tx);
+  return r.rows[0]!.xid;
 }

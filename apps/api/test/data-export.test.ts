@@ -3,11 +3,12 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { strFromU8, unzipSync } from 'fflate';
 import { generateTotp } from '@acct/crypto';
-import { createDb, sql, type Db } from '@acct/db';
+import { createDb, sql, withTenant, type Db } from '@acct/db';
 import { STEP_UP_REQUIRED, type DataExportDto } from '@acct/shared';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { DataExportService } from '../src/data-export/data-export.service';
 import { EXCLUDED_TABLES } from '../src/data-export/archive';
+import { DB } from '../src/db/db.module';
 import { JobQueue } from '../src/jobs/job-queue.service';
 import { inviteTokenFrom, signUp, startApp, type SignedInUser, type TestContext } from './helpers';
 
@@ -193,6 +194,34 @@ describe('company data export', () => {
       .body as DataExportDto[];
     expect(list.find((e) => e.id === first.body.id)!.status).toBe('expired');
     await download(first.body.id, 409);
+  });
+
+  it('runs a job sent in a transaction only after that transaction commits', async () => {
+    const db = ctx.app.get<Db>(DB);
+    const jobs = ctx.app.get(JobQueue);
+    // The transaction stays open after sending, as a slow request's would: the job must wait.
+    const id = await withTenant(db, { userId: owner.userId, companyId }, async (tx) => {
+      const row = await tx
+        .insertInto('data_exports')
+        .values({ company_id: companyId, requested_by: owner.userId })
+        .returning('id')
+        .executeTakeFirstOrThrow();
+      await jobs.send('company.export', { companyId, exportId: row.id }, { tx });
+      await sql`select pg_sleep(0.3)`.execute(tx);
+      return row.id;
+    });
+    await jobs.drain();
+    const list = (await owner.agent.get(`${base()}/data-exports`).expect(200))
+      .body as DataExportDto[];
+    expect(list.find((e) => e.id === id)!.status).toBe('ready');
+    // A job sent in a transaction that rolls back never runs.
+    await expect(
+      withTenant(db, { userId: owner.userId, companyId }, async (tx) => {
+        await jobs.send('company.export', { companyId, exportId: id }, { tx });
+        throw new Error('rolled back');
+      }),
+    ).rejects.toThrow('rolled back');
+    expect(await jobs.drain()).toBeGreaterThanOrEqual(0);
   });
 
   it('names only real tables in its exclusions', async () => {
