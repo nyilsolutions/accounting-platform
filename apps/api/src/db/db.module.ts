@@ -25,7 +25,7 @@ class DbShutdown implements OnApplicationShutdown {
     {
       provide: DB,
       inject: [APP_CONFIG],
-      useFactory: (config: AppConfig) => createDb(config.DATABASE_URL),
+      useFactory: (config: AppConfig) => createDb(config.DATABASE_URL, config.DB_POOL_SIZE),
     },
     {
       provide: FIELD_ENCRYPTOR,

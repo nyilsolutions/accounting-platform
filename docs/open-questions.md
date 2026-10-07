@@ -483,3 +483,10 @@ Add new questions here instead of guessing.
     beforehand. Is the current behavior acceptable for launch?
 86. **Re-scanning stored files:** files are scanned when uploaded. Should a weekly job re-scan
     recent files with updated virus signatures, and how far back (say 90 days)?
+87. **Performance on AWS:** the 12b numbers are from a 4-vCPU development container with
+    Postgres on the same machine (ADR 0028). Which API task and database sizes should 12d start
+    from, and how many companies per database? The nightly performance workflow can run against
+    a staging database once 12d creates one.
+88. **Cash basis P&L by period:** accrual P&L columns are read in one query; cash basis still
+    runs one query per column, which a 36-month cash basis P&L will feel (about 3–4 s at
+    100,000 transactions). Worth doing before launch, or after the first customers use it?

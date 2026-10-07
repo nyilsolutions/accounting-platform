@@ -5,6 +5,8 @@ const bool = z.enum(['true', 'false']).transform((v) => v === 'true');
 const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   DATABASE_URL: z.string().min(1),
+  /** Database connections per API or worker process (ADR 0028). */
+  DB_POOL_SIZE: z.coerce.number().int().min(1).max(100).default(10),
   FIELD_ENCRYPTION_KEY: z.string().min(1),
   API_PORT: z.coerce.number().int().default(4000),
   WEB_ORIGIN: z.url().default('http://localhost:3000'),
