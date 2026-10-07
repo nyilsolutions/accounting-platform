@@ -56,6 +56,7 @@ export const keys = {
   members: (id: string) => ['company', id, 'members'] as const,
   invitations: (id: string) => ['company', id, 'invitations'] as const,
   audit: (id: string, filters: object) => ['company', id, 'audit', filters] as const,
+  dataExports: (id: string) => ['company', id, 'data-exports'] as const,
   accounts: (id: string, inactive = false) => ['company', id, 'accounts', inactive] as const,
   ledgerSettings: (id: string) => ['company', id, 'ledger-settings'] as const,
   journal: (id: string) => ['company', id, 'journal'] as const,

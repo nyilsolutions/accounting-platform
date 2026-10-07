@@ -17,3 +17,4 @@ export const employeeAccountAad = (bankAccountId: string) =>
   `employee_bank_account:${bankAccountId}:account_number`;
 export const changeRequestAad = (id: string) => `employee_change_request:${id}:bank_accounts`;
 export const enrollmentAad = (id: string) => `eftps_enrollment:${id}:account_number`;
+export const dataExportAad = (exportId: string) => `data_export:${exportId}`;

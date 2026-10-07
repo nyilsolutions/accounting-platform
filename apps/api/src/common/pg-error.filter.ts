@@ -4,6 +4,7 @@ import { DatabaseError } from 'pg';
 
 /** User-facing messages for unique constraints, keyed by index name. */
 const UNIQUE_MESSAGES: Record<string, string> = {
+  data_exports_open_key: 'An export is already being prepared. Wait for it to finish.',
   pay_runs_regular_period_key: 'This pay period already has a regular pay run',
   paychecks_pay_run_id_employee_id_key: 'This employee is already in the pay run',
   ach_batches_pay_run_key: 'A direct deposit file was already created for this pay run',

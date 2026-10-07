@@ -1513,6 +1513,21 @@ export interface EfileSubmissionsTable {
   acknowledged_at: Date | null;
 }
 
+export interface DataExportsTable {
+  id: Generated<string>;
+  company_id: string;
+  requested_by: string;
+  include_sensitive: Generated<boolean>;
+  status: Generated<string>;
+  storage_key: string | null;
+  key_enc: string | null;
+  size_bytes: ColumnType<string | null, number | string | null, number | string | null>;
+  error: string | null;
+  created_at: Generated<Date>;
+  finished_at: Date | null;
+  expires_at: Date | null;
+}
+
 export interface FieldKeysTable {
   version: number;
   provider: 'aws-kms' | 'local-wrap';
@@ -1524,6 +1539,7 @@ export interface FieldKeysTable {
 
 export interface Database {
   field_keys: FieldKeysTable;
+  data_exports: DataExportsTable;
   users: UsersTable;
   mfa_recovery_codes: MfaRecoveryCodesTable;
   sessions: SessionsTable;

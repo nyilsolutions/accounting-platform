@@ -1,9 +1,11 @@
 import { generateTotp } from '@acct/crypto';
 import { expect, test } from '@playwright/test';
 import { createDb, sql } from '@acct/db';
-import { PASSWORD, registerWithMfa, shot, uniqueEmail } from './helpers';
+import { readdirSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { OUTBOX_DIR, PASSWORD, registerWithMfa, shot, uniqueEmail } from './helpers';
 
-/** Phase 12c: the Security page, the step-up prompt and the strength meter (ADR 0029). */
+/** Phase 12c: the Security page, step-up, the strength meter, the CSP and data export (ADR 0029). */
 const E2E_DB = process.env.E2E_DATABASE_NAME ?? 'acct_e2e';
 
 /** Makes the user's last MFA code older than the step-up window, as time passing would. */
@@ -77,4 +79,39 @@ test('pages carry a nonce CSP and run without violations', async ({ page }) => {
   await page.goto('/settings/security');
   await expect(page.getByRole('heading', { name: 'Security' })).toBeVisible();
   expect(violations).toEqual([]);
+});
+
+test('the owner exports all company data and is emailed when it is ready', async ({ page }) => {
+  await page.goto('/register');
+  const email = uniqueEmail('phase12c-export');
+  await registerWithMfa(page, 'Erin Export', email);
+  await page.getByLabel('Legal business name').fill('Export Example LLC');
+  await page.getByLabel('Employer Identification Number (EIN)').fill('98-7654321');
+  await page.getByLabel('Income tax form').selectOption('form_1065');
+  await page.getByRole('button', { name: 'Create company' }).click();
+  await expect(page.getByRole('heading', { name: 'Export Example LLC' })).toBeVisible();
+  const companyId = /\/c\/([0-9a-f-]{36})/.exec(page.url())![1]!;
+
+  await page.goto(`/c/${companyId}/settings/data-export`);
+  await expect(page.getByRole('heading', { name: 'Export all data' })).toBeVisible();
+  await expect(page.getByText('No exports yet.')).toBeVisible();
+  await page.getByRole('button', { name: 'Export all data' }).click();
+  const exports = page.getByTestId('data-exports');
+  await expect(exports.getByText('Ready')).toBeVisible({ timeout: 30_000 });
+  await expect(exports).toContainText('Sensitive numbers masked');
+  await shot(page, '128-data-export');
+
+  const download = page.waitForEvent('download');
+  await exports.getByRole('button', { name: 'Download' }).click();
+  expect((await download).suggestedFilename()).toMatch(/^company-export-\d{4}-\d{2}-\d{2}\.zip$/);
+
+  // The email links to this page (where downloading needs signing in), not to the file.
+  const mail = readdirSync(OUTBOX_DIR)
+    .sort()
+    .reverse()
+    .map(
+      (f) => JSON.parse(readFileSync(join(OUTBOX_DIR, f), 'utf8')) as { to: string; text: string },
+    )
+    .find((m) => m.to === email && m.text.includes('data-export'));
+  expect(mail?.text).toContain(`/c/${companyId}/settings/data-export`);
 });

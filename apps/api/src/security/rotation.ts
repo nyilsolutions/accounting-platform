@@ -4,6 +4,7 @@ import { isExampleFieldKey } from '../config';
 import {
   bankConnectionAad,
   changeRequestAad,
+  dataExportAad,
   documentVersionAad,
   einAad,
   employeeAccountAad,
@@ -49,6 +50,7 @@ export const ENCRYPTED_COLUMNS: EncryptedColumn[] = [
   { table: 'employee_bank_accounts', column: 'account_enc', aad: employeeAccountAad },
   { table: 'employee_change_requests', column: 'secret_enc', aad: changeRequestAad },
   { table: 'eftps_enrollments', column: 'account_enc', aad: enrollmentAad },
+  { table: 'data_exports', column: 'key_enc', aad: dataExportAad },
 ];
 
 /** All versions in `field_keys`, unwrapped, with the newest current. */

@@ -77,6 +77,6 @@ export function createReceiptExtractor(config: AppConfig): ReceiptExtractor | nu
     ReceiptsService,
     InboundEmailService,
   ],
-  exports: [DocumentsService],
+  exports: [DocumentsService, OBJECT_STORE],
 })
 export class DocumentsModule {}

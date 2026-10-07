@@ -17,6 +17,10 @@ export interface JobPayloads {
   'payroll.partners': Record<string, never>;
   /** Email the memorized reports whose schedule is due. */
   'reports.scheduled': Record<string, never>;
+  /** Build a company's data export (ADR 0029). */
+  'company.export': { companyId: string; exportId: string };
+  /** Delete data exports past their 7 days. */
+  'company.export.expire': Record<string, never>;
   /** Delete sessions, one-time links and invitations 30 days after they ended (ADR 0029). */
   'security.cleanup': Record<string, never>;
   /** Tell a user about a change to their sign-in (ADR 0029). */
@@ -75,6 +79,14 @@ export const JOBS: Record<JobName, JobDefinition> = {
     cron: '* * * * *',
     retryLimit: 0,
     expireInSeconds: 300,
+    concurrency: 1,
+    policy: 'standard',
+  },
+  'company.export': { retryLimit: 0, expireInSeconds: 3600, concurrency: 1, policy: 'standard' },
+  'company.export.expire': {
+    cron: '47 3 * * *',
+    retryLimit: 0,
+    expireInSeconds: 600,
     concurrency: 1,
     policy: 'standard',
   },
