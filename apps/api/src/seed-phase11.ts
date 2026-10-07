@@ -61,7 +61,7 @@ export async function seedPhase11a(
   const before = back();
 
   const app = await NestFactory.createApplicationContext(
-    AppModule.forRoot({ ...config, REPORT_SCHEDULER: 'off', EFILE_ACK_POLLER: 'off' }),
+    AppModule.forRoot({ ...config, JOB_WORKER: 'off' }),
     { logger: ['error'] },
   );
   try {
@@ -139,9 +139,7 @@ export async function seedPhase11b(
   const app = await NestFactory.createApplicationContext(
     AppModule.forRoot({
       ...config,
-      REPORT_SCHEDULER: 'off',
-      EFILE_ACK_POLLER: 'off',
-      PAYROLL_PARTNER_POLLER: 'off',
+      JOB_WORKER: 'off',
     }),
     { logger: ['error'] },
   );
@@ -232,9 +230,7 @@ export async function seedPhase11c(
   const app = await NestFactory.createApplicationContext(
     AppModule.forRoot({
       ...config,
-      REPORT_SCHEDULER: 'off',
-      EFILE_ACK_POLLER: 'off',
-      PAYROLL_PARTNER_POLLER: 'off',
+      JOB_WORKER: 'off',
     }),
     { logger: ['error'] },
   );

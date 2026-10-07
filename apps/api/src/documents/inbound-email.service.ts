@@ -124,7 +124,7 @@ export class InboundEmailService {
           meta,
         );
         stored++;
-        this.receipts.readInBackground(null, companyId, doc.id, meta);
+        this.receipts.readInBackground(null, companyId, doc.id);
       } catch (e) {
         // Unaccepted file types and infected files are skipped; the rest of the message is kept.
         if (!(e instanceof HttpException)) throw e;

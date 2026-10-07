@@ -109,12 +109,22 @@ const envSchema = z.object({
    * NODE_ENV=test only). A licensed engine is added here once one is contracted.
    */
   PAYROLL_TAX_ENGINE: z.enum(['none', 'test-fixture']).default('none'),
-  /** Asks EFTPS and the payments partner for updates every 15 minutes. 'off' in tests. */
-  PAYROLL_PARTNER_POLLER: z.enum(['on', 'off']).default('on'),
-  /** Asks the transmitter for acknowledgements every 15 minutes. 'off' in tests. */
-  EFILE_ACK_POLLER: z.enum(['on', 'off']).default('on'),
-  /** Emails scheduled reports (checks for due schedules every minute). 'off' in tests. */
-  REPORT_SCHEDULER: z.enum(['on', 'off']).default('on'),
+  /**
+   * Logs (ADR 0027): 'json' (one object per line, the default in production) or 'pretty'
+   * (development). Both are redacted.
+   */
+  LOG_FORMAT: z.enum(['json', 'pretty']).optional(),
+  LOG_LEVEL: z.enum(['debug', 'log', 'warn', 'error']).default('log'),
+  /**
+   * Background jobs (ADR 0027): 'pg-boss' (a queue in Postgres; run `pnpm db:migrate` to install
+   * it) or 'inline' (jobs run in this process as soon as they are sent; tests only).
+   */
+  JOB_QUEUE: z.enum(['pg-boss', 'inline']).default('pg-boss'),
+  /**
+   * Whether this process runs queued and scheduled jobs. 'on' suits one-process development;
+   * in production the API runs with 'off' and the `worker` process runs them.
+   */
+  JOB_WORKER: z.enum(['on', 'off']).default('on'),
 });
 
 export type AppConfig = z.infer<typeof envSchema>;
@@ -128,6 +138,10 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     throw new Error(`Invalid configuration: ${issues}`);
   }
   const config = parsed.data;
+  if (config.JOB_QUEUE === 'inline' && config.NODE_ENV !== 'test') {
+    // Inline jobs are lost if the process stops: only for tests.
+    throw new Error("JOB_QUEUE 'inline' is only for tests (NODE_ENV=test)");
+  }
   if (config.PAYROLL_TAX_ENGINE === 'test-fixture' && config.NODE_ENV !== 'test') {
     // Its figures aren't tax law: they must never reach a real paycheck.
     throw new Error("PAYROLL_TAX_ENGINE 'test-fixture' is only for tests (NODE_ENV=test)");

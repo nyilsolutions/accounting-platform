@@ -6,6 +6,7 @@ import {
   Injectable,
   Logger,
   NotFoundException,
+  type OnModuleInit,
 } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import type { FieldEncryptor } from '@acct/crypto';
@@ -25,6 +26,7 @@ import { AuditService } from '../audit/audit.service';
 import type { AuthContext, CompanyContext, RequestMeta } from '../common/request';
 import { APP_CONFIG, type AppConfig } from '../config';
 import { DB, FIELD_ENCRYPTOR } from '../db/db.module';
+import { JobQueue } from '../jobs/job-queue.service';
 import { loadAccount } from './banking-common';
 import { BankFeedService } from './bank-feed.service';
 import {
@@ -62,7 +64,7 @@ interface ConnectionRow {
  * logged or audited.
  */
 @Injectable()
-export class ConnectionsService {
+export class ConnectionsService implements OnModuleInit {
   private readonly logger = new Logger(ConnectionsService.name);
 
   constructor(
@@ -72,7 +74,48 @@ export class ConnectionsService {
     @Inject(BANK_DATA_PROVIDER) private readonly provider: BankDataProvider | null,
     private readonly audit: AuditService,
     private readonly feed: BankFeedService,
+    private readonly jobs: JobQueue,
   ) {}
+
+  /** The nightly 'banking.sync' job (ADR 0027). */
+  onModuleInit(): void {
+    this.jobs.register('banking.sync', (_d, job) =>
+      this.syncDue({ ip: null, userAgent: 'job:banking.sync', requestId: job.jobId }),
+    );
+  }
+
+  /**
+   * Downloads every active connection not downloaded in the last 20 hours, each as the person
+   * who connected it (as webhooks do). A failing bank is marked on its connection (sign in
+   * again) and doesn't stop the others. Returns how many were downloaded.
+   */
+  async syncDue(meta: RequestMeta, now = new Date()): Promise<number> {
+    if (!this.provider) return 0;
+    const before = new Date(now.getTime() - 20 * 3600_000);
+    const { rows } = await sql<{ company_id: string; connection_id: string }>`
+      select * from app_bank_connections_due(${before})`.execute(this.db);
+    let synced = 0;
+    for (const r of rows) {
+      const conn = await withTenant(this.db, { userId: null, companyId: r.company_id }, (tx) =>
+        tx
+          .selectFrom('bank_feed_connections')
+          .select(['id', 'created_by', 'provider'])
+          .where('id', '=', r.connection_id)
+          .where('status', '=', 'active')
+          .executeTakeFirst(),
+      );
+      if (!conn?.created_by || conn.provider !== this.provider.name) continue;
+      try {
+        await this.sync(conn.created_by, r.company_id, conn.id, meta);
+        synced++;
+      } catch (e) {
+        this.logger.warn(
+          `Nightly download for connection ${conn.id} failed: ${(e as Error).message}`,
+        );
+      }
+    }
+    return synced;
+  }
 
   feedConfig(): BankFeedConfigDto {
     return { provider: this.provider ? this.config.BANK_FEED_PROVIDER : 'none' };

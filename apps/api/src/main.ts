@@ -1,3 +1,4 @@
+import './observability/start-api-tracing';
 import 'reflect-metadata';
 import { Logger } from '@nestjs/common';
 import { createApp } from './app.factory';

@@ -4,8 +4,7 @@ import {
   Injectable,
   Logger,
   NotFoundException,
-  type BeforeApplicationShutdown,
-  type OnApplicationBootstrap,
+  type OnModuleInit,
 } from '@nestjs/common';
 import type { FieldEncryptor } from '@acct/crypto';
 import { sql, withTenant, type Db, type Tx } from '@acct/db';
@@ -25,6 +24,7 @@ import { AuditService } from '../audit/audit.service';
 import type { AuthContext, CompanyContext, RequestMeta } from '../common/request';
 import { APP_CONFIG, type AppConfig } from '../config';
 import { DB, FIELD_ENCRYPTOR } from '../db/db.module';
+import { JobQueue } from '../jobs/job-queue.service';
 import { MAILER, type Mailer } from '../mail/mailer';
 import { filedRow, filingLabel } from '../payroll/tax-filings';
 import { TaxFormsService } from '../payroll/tax-forms.service';
@@ -69,8 +69,6 @@ type SubmissionRow = {
 
 /** How long a submission may sit in 'sending' before someone can say it never went. */
 const SENDING_STALE_MS = 10 * 60_000;
-/** How often the poller asks the transmitter for acknowledgements. */
-const POLL_MS = 15 * 60_000;
 /** Acknowledgements are recorded by the platform, not a person. */
 const SYSTEM: RequestMeta = { ip: null, userAgent: 'efile-acknowledgements', requestId: null };
 
@@ -82,10 +80,8 @@ const SYSTEM: RequestMeta = { ip: null, userAgent: 'efile-acknowledgements', req
  * errors to fix before sending it again.
  */
 @Injectable()
-export class EfileService implements OnApplicationBootstrap, BeforeApplicationShutdown {
+export class EfileService implements OnModuleInit {
   private readonly logger = new Logger('Efile');
-  private timer: NodeJS.Timeout | null = null;
-  private running: Promise<unknown> | null = null;
 
   constructor(
     @Inject(DB) private readonly db: Db,
@@ -95,22 +91,12 @@ export class EfileService implements OnApplicationBootstrap, BeforeApplicationSh
     @Inject(MAILER) private readonly mailer: Mailer,
     private readonly forms: TaxFormsService,
     private readonly audit: AuditService,
+    private readonly jobs: JobQueue,
   ) {}
 
-  onApplicationBootstrap(): void {
-    if (!this.transmitter || this.config.EFILE_ACK_POLLER !== 'on') return;
-    this.timer = setInterval(() => {
-      if (this.running) return;
-      this.running = this.pollAll()
-        .catch((e) => this.logger.error(`Acknowledgement poll failed: ${String(e)}`))
-        .finally(() => (this.running = null));
-    }, POLL_MS);
-    this.timer.unref();
-  }
-
-  async beforeApplicationShutdown(): Promise<void> {
-    if (this.timer) clearInterval(this.timer);
-    await this.running;
+  /** Acknowledgements are collected by the 'efile.acks' job every 15 minutes (ADR 0027). */
+  onModuleInit(): void {
+    this.jobs.register('efile.acks', async () => (this.transmitter ? this.pollAll() : 0));
   }
 
   private tenant<T>(auth: AuthContext, ctx: CompanyContext, fn: (tx: Tx) => Promise<T>) {

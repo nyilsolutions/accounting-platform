@@ -14,7 +14,7 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "db:setup": "pnpm --filter @acct/db run setup",
-    "db:migrate": "pnpm --filter @acct/db run migrate",
+    "db:migrate": "pnpm --filter @acct/db run migrate && pnpm --filter @acct/api run jobs:install",
     "db:seed": "pnpm --filter @acct/api run seed",
     "e2e": "pnpm --filter @acct/web run e2e"
   },

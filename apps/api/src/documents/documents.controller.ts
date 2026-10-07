@@ -88,7 +88,7 @@ export class DocumentsController {
         await this.receipts.read(a.userId, c.companyId, doc.id, meta);
         return this.documents.get(a, c, doc.id);
       }
-      this.receipts.readInBackground(a.userId, c.companyId, doc.id, meta);
+      this.receipts.readInBackground(a.userId, c.companyId, doc.id);
     }
     return doc;
   }

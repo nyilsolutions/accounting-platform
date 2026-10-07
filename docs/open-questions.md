@@ -469,3 +469,17 @@ Add new questions here instead of guessing.
 83. **Engine taxes in prior payroll:** pay from before payroll started here can include state
     income and unemployment tax in any state, but not local or other state taxes yet. Their wage
     bases count only the engine's own paychecks until then.
+
+## Hardening and launch (Phase 12)
+
+84. **Where logs and traces go:** production logs are JSON lines on stdout, and traces go over
+    OTLP when `OTEL_EXPORTER_OTLP_ENDPOINT` is set (ADR 0027). On AWS, CloudWatch Logs plus the
+    AWS Distro for OpenTelemetry collector to X-Ray is the default for 12d. Is another backend
+    preferred (Grafana Cloud, Honeycomb, Datadog)? How long should logs be kept?
+85. **QuickBooks imports in the background:** imports and QuickBooks Online pulls still run in
+    the API process. If it restarts mid-import, the migration shows as stopped and is run again
+    (reruns update rather than duplicate). Moving them to the queue means not storing the
+    closing password in a job, for example by asking for it again or authorizing the import
+    beforehand. Is the current behavior acceptable for launch?
+86. **Re-scanning stored files:** files are scanned when uploaded. Should a weekly job re-scan
+    recent files with updated virus signatures, and how far back (say 90 days)?

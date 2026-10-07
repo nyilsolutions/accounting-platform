@@ -91,7 +91,7 @@ The owner decided (2026-10-07):
 ### Updates
 
 - **How they arrive:**
-  - a poller asks both providers every 15 minutes (`PAYROLL_PARTNER_POLLER`);
+  - a poller asks both providers every 15 minutes (the `payroll.partners` job since ADR 0027);
   - **Check now** asks for one company;
   - the stand-ins' answers apply at once.
 - **Lookups:** pending enrollments, scheduled payments and submitted batches are found across

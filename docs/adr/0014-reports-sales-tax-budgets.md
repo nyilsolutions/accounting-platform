@@ -143,7 +143,8 @@ Phase 7 of the master plan completes the reports and adds three features that fe
     zone, as PDF, Excel or CSV, to at most 20 addresses.
   - The next run is computed in the time zone, across daylight-saving changes.
 - **The scheduler:**
-  - It runs in the API process every minute (`REPORT_SCHEDULER`).
+  - It runs in the API process every minute (`REPORT_SCHEDULER`). Since Phase 12a it is the
+    `reports.scheduled` job (ADR 0027).
   - It claims due schedules across companies through a `security definer` function that takes
     a 10-minute lease and returns only the report, company and creator.
   - Each report then runs inside `withTenant` as its creator, and only while they still have
