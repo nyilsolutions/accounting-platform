@@ -581,6 +581,60 @@ describe('QuickBooks Desktop agent', () => {
   });
 });
 
+describe('Desktop agent keys and membership', () => {
+  it('stop working when the person who made them is removed or loses migration access', async () => {
+    const companyId = await newCompany(owner, 'Keys Garden LLC');
+    const migrationId = (
+      await owner.agent
+        .post(`/companies/${companyId}/migrations`)
+        .send({ source: 'desktop' })
+        .expect(201)
+    ).body.id as string;
+    await owner.agent
+      .post(`/companies/${companyId}/invitations`)
+      .send({ email: 'keys-acct@example.com', role: 'accountant' })
+      .expect(201);
+    const acct = await signUp(ctx.app, 'keys-acct@example.com');
+    await acct.agent
+      .post(`/invitations/${inviteTokenFrom(ctx.mailer, 'keys-acct@example.com')}/accept`)
+      .expect(200);
+    const makeKey = async () =>
+      (
+        await acct.agent
+          .post(`/companies/${companyId}/migrations/${migrationId}/agent-key`)
+          .expect(201)
+      ).body.key as string;
+    const session = (key: string) =>
+      request(ctx.app.getHttpServer())
+        .get('/agent/v1/session')
+        .set('authorization', `Bearer ${key}`);
+    const members = async () =>
+      (await owner.agent.get(`/companies/${companyId}/members`).expect(200)).body as Array<{
+        id: string;
+        email: string;
+      }>;
+
+    const key = await makeKey();
+    await session(key).expect(200);
+    const membership = (await members()).find((m) => m.email === 'keys-acct@example.com')!;
+    // A role without migration access: the key stops at once.
+    await owner.agent
+      .patch(`/companies/${companyId}/members/${membership.id}`)
+      .send({ role: 'reports_only' })
+      .expect(200);
+    await session(key).expect(401);
+    await owner.agent
+      .patch(`/companies/${companyId}/members/${membership.id}`)
+      .send({ role: 'accountant' })
+      .expect(200);
+    const second = await makeKey();
+    await session(second).expect(200);
+    // Removed from the company: the same.
+    await owner.agent.delete(`/companies/${companyId}/members/${membership.id}`).expect(204);
+    await session(second).expect(401);
+  });
+});
+
 describe('CSV import', () => {
   let companyId: string;
   let migrationId: string;

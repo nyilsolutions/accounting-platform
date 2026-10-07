@@ -20,7 +20,9 @@ import {
   agentBatchSchema,
   agentFinishSchema,
   agentReportSchema,
+  roleHasPermission,
   type AgentSessionDto,
+  type Role,
 } from '@acct/shared';
 import { Meta, Public } from '../common/decorators';
 import type { AppRequest, RequestMeta } from '../common/request';
@@ -46,10 +48,17 @@ export class AgentKeyGuard implements CanActivate {
     if (!m) throw new UnauthorizedException('A pairing key is required.');
     const hash = createHash('sha256').update(m[1]!).digest('hex');
     const row = (
-      await sql<{ key_id: string; company_id: string; migration_id: string; user_id: string }>`
-        select * from app_migration_agent_key(${hash})`.execute(this.db)
+      await sql<{
+        key_id: string;
+        company_id: string;
+        migration_id: string;
+        user_id: string;
+        role: Role | null;
+      }>`select * from app_migration_agent_key(${hash})`.execute(this.db)
     ).rows[0];
-    if (!row)
+    // The key acts as the person who made it, so it works only while they may still manage
+    // migrations in this company (ASVS 4.1.3).
+    if (!row || !row.role || !roleHasPermission(row.role, 'migration.manage'))
       throw new UnauthorizedException(
         'This pairing key is not valid. Create a new one in the app.',
       );

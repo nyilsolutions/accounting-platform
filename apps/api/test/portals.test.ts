@@ -1,4 +1,4 @@
-import { createDb, type Db } from '@acct/db';
+import { createDb, sql, type Db } from '@acct/db';
 import type {
   AccountDto,
   ChangeRequestDto,
@@ -579,14 +579,100 @@ describe("a customer's portal", () => {
     await owner.agent.get('/portal/customer/me').expect(401);
   });
 
-  it('lets the business email a customer an invitation', async () => {
+  it('lets the business invite a customer; the invitation carries no credential', async () => {
     await clerk.agent.post(c(`/customers/${diner}/portal-invite`)).expect(status(200));
+    const invite = lastMail('owner@diner.test')!.text;
+    expect(invite).toContain('/portal/customer?email=owner%40diner.test');
+    expect(tokenIn(invite, '/portal/customer/sign-in')).toBeFalsy();
+    // The customer asks for a link from the page the invitation opens.
+    await agent(ctx.app)
+      .post('/portal/customer/sign-in')
+      .send({ email: 'owner@diner.test' })
+      .expect(200);
     const token = tokenIn(lastMail('owner@diner.test')!.text, '/portal/customer/sign-in')!;
+    expect(lastMail('owner@diner.test')!.text).toContain('10 minutes');
     const browser = customerAgent();
     const me = (await browser.post('/portal/customer/session').send({ token }).expect(status(200)))
       .body as CustomerPortalMeDto;
     expect(me).toMatchObject({ customerName: 'Harbor Diner', balance: '90.00' });
     await browser.get(`/portal/customer/invoices/${cafeInvoice}`).expect(404);
+  });
+
+  it('sends at most one link a minute to a customer', async () => {
+    const sentBefore = ctx.mailer.sent.length;
+    await agent(ctx.app)
+      .post('/portal/customer/sign-in')
+      .send({ email: 'owner@diner.test' })
+      .expect(200);
+    expect(ctx.mailer.sent.length).toBe(sentBefore);
+  });
+
+  it("ends links and sessions when the customer's email changes or they are made inactive", async () => {
+    // Allow a new link now (the test runs inside the one-minute window).
+    await sql`update customer_portal_tokens set created_at = now() - interval '2 minutes'`.execute(
+      admin,
+    );
+    await agent(ctx.app)
+      .post('/portal/customer/sign-in')
+      .send({ email: 'owner@diner.test' })
+      .expect(200);
+    const unused = tokenIn(lastMail('owner@diner.test')!.text, '/portal/customer/sign-in')!;
+    await sql`update customer_portal_tokens set created_at = now() - interval '2 minutes'`.execute(
+      admin,
+    );
+    await agent(ctx.app)
+      .post('/portal/customer/sign-in')
+      .send({ email: 'owner@diner.test' })
+      .expect(200);
+    const browser = customerAgent();
+    await browser
+      .post('/portal/customer/session')
+      .send({ token: tokenIn(lastMail('owner@diner.test')!.text, '/portal/customer/sign-in')! })
+      .expect(status(200));
+    await browser.get('/portal/customer/me').expect(status(200));
+
+    await owner.agent
+      .patch(c(`/customers/${diner}`))
+      .send({ email: 'billing@diner.test' })
+      .expect(status(200));
+    await browser.get('/portal/customer/me').expect(401);
+    await customerAgent().post('/portal/customer/session').send({ token: unused }).expect(401);
+
+    // An inactive customer can't sign in at all.
+    await sql`update customer_portal_tokens set created_at = now() - interval '2 minutes'`.execute(
+      admin,
+    );
+    await agent(ctx.app)
+      .post('/portal/customer/sign-in')
+      .send({ email: 'billing@diner.test' })
+      .expect(200);
+    const fresh = tokenIn(lastMail('billing@diner.test')!.text, '/portal/customer/sign-in')!;
+    await owner.agent
+      .patch(c(`/customers/${diner}`))
+      .send({ isActive: false })
+      .expect(status(200));
+    await customerAgent().post('/portal/customer/session').send({ token: fresh }).expect(401);
+    await clerk.agent.post(c(`/customers/${diner}/portal-invite`)).expect(409);
+  });
+});
+
+describe('worker portal links by kind', () => {
+  it('shows contractor links to purchases users and employee links only with payroll access', async () => {
+    const all = (await owner.agent.get(c('/portal/links')).expect(status(200)))
+      .body as PortalLinkDto[];
+    expect(new Set(all.map((l) => l.kind))).toEqual(new Set(['employee', 'contractor']));
+    await owner.agent
+      .post(c('/invitations'))
+      .send({ email: 'buyer@example.com', role: 'purchases' })
+      .expect(status(201));
+    const buyer = await signUp(ctx.app, 'buyer@example.com', 'Bo Buyer');
+    await buyer.agent
+      .post(`/invitations/${inviteTokenFrom(ctx.mailer, 'buyer@example.com')}/accept`)
+      .expect(status(200));
+    const seen = (await buyer.agent.get(c('/portal/links')).expect(status(200)))
+      .body as PortalLinkDto[];
+    expect(seen.length).toBeGreaterThan(0);
+    expect(seen.every((l) => l.kind === 'contractor')).toBe(true);
   });
 });
 
