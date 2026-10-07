@@ -140,14 +140,20 @@ failed it.
 
 ```bash
 pnpm --filter @acct/api build
-pnpm --filter @acct/api perf                                        # 2% scale, about 2 minutes
+pnpm --filter @acct/api perf                                        # 2% scale, under 2 minutes
 PERF_SCALE=full pnpm --filter @acct/api perf                        # full scale, about 25 minutes
 PERF_SCALE=full PERF_DB_NAME=acct_perf pnpm --filter @acct/api perf # keep the data, reuse it next time
 ```
 
 ### Tests
 
-TESTS_TABLE
+| Suite                   | Count | Highlights                                                                                                                                                                                                                                                                                                                       |
+| ----------------------- | ----- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `packages/db`           | 119   | No change                                                                                                                                                                                                                                                                                                                        |
+| `packages/shared`       | 158   | No change                                                                                                                                                                                                                                                                                                                        |
+| `apps/api`              | 627   | +4. **Register pages** match the full register (entries, running balances, totals, offsets past the end, date ranges). **Shutdown** counts a request until its handler answers, even after the client has gone. **Cash basis:** by-month P&L columns equal each month run alone, in the known-figures test and the property test |
+| `apps/api` perf         | 26    | New. 22 pages and posting against their budgets, 50 users, capacity, shutdown. 2% scale on every pull request (72 s); full scale nightly                                                                                                                                                                                         |
+| `apps/web` (Playwright) | 21    | No change                                                                                                                                                                                                                                                                                                                        |
 
 ### Not in this part
 
