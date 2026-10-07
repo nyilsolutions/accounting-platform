@@ -80,6 +80,7 @@ export default function SalesLayout({ children }: { children: ReactNode }) {
             { href: `${base}/estimates`, label: 'Estimates' },
             { href: `${base}/customers`, label: 'Customers' },
             { href: `${base}/products`, label: 'Products and services' },
+            { href: `${base}/online-payments`, label: 'Online payments' },
           ]}
         />
       </div>

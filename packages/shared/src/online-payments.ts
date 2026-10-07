@@ -80,6 +80,8 @@ export interface OnlinePaymentDto {
   disputeStatus: 'open' | 'won' | 'lost' | null;
   failureMessage: string | null;
   paymentTxnId: string | null;
+  /** The processor's id for the payment (Stripe PaymentIntent), to find it in its dashboard. */
+  paymentIntentId: string | null;
   createdAt: string;
   succeededAt: string | null;
 }

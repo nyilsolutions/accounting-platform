@@ -485,6 +485,7 @@ export class OnlinePaymentsService {
         'o.dispute_status',
         'o.failure_message',
         'o.payment_txn_id',
+        'o.payment_intent_id',
         'o.created_at',
         'o.succeeded_at',
       ])
@@ -507,6 +508,7 @@ export class OnlinePaymentsService {
       disputeStatus: r.dispute_status,
       failureMessage: r.failure_message,
       paymentTxnId: r.payment_txn_id,
+      paymentIntentId: r.payment_intent_id,
       createdAt: r.created_at.toISOString(),
       succeededAt: r.succeeded_at?.toISOString() ?? null,
     }));

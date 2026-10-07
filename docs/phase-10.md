@@ -8,7 +8,7 @@ Phase 10 comes in six parts, each its own pull request, in this order (decided 2
 | 10b  | Time tracking and progress invoicing          | This PR |
 | 10c  | Multi-currency                                | This PR |
 | 10d  | Accountant tools                              | This PR |
-| 10e  | Card and bank payments through Stripe Connect | Planned |
+| 10e  | Card and bank payments through Stripe Connect | This PR |
 | 10f  | Customer, employee and contractor portals     | Planned |
 
 The owner's decisions for the later parts:
@@ -302,3 +302,80 @@ Screenshots: `docs/screenshots/110-fix-undeposited.png`, `111-reclassify.png`,
 ### Not in this part
 
 - A list of every client's checklist and changes for accountants with many clients.
+
+## 10e: Online invoice payments through Stripe Connect (ADR 0022)
+
+The owner's decisions (2026-10-07):
+
+- Standard accounts, each business with its own Stripe account.
+- The business pays the fees.
+- QuickBooks-style recording.
+- No platform fee.
+- Refunds go to Refunds and Allowances and chargebacks to Chargebacks.
+
+The platform's Stripe account and keys aren't set up yet, so a **stand-in** plays Stripe in
+development and the demo (question 66).
+
+### Delivered
+
+- **Company settings › Online payments:**
+  - connect Stripe: choose the bank account payouts go to, then Stripe's onboarding;
+  - the account's status, and what Stripe still needs;
+  - card and/or bank transfer (ACH);
+  - the accounts for payouts, fees (Merchant Fees), refunds (Refunds and Allowances) and
+    chargebacks (Chargebacks), created when first needed;
+  - disconnect.
+- **Pay links:**
+  - emailed invoices with a balance include a link to pay online;
+  - **Get payment link** on the invoice gives one to copy;
+  - the invoice shows its online payments.
+- **The pay page** (no sign-in):
+  - the invoice, its balance and a button per way to pay;
+  - Stripe Checkout for the whole balance, on the business's own account;
+  - bank payments show as on their way until they clear.
+- **Recording:**
+  - a successful payment becomes a Receive Payment into Undeposited Funds, applied to the
+    invoice;
+  - each Stripe payout becomes one bank deposit: its payments, less refunds, chargebacks and
+    one line for Stripe's fees, equal to what reached the bank.
+- **Sales › Online payments:**
+  - payments with their status, refunds and disputes;
+  - payouts with what they carried and their deposit;
+  - payouts that couldn't be matched wait for review (**Try again** or **Mark recorded**);
+  - payments the books refused (a closed period) can be recorded later.
+- **Deposits** can now have negative lines (fees, refunds, cash back) if the total stays
+  positive.
+- **Stripe itself** is called over its REST API with signed Connect webhooks. It is tested
+  against a fake Stripe API and goes live with configuration only.
+
+### Demo script
+
+1. In Sample Landscaping Co., open **Company settings › Online payments**: connected to the
+   stand-in, taking card and bank payments.
+2. **Sales › Online payments**:
+   - Oakwood Dental paid ONL-1001 ($480.00) by card;
+   - Hillside HOA paid ONL-1002 ($1,250.00) by bank transfer;
+   - one payout of $1,710.78 was deposited to Checking ($1,730.00 less $19.22 of stand-in fees).
+     Open the deposit to see the fee line.
+3. Open invoice **ONL-1003** (Oakwood Dental, $195.00) and choose **Get payment link**. Open the
+   link in a private window, pay by card on the stand-in's checkout, and the page says it's paid.
+4. Back in **Sales › Online payments**, choose **Refund (stand-in)** on it, then **Pay out now
+   (stand-in)**. The deposit nets the payment, the refund and the fee.
+
+Screenshots: `docs/screenshots/113-online-payments-settings.png`, `114-pay-invoice.png`,
+`115-online-payments.png`.
+
+### Tests
+
+| Suite                   | Count | Highlights                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| ----------------------- | ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `packages/db`           | 103   | +4: everything kept within the company; the lookups without a tenant return only ids; one company per Stripe account; each event once; a succeeded payment needs its Receive Payment; negative deposit lines but never from Undeposited Funds                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `apps/api`              | 540   | +22. **Stripe (fake API, no network):** cents, form encoding, Standard accounts and onboarding, checkout as a direct charge with no platform fee, payments, paged payout items, Stripe's error messages, signed and stale webhooks. **Stand-in:** fees, cards, bank payments, refunds, payouts. **End to end:** connecting (bank account, permissions, onboarding to active), settings, emailed links, card payments into Undeposited Funds, events handled once, bank payments failing then clearing, a payout deposit with fees and a refund, chargebacks, unmatched payouts left for review, a closed period then recording later, foreign-currency invoices refused, disconnecting revokes links, deposits with negative lines, and the Stripe processor through signed webhooks |
+| `apps/web` (Playwright) | 17    | +1: connect the stand-in from Company settings, get an invoice's payment link, pay it by card as the customer, pay out, and the deposit net of the fee                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+
+### Not in this part
+
+- Paying foreign-currency invoices online (question 67).
+- Paying part of an invoice (question 68).
+- Refunds started from the app (question 69).
+- Saved cards and automatic recurring charges.

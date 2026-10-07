@@ -16,6 +16,8 @@ import {
   itemInputSchema,
   paymentInputSchema,
   PERMISSIONS,
+  addDays,
+  todayIso,
   vendorInputSchema,
   purchaseDocumentInputSchema,
   salesDocumentInputSchema,
@@ -36,6 +38,9 @@ import { PurchaseDocumentsService } from './purchases/purchase-documents.service
 import { EstimatesService } from './sales/estimates.service';
 import { SalesDocumentsService } from './sales/sales-documents.service';
 import { TimeService } from './time/time.service';
+import { OnlinePaymentsService } from './online-payments/online-payments.service';
+import { PaymentEventsService } from './online-payments/payment-events.service';
+import { PublicPayService } from './online-payments/public-pay.service';
 
 /**
  * Demo of Phase 10a inventory in Sample Landscaping Co. (FIFO, the default):
@@ -716,6 +721,120 @@ export async function seedPhase10d(
       }),
       meta,
     );
+  } finally {
+    await app.close();
+  }
+}
+
+/**
+ * Demo of Phase 10e online payments in Sample Landscaping Co., through the Stripe stand-in
+ * (never a real Stripe account): the company connected; Oakwood Dental paid a $480 invoice by
+ * card and Hillside HOA $1,250 by bank transfer; one payout deposited both to Checking less
+ * the stand-in's fees; a $195 invoice to Oakwood Dental is still open to pay from its link.
+ */
+export async function seedPhase10e(
+  db: Db,
+  config: AppConfig,
+  userId: string,
+  companyId: string,
+): Promise<void> {
+  if (config.PAYMENTS_PROVIDER !== 'mock') return;
+  const lookup = await withTenant(db, { userId, companyId }, async (tx) => ({
+    done: await tx
+      .selectFrom('payment_accounts')
+      .select('company_id')
+      .where('company_id', '=', companyId)
+      .executeTakeFirst(),
+    checking: await tx
+      .selectFrom('accounts')
+      .select('id')
+      .where('company_id', '=', companyId)
+      .where('name', '=', 'Checking')
+      .executeTakeFirst(),
+    services: await tx
+      .selectFrom('accounts')
+      .select('id')
+      .where('company_id', '=', companyId)
+      .where('name', '=', 'Services')
+      .executeTakeFirst(),
+    customers: await tx
+      .selectFrom('customers')
+      .select(['id', 'display_name'])
+      .where('company_id', '=', companyId)
+      .execute(),
+  }));
+  const hillside = lookup.customers.find((c) => c.display_name === 'Hillside HOA');
+  const oakwood = lookup.customers.find((c) => c.display_name === 'Oakwood Dental');
+  if (lookup.done || !lookup.checking || !lookup.services || !hillside || !oakwood) return;
+
+  const app = await NestFactory.createApplicationContext(
+    AppModule.forRoot({ ...config, REPORT_SCHEDULER: 'off' }),
+    { logger: ['error'] },
+  );
+  try {
+    const auth: AuthContext = {
+      sessionId: 'seed',
+      userId,
+      email: 'demo@example.com',
+      fullName: 'Demo Owner',
+      mfaEnrolled: true,
+      mfaVerified: true,
+    };
+    const ctx: CompanyContext = { companyId, role: 'owner', permissions: PERMISSIONS };
+    const meta: RequestMeta = { ip: null, userAgent: 'seed', requestId: null };
+    const online = app.get(OnlinePaymentsService);
+    const events = app.get(PaymentEventsService);
+    const pay = app.get(PublicPayService);
+    const sales = app.get(SalesDocumentsService);
+    const standIn = (action: object) => events.webhook(Buffer.from(JSON.stringify(action)), {});
+    const today = todayIso();
+
+    await online.connect(auth, ctx, { depositAccountId: lookup.checking.id }, meta);
+    const settings = await online.settings(auth, ctx);
+    const accountId = settings.account!.accountId;
+    await standIn({ action: 'finish_onboarding', accountId });
+
+    const invoice = (customerId: string, number: string, description: string, amount: string) =>
+      sales.save(
+        auth,
+        ctx,
+        'invoice',
+        null,
+        salesDocumentInputSchema.parse({
+          customerId,
+          txnDate: addDays(today, -12),
+          number,
+          lines: [{ accountId: lookup.services!.id, description, amount }],
+        }),
+        meta,
+      );
+    const checkout = async (invoiceId: string) => {
+      const { url } = await online.payLink(auth, ctx, invoiceId, meta);
+      const session = await pay.checkout(url.split('/pay/')[1]!, {}, meta);
+      return new URL(session.url).searchParams.get('session')!;
+    };
+
+    const spring = await invoice(oakwood.id, 'ONL-1001', 'Spring cleanup', '480');
+    await standIn({ action: 'pay', sessionId: await checkout(spring.id), method: 'card' });
+
+    const irrigation = await invoice(hillside.id, 'ONL-1002', 'Irrigation season start-up', '1250');
+    const session = await checkout(irrigation.id);
+    await standIn({ action: 'pay', sessionId: session, method: 'us_bank_account' });
+    const bank = await withTenant(db, { userId, companyId }, (tx) =>
+      tx
+        .selectFrom('online_payments')
+        .select('payment_intent_id')
+        .where('session_id', '=', session)
+        .executeTakeFirstOrThrow(),
+    );
+    await standIn({
+      action: 'bank_result',
+      paymentIntentId: bank.payment_intent_id,
+      succeeded: true,
+    });
+    await standIn({ action: 'payout', accountId, arrivalDate: today });
+
+    await invoice(oakwood.id, 'ONL-1003', 'Shrub trimming', '195');
   } finally {
     await app.close();
   }
