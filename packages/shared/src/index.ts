@@ -27,3 +27,4 @@ export * from './accountant';
 export * from './online-payments';
 export * from './portals';
 export * from './efile';
+export * from './payroll-partners';

@@ -96,6 +96,15 @@ const envSchema = z.object({
    * 'none'. The IRS MeF and IRIS transmitters are added once the platform's ETIN and TCC exist.
    */
   EFILE_TRANSMITTER: z.enum(['stand-in', 'none']).default('stand-in'),
+  /**
+   * EFTPS batch payments (ADR 0025): 'stand-in' (plays EFTPS; development, tests and demos) or
+   * 'none' (companies pay in EFTPS by hand). The real provider comes with the Treasury enrollment.
+   */
+  EFTPS_BATCH_PROVIDER: z.enum(['stand-in', 'none']).default('stand-in'),
+  /** Direct deposit through a payments partner (ADR 0025): 'stand-in' or 'none'. */
+  DEPOSIT_PARTNER: z.enum(['stand-in', 'none']).default('stand-in'),
+  /** Asks EFTPS and the payments partner for updates every 15 minutes. 'off' in tests. */
+  PAYROLL_PARTNER_POLLER: z.enum(['on', 'off']).default('on'),
   /** Asks the transmitter for acknowledgements every 15 minutes. 'off' in tests. */
   EFILE_ACK_POLLER: z.enum(['on', 'off']).default('on'),
   /** Emails scheduled reports (checks for due schedules every minute). 'off' in tests. */
@@ -129,6 +138,11 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     }
     if (config.PAYMENTS_PROVIDER === 'mock') {
       throw new Error("PAYMENTS_PROVIDER must be 'stripe' or 'none' in production");
+    }
+    if (config.EFTPS_BATCH_PROVIDER === 'stand-in' || config.DEPOSIT_PARTNER === 'stand-in') {
+      throw new Error(
+        "EFTPS_BATCH_PROVIDER and DEPOSIT_PARTNER must be 'none' in production until real ones exist",
+      );
     }
     if (config.EFILE_TRANSMITTER === 'stand-in') {
       throw new Error(

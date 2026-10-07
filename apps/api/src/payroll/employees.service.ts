@@ -1,8 +1,9 @@
 import { createHash, randomUUID } from 'node:crypto';
-import { Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import type { FieldEncryptor } from '@acct/crypto';
 import { sql, withTenant, type Db, type Employee, type Tx } from '@acct/db';
 import {
+  ZERO,
   employeeDisplayName,
   employeeStatus,
   isPayrollState,
@@ -38,6 +39,8 @@ import type { AuthContext, CompanyContext, RequestMeta } from '../common/request
 import { DB, FIELD_ENCRYPTOR } from '../db/db.module';
 import { achOrigin } from './ach-origin';
 import { bad, requirePayroll, trimNumber } from './payroll-common';
+import { achBatches } from './ach-batches';
+import { DepositPartnerService } from './partners/deposit-partner.service';
 import { PAYMENT_RAIL, type PaymentRail, type PaymentRailResult } from './payment-rail';
 
 type EmployeeInput = z.output<typeof employeeInputSchema>;
@@ -74,6 +77,7 @@ export class EmployeesService {
     @Inject(DB) private readonly db: Db,
     @Inject(FIELD_ENCRYPTOR) private readonly encryptor: FieldEncryptor,
     @Inject(PAYMENT_RAIL) private readonly rail: PaymentRail,
+    private readonly partner: DepositPartnerService,
     private readonly audit: AuditService,
   ) {}
 
@@ -463,6 +467,9 @@ export class EmployeesService {
           amount: a.amountType === 'remainder' ? null : a.amount!,
           prenote_status,
           prenote_sent_on: prenote_status === 'sent' ? old!.prenote_sent_on : null,
+          // A changed account is a fix for one whose deposit came back (ADR 0025).
+          returned_at: changed ? null : (old?.returned_at ?? null),
+          return_reason: changed ? null : (old?.return_reason ?? null),
           created_by: old?.created_by ?? auth.userId,
           updated_by: auth.userId,
         };
@@ -627,25 +634,7 @@ export class EmployeesService {
 
   // --- Prenotes and ACH batches -------------------------------------------------------------------
   listAchBatches(auth: AuthContext, ctx: CompanyContext): Promise<AchBatchDto[]> {
-    return this.tenant(auth, ctx, async (tx) =>
-      (
-        await tx
-          .selectFrom('ach_batches')
-          .selectAll()
-          .where('company_id', '=', ctx.companyId)
-          .orderBy('created_at', 'desc')
-          .limit(100)
-          .execute()
-      ).map((b) => ({
-        id: b.id,
-        kind: b.kind as AchBatchDto['kind'],
-        effectiveDate: b.effective_date,
-        entryCount: b.entry_count,
-        totalCredit: moneyToString(parseMoney(b.total_credit)),
-        fileSha256: b.file_sha256,
-        createdAt: new Date(b.created_at).toISOString(),
-      })),
-    );
+    return this.tenant(auth, ctx, (tx) => achBatches(tx, ctx.companyId));
   }
 
   /** Accounts of current employees waiting for a prenote. */
@@ -690,6 +679,10 @@ export class EmployeesService {
   > {
     return this.tenant(auth, ctx, async (tx) => {
       if (input.effectiveDate < todayIso()) throw bad('effectiveDate', 'The date is in the past');
+      if ((await this.depositRail(tx, ctx.companyId)) === 'partner')
+        throw new ConflictException(
+          'This company sends direct deposits through the payments partner: use Send prenotes.',
+        );
       const origin = await achOrigin(tx, ctx.companyId, this.encryptor);
       const accounts = await tx
         .selectFrom('employee_bank_accounts as a')
@@ -782,6 +775,126 @@ export class EmployeesService {
       );
       return result;
     });
+  }
+
+  /** Sends the pending prenotes through the payments partner (ADR 0025). */
+  sendPrenotes(
+    auth: AuthContext,
+    ctx: CompanyContext,
+    input: PrenoteInput,
+    meta: RequestMeta,
+  ): Promise<AchBatchDto> {
+    return this.partner.send(auth, ctx, meta, async (tx) => {
+      if (input.effectiveDate < todayIso()) throw bad('effectiveDate', 'The date is in the past');
+      if ((await this.depositRail(tx, ctx.companyId)) !== 'partner')
+        throw new ConflictException(
+          'This company sends direct deposits as a NACHA file: create the prenote file instead.',
+        );
+      const accounts = await tx
+        .selectFrom('employee_bank_accounts as a')
+        .innerJoin('employees as e', 'e.id', 'a.employee_id')
+        .select([
+          'a.id',
+          'a.routing_number',
+          'a.account_enc',
+          'a.account_type',
+          'a.account_last4',
+          'e.id as employee_id',
+          'e.first_name',
+          'e.last_name',
+        ])
+        .where('a.company_id', '=', ctx.companyId)
+        .where('a.prenote_status', '=', 'pending')
+        .where((eb) =>
+          eb.or([eb('e.termination_date', 'is', null), eb('e.termination_date', '>=', todayIso())]),
+        )
+        .orderBy('e.last_name')
+        .orderBy('a.position')
+        .execute();
+      if (accounts.length === 0)
+        throw bad('effectiveDate', 'No direct deposit accounts are waiting for a prenote');
+      const company = await tx
+        .selectFrom('companies')
+        .select('legal_name')
+        .where('id', '=', ctx.companyId)
+        .executeTakeFirstOrThrow();
+      return {
+        kind: 'prenote',
+        payRunId: null,
+        effectiveDate: input.effectiveDate,
+        companyName: company.legal_name,
+        entries: accounts.map((a) => ({
+          paycheckId: null,
+          employeeId: a.employee_id,
+          employeeName: `${a.first_name} ${a.last_name}`,
+          bankAccountId: a.id,
+          last4: a.account_last4,
+          routingNumber: a.routing_number,
+          accountNumber: this.encryptor.decrypt(a.account_enc, accountAad(a.id)),
+          accountType: a.account_type as 'checking' | 'savings',
+          amount: ZERO,
+          prenote: true,
+        })),
+        afterSent: async (t) => {
+          await t
+            .updateTable('employee_bank_accounts')
+            .set({ prenote_status: 'sent', prenote_sent_on: todayIso(), updated_by: auth.userId })
+            .where('company_id', '=', ctx.companyId)
+            .where(
+              'id',
+              'in',
+              accounts.map((a) => a.id),
+            )
+            .execute();
+        },
+      };
+    });
+  }
+
+  /** The bank fixed the account: use it again (ADR 0025). */
+  clearDepositReturn(
+    auth: AuthContext,
+    ctx: CompanyContext,
+    employeeId: string,
+    accountId: string,
+    meta: RequestMeta,
+  ): Promise<EmployeeDto> {
+    return this.tenant(auth, ctx, async (tx) => {
+      const a = await tx
+        .selectFrom('employee_bank_accounts')
+        .select(['id', 'account_last4', 'return_reason'])
+        .where('company_id', '=', ctx.companyId)
+        .where('employee_id', '=', employeeId)
+        .where('id', '=', accountId)
+        .where('returned_at', 'is not', null)
+        .executeTakeFirst();
+      if (!a) throw new NotFoundException('No returned deposit account to clear');
+      await tx
+        .updateTable('employee_bank_accounts')
+        .set({ returned_at: null, return_reason: null, updated_by: auth.userId })
+        .where('id', '=', a.id)
+        .execute();
+      await this.record(
+        tx,
+        auth,
+        ctx,
+        meta,
+        'employee.deposit_return_cleared',
+        employeeId,
+        { account: `****${a.account_last4}`, returnReason: a.return_reason },
+        { account: `****${a.account_last4}`, returnReason: null },
+      );
+      return this.load(tx, ctx.companyId, employeeId);
+    });
+  }
+
+  private async depositRail(tx: Tx, companyId: string): Promise<string> {
+    const s = await tx
+      .selectFrom('payroll_settings')
+      .select('deposit_rail')
+      .where('company_id', '=', companyId)
+      .executeTakeFirstOrThrow();
+    return s.deposit_rail;
   }
 
   // --- Loading ------------------------------------------------------------------------------------
@@ -877,6 +990,8 @@ export class EmployeesService {
         amount: a.amount === null ? null : moneyToString(parseMoney(a.amount)),
         prenoteStatus: a.prenote_status as BankAccountDto['prenoteStatus'],
         prenoteSentOn: a.prenote_sent_on,
+        returnedAt: a.returned_at?.toISOString() ?? null,
+        returnReason: a.return_reason,
       })),
       payItems: items.map((i): EmployeePayItemDto => ({
         id: i.id,

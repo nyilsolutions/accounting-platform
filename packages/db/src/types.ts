@@ -842,6 +842,8 @@ export interface PayrollSettingsTable extends Audited {
   ach_company_id: string | null;
   ny_pfl_deducted: Generated<boolean>;
   ny_dbl_deducted: Generated<boolean>;
+  /** Migration 0027: 'nacha_file' or 'partner'. */
+  deposit_rail: Generated<string>;
 }
 
 export interface PaySchedulesTable extends Audited {
@@ -993,6 +995,9 @@ export interface EmployeeBankAccountsTable extends Audited {
   amount: Numeric | null;
   prenote_status: Generated<string>;
   prenote_sent_on: DateCol | null;
+  /** Migration 0027: a partner deposit to it came back; off until fixed. */
+  returned_at: Date | null;
+  return_reason: string | null;
 }
 
 export interface EmployeePayItemsTable {
@@ -1023,10 +1028,53 @@ export interface AchBatchesTable {
   effective_date: DateCol;
   entry_count: number;
   total_credit: Numeric;
-  file_sha256: string;
+  /** Null for partner batches (migration 0027). */
+  file_sha256: string | null;
   pay_run_id: string | null;
   created_by: string | null;
   created_at: Generated<Date>;
+  rail: Generated<string>;
+  provider: string | null;
+  status: Generated<string>;
+  reference: string | null;
+  provider_message: string | null;
+}
+
+/** Migration 0027: each entry of a partner direct deposit batch. */
+export interface DirectDepositEntriesTable {
+  id: Generated<string>;
+  company_id: string;
+  ach_batch_id: string;
+  paycheck_id: string | null;
+  employee_id: string;
+  bank_account_id: string;
+  account_last4: string;
+  amount: Numeric;
+  prenote: Generated<boolean>;
+  status: Generated<string>;
+  return_code: string | null;
+  return_reason: string | null;
+  returned_at: Date | null;
+}
+
+/** Migration 0027: the company's enrollment with the EFTPS batch provider. */
+export interface EftpsEnrollmentsTable {
+  id: Generated<string>;
+  company_id: string;
+  provider: string;
+  status: Generated<string>;
+  reference: string | null;
+  routing_number: string;
+  account_enc: string;
+  account_last4: string;
+  account_type: string;
+  authorized_name: string;
+  authorized_title: string;
+  message: string | null;
+  created_by: string | null;
+  created_at: Generated<Date>;
+  decided_at: Date | null;
+  cancelled_at: Date | null;
 }
 
 export interface PayRunsTable {
@@ -1114,6 +1162,11 @@ export interface PayrollLiabilityPaymentsTable {
   created_at: Generated<Date>;
   voided_by: string | null;
   voided_at: Date | null;
+  /** Migration 0027: scheduled through the EFTPS batch provider. */
+  provider: string | null;
+  eftps_status: string | null;
+  provider_message: string | null;
+  status_at: Date | null;
 }
 
 export interface PriorPayrollEntriesTable extends Audited {
@@ -1550,6 +1603,8 @@ export interface Database {
   customer_portal_tokens: CustomerPortalTokensTable;
   customer_portal_sessions: CustomerPortalSessionsTable;
   efile_submissions: EfileSubmissionsTable;
+  eftps_enrollments: EftpsEnrollmentsTable;
+  direct_deposit_entries: DirectDepositEntriesTable;
 }
 
 export type User = Selectable<UsersTable>;

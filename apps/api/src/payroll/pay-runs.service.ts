@@ -16,6 +16,7 @@ import {
   type BankAccountType,
   type Money,
   type PayFrequency,
+  type AchBatchDto,
   type PaycheckDto,
   type PaycheckLineDto,
   type PaycheckStatus,
@@ -48,6 +49,7 @@ import {
   type RecurringFacts,
 } from './paycheck-calc';
 import { bad, requirePayroll } from './payroll-common';
+import { DepositPartnerService } from './partners/deposit-partner.service';
 import { PAYMENT_RAIL, type PaymentRail, type PaymentRailResult } from './payment-rail';
 import { loadPayrollTaxData } from './tax/tax-data-types';
 import { NO_YTD, type StateCertificateFacts, type W4Facts, type YtdWages } from './tax/tax-engine';
@@ -76,6 +78,7 @@ export class PayRunsService {
     @Inject(DB) private readonly db: Db,
     @Inject(FIELD_ENCRYPTOR) private readonly encryptor: FieldEncryptor,
     @Inject(PAYMENT_RAIL) private readonly rail: PaymentRail,
+    private readonly partner: DepositPartnerService,
     private readonly audit: AuditService,
     private readonly posting: PostingService,
   ) {}
@@ -749,56 +752,30 @@ export class PayRunsService {
     return this.tenant(auth, ctx, async (tx) => {
       const run = await this.lockRun(tx, ctx.companyId, runId, ['posted']);
       if (input.effectiveDate < todayIso()) throw bad('effectiveDate', 'The date is in the past');
+      if ((await this.depositRail(tx, ctx.companyId)) === 'partner')
+        throw new ConflictException(
+          'This company sends direct deposits through the payments partner: use Send direct deposits.',
+        );
       const existing = await tx
         .selectFrom('ach_batches')
         .select('created_at')
         .where('pay_run_id', '=', run.id)
+        .where('status', '<>', 'failed')
         .executeTakeFirst();
       if (existing)
         throw new ConflictException(
           'A direct deposit file was already created for this pay run. Contact your bank before sending another.',
         );
       const origin = await achOrigin(tx, ctx.companyId, this.encryptor);
-      const pcs = await tx
-        .selectFrom('paychecks as p')
-        .innerJoin('employees as e', 'e.id', 'p.employee_id')
-        .select([
-          'p.id',
-          'p.deposits',
-          'e.id as employee_id',
-          'e.employee_number',
-          'e.first_name',
-          'e.last_name',
-        ])
-        .where('p.pay_run_id', '=', run.id)
-        .where('p.status', '=', 'posted')
-        .where('p.pay_method', '=', 'direct_deposit')
-        .orderBy('e.last_name')
-        .execute();
-      const entries = [];
-      for (const pc of pcs) {
-        for (const d of pc.deposits as StoredDeposit[]) {
-          const account = await tx
-            .selectFrom('employee_bank_accounts')
-            .select(['id', 'routing_number', 'account_enc', 'account_type'])
-            .where('company_id', '=', ctx.companyId)
-            .where('id', '=', d.bankAccountId)
-            .executeTakeFirst();
-          if (!account)
-            throw new ConflictException(
-              `A deposit account of ${pc.first_name} ${pc.last_name} was removed after posting. Void and reissue the paycheck.`,
-            );
-          entries.push({
-            routingNumber: account.routing_number,
-            accountNumber: this.encryptor.decrypt(account.account_enc, accountAad(account.id)),
-            accountType: account.account_type as 'checking' | 'savings',
-            amount: parseMoney(d.amount),
-            prenote: false,
-            individualId: pc.employee_number ?? pc.employee_id.replace(/-/g, '').slice(0, 15),
-            individualName: `${pc.first_name} ${pc.last_name}`,
-          });
-        }
-      }
+      const entries = (await this.depositEntries(tx, ctx.companyId, run.id)).map((e) => ({
+        routingNumber: e.routingNumber,
+        accountNumber: e.accountNumber,
+        accountType: e.accountType,
+        amount: e.amount,
+        prenote: false,
+        individualId: e.individualId,
+        individualName: e.employeeName,
+      }));
       if (entries.length === 0)
         throw bad('effectiveDate', 'No paychecks in this run are paid by direct deposit');
       const total = entries.reduce((a, e) => a + e.amount, ZERO);
@@ -854,6 +831,107 @@ export class PayRunsService {
       );
       return result;
     });
+  }
+
+  /**
+   * Sends the run's direct deposits through the payments partner (ADR 0025), for companies that
+   * chose it over the NACHA file. Once per run (a batch that failed to send can be sent again).
+   */
+  sendDirectDeposits(
+    auth: AuthContext,
+    ctx: CompanyContext,
+    runId: string,
+    input: DepositFileInput,
+    meta: RequestMeta,
+  ): Promise<AchBatchDto> {
+    return this.partner.send(auth, ctx, meta, async (tx) => {
+      const run = await this.lockRun(tx, ctx.companyId, runId, ['posted']);
+      if (input.effectiveDate < todayIso()) throw bad('effectiveDate', 'The date is in the past');
+      if ((await this.depositRail(tx, ctx.companyId)) !== 'partner')
+        throw new ConflictException(
+          'This company sends direct deposits as a NACHA file: create the deposit file instead.',
+        );
+      const existing = await tx
+        .selectFrom('ach_batches')
+        .select('created_at')
+        .where('pay_run_id', '=', run.id)
+        .where('status', '<>', 'failed')
+        .executeTakeFirst();
+      if (existing)
+        throw new ConflictException("This pay run's direct deposits were already sent.");
+      const entries = await this.depositEntries(tx, ctx.companyId, run.id);
+      if (entries.length === 0)
+        throw bad('effectiveDate', 'No paychecks in this run are paid by direct deposit');
+      const company = await tx
+        .selectFrom('companies')
+        .select('legal_name')
+        .where('id', '=', ctx.companyId)
+        .executeTakeFirstOrThrow();
+      return {
+        kind: 'payroll',
+        payRunId: run.id,
+        effectiveDate: input.effectiveDate,
+        companyName: company.legal_name,
+        entries: entries.map((e) => ({ ...e, prenote: false })),
+      };
+    });
+  }
+
+  private async depositRail(tx: Tx, companyId: string): Promise<string> {
+    const s = await tx
+      .selectFrom('payroll_settings')
+      .select('deposit_rail')
+      .where('company_id', '=', companyId)
+      .executeTakeFirstOrThrow();
+    return s.deposit_rail;
+  }
+
+  /** The run's direct deposits: each posted paycheck's split, with the accounts decrypted. */
+  private async depositEntries(tx: Tx, companyId: string, runId: string) {
+    const pcs = await tx
+      .selectFrom('paychecks as p')
+      .innerJoin('employees as e', 'e.id', 'p.employee_id')
+      .select([
+        'p.id',
+        'p.deposits',
+        'e.id as employee_id',
+        'e.employee_number',
+        'e.first_name',
+        'e.last_name',
+      ])
+      .where('p.pay_run_id', '=', runId)
+      .where('p.status', '=', 'posted')
+      .where('p.pay_method', '=', 'direct_deposit')
+      .orderBy('e.last_name')
+      .execute();
+    const entries = [];
+    for (const pc of pcs) {
+      for (const d of pc.deposits as StoredDeposit[]) {
+        const account = await tx
+          .selectFrom('employee_bank_accounts')
+          .select(['id', 'routing_number', 'account_enc', 'account_type', 'account_last4'])
+          .where('company_id', '=', companyId)
+          .where('id', '=', d.bankAccountId)
+          .executeTakeFirst();
+        if (!account)
+          throw new ConflictException(
+            `A deposit account of ${pc.first_name} ${pc.last_name} was removed after posting. Void and reissue the paycheck.`,
+          );
+        entries.push({
+          paycheckId: pc.id,
+          employeeId: pc.employee_id,
+          employeeName: `${pc.first_name} ${pc.last_name}`,
+          bankAccountId: account.id,
+          last4: account.account_last4,
+          routingNumber: account.routing_number,
+          accountNumber: this.encryptor.decrypt(account.account_enc, accountAad(account.id)),
+          accountType: account.account_type as 'checking' | 'savings',
+          amount: parseMoney(d.amount),
+          individualId: pc.employee_number ?? pc.employee_id.replace(/-/g, '').slice(0, 15),
+        });
+      }
+    }
+    return entries;
   }
 
   // --- Calculation ---------------------------------------------------------------------------------
@@ -949,7 +1027,7 @@ export class PayRunsService {
       .executeTakeFirst();
     const accounts = await tx
       .selectFrom('employee_bank_accounts')
-      .select('id')
+      .select(['id', 'account_last4', 'returned_at', 'return_reason'])
       .where('employee_id', '=', e.id)
       .execute();
 
@@ -999,6 +1077,9 @@ export class PayRunsService {
       },
       payMethod: pc.pay_method as 'check' | 'direct_deposit',
       hasDepositAccounts: accounts.length > 0,
+      returnedDepositAccounts: accounts
+        .filter((a) => a.returned_at)
+        .map((a) => `****${a.account_last4}${a.return_reason ? ` (${a.return_reason})` : ''}`),
     });
 
     await tx.deleteFrom('paycheck_lines').where('paycheck_id', '=', pc.id).execute();
@@ -1495,6 +1576,13 @@ export class PayRunsService {
     const ytdTaxes = sumYtd('tax', 'employee');
     const ytdDeductions = sumYtd('deduction');
     const summary = summaryDto(p);
+    const returns = await tx
+      .selectFrom('direct_deposit_entries')
+      .select(['account_last4', 'amount', 'return_code', 'return_reason'])
+      .where('company_id', '=', companyId)
+      .where('paycheck_id', '=', p.id)
+      .where('status', '=', 'returned')
+      .execute();
     return {
       ...summary,
       payRunId: p.pay_run_id,
@@ -1533,6 +1621,12 @@ export class PayRunsService {
         accountMasked: `****${d.last4}`,
         accountType: d.accountType,
         amount: d.amount,
+      })),
+      depositReturns: returns.map((r) => ({
+        accountMasked: `****${r.account_last4}`,
+        amount: moneyToString(parseMoney(r.amount)),
+        code: r.return_code!,
+        reason: r.return_reason,
       })),
       voidedAt: p.voided_at ? new Date(p.voided_at).toISOString() : null,
     };
