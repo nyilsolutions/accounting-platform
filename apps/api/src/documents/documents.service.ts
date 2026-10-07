@@ -24,6 +24,7 @@ import {
   type DocumentUrlDto,
   type FolderDto,
   type UploadQuery,
+  withSafeExtension,
 } from '@acct/shared';
 import type { z } from 'zod';
 import type { documentSettingsSchema, folderInputSchema, updateDocumentSchema } from '@acct/shared';
@@ -41,7 +42,12 @@ import {
   versionAad,
 } from './documents-common';
 import { FILE_URL_TTL_SECONDS, FileTokens } from './file-tokens';
-import { OBJECT_STORE, contentDisposition, type ObjectStore } from './storage/object-store';
+import {
+  OBJECT_STORE,
+  contentDisposition,
+  withCharset,
+  type ObjectStore,
+} from './storage/object-store';
 import { VIRUS_SCANNER, type VirusScanner } from './scanning/virus-scanner';
 import { extractText } from './text-extraction';
 
@@ -930,16 +936,17 @@ export class DocumentsService implements OnModuleInit {
         },
         meta,
       );
+      const fileName = withSafeExtension(v.file_name, v.content_type);
       const direct = this.store.presignGet(v.storage_key, {
         expiresIn: FILE_URL_TTL_SECONDS,
-        fileName: v.file_name,
+        fileName,
         contentType: v.content_type,
         disposition: inline,
       });
       return {
         url:
           direct ??
-          `/api/files/${this.tokens.sign({ companyId: ctx.companyId, versionId: v.id, disposition: inline, exp })}/${encodeURIComponent(v.file_name)}`,
+          `/api/files/${this.tokens.sign({ companyId: ctx.companyId, versionId: v.id, disposition: inline, exp })}/${encodeURIComponent(fileName)}`,
         expiresAt: new Date(exp * 1000).toISOString(),
       };
     });
@@ -962,9 +969,12 @@ export class DocumentsService implements OnModuleInit {
     return {
       data,
       headers: {
-        'content-type': v.content_type,
+        'content-type': withCharset(v.content_type),
         'content-length': String(data.length),
-        'content-disposition': contentDisposition(t.disposition, v.file_name),
+        'content-disposition': contentDisposition(
+          t.disposition,
+          withSafeExtension(v.file_name, v.content_type),
+        ),
         'cache-control': 'private, no-store',
         'x-content-type-options': 'nosniff',
         // Files never run script, even if a browser were tricked into rendering one.
@@ -1000,6 +1010,7 @@ export class DocumentsService implements OnModuleInit {
           'v.scan_status',
           'v.purged_at',
           'v.file_name',
+          'v.content_type',
         ])
         .where('d.company_id', '=', ctx.companyId)
         .where('d.id', 'in', ids)
@@ -1023,9 +1034,9 @@ export class DocumentsService implements OnModuleInit {
         keyEnc: r.key_enc,
         aad: versionAad(r.version_id),
       });
-      files[uniqueName(r.name, used)] = [
+      files[uniqueName(withSafeExtension(r.name, r.content_type), used)] = [
         new Uint8Array(data),
-        { level: /\.(pdf|jpe?g|png|gif|webp|zip|docx|xlsx|pptx|heic)$/i.test(r.file_name) ? 0 : 6 },
+        { level: r.content_type.startsWith('text/') ? 6 : 0 },
       ];
     }
     await withTenant(this.db, actor, (tx) =>

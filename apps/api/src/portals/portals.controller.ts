@@ -342,6 +342,7 @@ export class CustomerPortalController {
   @Post('sign-out')
   @HttpCode(204)
   signOut(@Req() req: Request, @Res({ passthrough: true }) res: Response): Promise<void> {
+    res.setHeader('clear-site-data', '"cache"');
     return this.portal.signOut(req, res);
   }
 

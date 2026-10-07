@@ -163,6 +163,40 @@ export function cleanFileName(name: string): string {
   return (cleaned || 'file').slice(0, 255);
 }
 
+/** The extensions a download may keep for each stored type; the first is added otherwise. */
+const SAFE_EXTENSIONS: Record<string, string[]> = {
+  'application/pdf': ['pdf'],
+  'image/jpeg': ['jpg', 'jpeg', 'jfif'],
+  'image/png': ['png'],
+  'image/gif': ['gif'],
+  'image/webp': ['webp'],
+  'image/heic': ['heic', 'heif'],
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['docx'],
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['xlsx'],
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation': ['pptx'],
+  'application/zip': ['zip'],
+  'application/msword': ['doc'],
+  'application/vnd.ms-excel': ['xls'],
+  'application/vnd.ms-powerpoint': ['ppt'],
+  'text/csv': ['csv'],
+  'text/plain': ['txt', 'text', 'log', 'md', 'tsv', 'ofx', 'qfx', 'qbo', 'iif'],
+};
+
+/**
+ * The name a file is downloaded under: its extension must match the type detected from its
+ * bytes, so a text file named `Invoice.hta` is saved as `Invoice.hta.txt` and can't run when
+ * opened (ASVS 12.5.1). Applied at download time, so renamed and older files are covered too.
+ */
+export function withSafeExtension(fileName: string, contentType: string): string {
+  const name = cleanFileName(fileName);
+  const allowed = SAFE_EXTENSIONS[contentType] ?? ['bin'];
+  const dot = name.lastIndexOf('.');
+  const ext = dot > 0 ? name.slice(dot + 1).toLowerCase() : '';
+  if (allowed.includes(ext)) return name;
+  const suffix = `.${allowed[0]}`;
+  return name.slice(0, 255 - suffix.length) + suffix;
+}
+
 // ---------------------------------------------------------------------------------------------
 // Links: what a document supports
 // ---------------------------------------------------------------------------------------------

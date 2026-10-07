@@ -4,6 +4,8 @@ import type { DocumentKind } from '@acct/shared';
 
 /** Extracted text kept for full-text search (enough for any receipt, bill or contract). */
 export const MAX_EXTRACTED_CHARS = 200_000;
+const MAX_OFFICE_PARTS = 50;
+const MAX_OFFICE_BYTES = 20 * 1024 * 1024;
 
 function xmlText(xml: string): string {
   return xml
@@ -23,9 +25,19 @@ function officeText(data: Buffer, kind: DocumentKind): string {
       : kind === 'excel'
         ? (n: string) => n === 'xl/sharedStrings.xml' || /^xl\/worksheets\/sheet\d+\.xml$/.test(n)
         : (n: string) => /^ppt\/slides\/slide\d+\.xml$/.test(n);
-  // Only the parts that hold text are inflated (a ZIP bomb can't expand the rest).
+  // Only the parts that hold text are inflated, and no more than 50 of them and 20 MB in all
+  // (their declared sizes, which is what gets allocated): a ZIP bomb of thousands of large
+  // parts can't exhaust memory (ASVS 12.1.2).
+  let entries = 0;
+  let total = 0;
   const files = unzipSync(new Uint8Array(data), {
-    filter: (f) => wanted(f.name) && f.originalSize < 20 * 1024 * 1024,
+    filter: (f) => {
+      if (!wanted(f.name) || entries >= MAX_OFFICE_PARTS) return false;
+      if (total + f.originalSize > MAX_OFFICE_BYTES) return false;
+      entries++;
+      total += f.originalSize;
+      return true;
+    },
   });
   return Object.keys(files)
     .sort()

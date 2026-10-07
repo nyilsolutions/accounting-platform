@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   cleanFileName,
+  withSafeExtension,
   detectFileType,
   documentSettingsSchema,
   kindOfContentType,
@@ -138,5 +139,19 @@ describe('schemas', () => {
     expect(receiptExtractionSchema.safeParse(base).success).toBe(true);
     expect(receiptExtractionSchema.safeParse({ ...base, total: 42.17 }).success).toBe(false);
     expect(receiptExtractionSchema.safeParse({ ...base, date: '05/03/2026' }).success).toBe(false);
+  });
+
+  it('downloads files only under an extension matching their detected type', () => {
+    expect(withSafeExtension('Invoice.pdf', 'application/pdf')).toBe('Invoice.pdf');
+    expect(withSafeExtension('Photo.JPG', 'image/jpeg')).toBe('Photo.JPG');
+    expect(withSafeExtension('statement.qbo', 'text/plain')).toBe('statement.qbo');
+    expect(withSafeExtension('Invoice.hta', 'text/plain')).toBe('Invoice.hta.txt');
+    expect(withSafeExtension('run.exe', 'application/msword')).toBe('run.exe.doc');
+    expect(withSafeExtension('page.html', 'text/csv')).toBe('page.html.csv');
+    expect(withSafeExtension('README', 'text/plain')).toBe('README.txt');
+    expect(withSafeExtension('.bashrc', 'text/plain')).toBe('.bashrc.txt');
+    expect(withSafeExtension('x.pdf', 'application/octet-stream')).toBe('x.pdf.bin');
+    expect(withSafeExtension(`${'a'.repeat(260)}.js`, 'text/plain')).toHaveLength(255);
+    expect(withSafeExtension(`${'a'.repeat(260)}.js`, 'text/plain').endsWith('.txt')).toBe(true);
   });
 });

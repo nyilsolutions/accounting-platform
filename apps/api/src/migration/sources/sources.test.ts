@@ -105,6 +105,25 @@ describe('IIF', () => {
     expect(parsed.errors).toEqual([{ row: 20, message: 'SPL outside a transaction' }]);
   });
 
+  it('reads addresses, and a crafted long address line in linear time', () => {
+    const long = `x${' '.repeat(50_000)}x`;
+    const withAddress = [
+      '!CUST\tNAME\tBADDR1\tBADDR2\tBADDR3',
+      'CUST\tAcme\tAcme\t12 Main St\tSpringfield, IL 62701',
+      `CUST\tCrafted\t${long}\t\t`,
+    ].join('\r\n');
+    const started = performance.now();
+    const r = iifToCanonical(parseIif(withAddress), known(), 'f');
+    expect(performance.now() - started).toBeLessThan(1_000);
+    const acme = r.records.find((x) => x.entityType === 'customer' && x.sourceId.includes('Acme'));
+    expect(acme?.payload).toMatchObject({
+      addressLine1: '12 Main St',
+      city: 'Springfield',
+      state: 'IL',
+      postalCode: '62701',
+    });
+  });
+
   it('keeps an invoice an invoice, with inventory cost left to the true-up', () => {
     const r = iifToCanonical(parseIif(file), known(), 'f');
     const invoice = r.records.find((x) => x.entityType === 'invoice')!;
@@ -303,6 +322,51 @@ describe('QuickBooks Online', () => {
       '2025-02-15',
     );
     expect(ar.rows).toContainEqual({ ref: '3', name: 'Pine Street Cafe:Patio', amount: '320.00' });
+  });
+
+  it('downloads attachments only from QuickBooks file hosts, up to the size limit', async () => {
+    const fetched: string[] = [];
+    let link = 'https://intuit-qbo-prod-30.s3.amazonaws.com/file.pdf';
+    const body = (n: number) =>
+      new ReadableStream<Uint8Array>({
+        start(c) {
+          // A stream without a stated length: only counting while reading catches it.
+          for (let i = 0; i < n; i++) c.enqueue(new Uint8Array(1024));
+          c.close();
+        },
+      });
+    let size = 4;
+    const fetchImpl: typeof fetch = async (input) => {
+      const url = String(input);
+      fetched.push(url);
+      if (url.includes('/download/')) return new Response(link);
+      return new Response(body(size));
+    };
+    const api = new IntuitQboApi({
+      environment: 'production',
+      clientId: 'id',
+      clientSecret: 'secret',
+      redirectUri: 'https://app.example/api/migration/qbo/callback',
+      minorVersion: 75,
+      maxDownloadBytes: 8 * 1024,
+      fetch: fetchImpl,
+      sleep: async () => {},
+    });
+    const auth = { realmId: '1', accessToken: 't' };
+    expect(await api.download(auth, { Id: '7' })).toHaveLength(4 * 1024);
+    size = 9;
+    await expect(api.download(auth, { Id: '7' })).rejects.toThrow(/larger than/);
+    for (const bad of [
+      'http://intuit-qbo-prod-30.s3.amazonaws.com/file.pdf',
+      'https://169.254.169.254/latest/meta-data/',
+      'https://internal.example/file.pdf',
+      'https://s3.amazonaws.com.evil.example/file.pdf',
+    ]) {
+      link = bad;
+      fetched.length = 0;
+      await expect(api.download(auth, { Id: '7' })).rejects.toThrow(/unexpected address/);
+      expect(fetched.some((u) => u.startsWith(bad))).toBe(false);
+    }
   });
 
   it('maps bundles, discounts, sales tax, card credits and inventory purchases', () => {

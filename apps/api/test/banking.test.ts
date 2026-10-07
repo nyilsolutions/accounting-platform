@@ -598,6 +598,39 @@ describe('register pages', () => {
 });
 
 describe('request limits', () => {
+  it('refuses compressed bodies and body types nothing reads', async () => {
+    const { gzipSync } = await import('node:zlib');
+    // 300 KB of JSON inflated from a few hundred bytes would get past the size check.
+    const gz = gzipSync(JSON.stringify({ name: 'x'.repeat(300 * 1024) }));
+    expect(gz.length).toBeLessThan(256 * 1024);
+    await owner.agent
+      .post(`${base()}/bank-rules`)
+      .set('content-type', 'application/json')
+      .set('content-encoding', 'gzip')
+      .send(gz)
+      .expect(415);
+    await owner.agent
+      .post(`${base()}/bank-rules`)
+      .set('content-type', 'application/x-www-form-urlencoded')
+      .send('name=Rent')
+      .expect(415);
+    await owner.agent
+      .post(`${base()}/bank-rules`)
+      .set('content-type', 'text/plain')
+      .send('{"name":"Rent"}')
+      .expect(415);
+  });
+
+  it('refuses text Postgres cannot store with a 400, not a 500', async () => {
+    const res = await owner.agent
+      .post(`${base()}/bank-rules`)
+      .send({ name: 'Rent\u0000', conditions: [] })
+      .expect(400);
+    expect(res.body.errors).toEqual([
+      { path: 'name', message: 'Contains a character that is not allowed' },
+    ]);
+  });
+
   it('limits request bodies except statement imports', async () => {
     const big = 'x'.repeat(300 * 1024);
     await owner.agent.post(`${base()}/bank-rules`).send({ name: big }).expect(413);

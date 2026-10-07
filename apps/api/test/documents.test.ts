@@ -165,6 +165,15 @@ describe('downloading', () => {
     expect(res.headers['cache-control']).toBe('private, no-store');
   });
 
+  it('downloads a file only under an extension matching its type, text as UTF-8', async () => {
+    const hta = await upload(owner, 'Invoice.hta', Buffer.from('<b>not a page</b> just text'));
+    const link = (await owner.agent.get(`${base()}/documents/${hta.id}/url`).expect(200)).body;
+    expect(link.url).toMatch(/\/Invoice\.hta\.txt$/);
+    const res = await request(server()).get(apiPath(link.url)).expect(200);
+    expect(res.headers['content-type']).toBe('text/plain; charset=utf-8');
+    expect(res.headers['content-disposition']).toMatch(/^attachment; filename="Invoice\.hta\.txt"/);
+  });
+
   it('rejects forged links and other companies', async () => {
     const link = (await owner.agent.get(`${base()}/documents/${doc.id}/url`).expect(200)).body;
     const forged = apiPath(link.url).replace(/\/files\/([^/]+)/, (_m, t: string) => `/files/${t}x`);

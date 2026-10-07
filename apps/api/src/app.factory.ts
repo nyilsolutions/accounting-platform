@@ -40,6 +40,33 @@ function bodySizeLimit(req: Request, res: Response, next: NextFunction): void {
   next();
 }
 
+/**
+ * Responses carry companies' books and people's pay: no browser or proxy keeps them (ASVS 8.2.1).
+ * File downloads set their own (also no-store).
+ */
+function noStore(_req: Request, res: Response, next: NextFunction): void {
+  res.setHeader('cache-control', 'no-store');
+  next();
+}
+
+/** The only request body types the API reads (ASVS 13.1.5); everything else is refused. */
+const BODY_TYPES = new Set(['application/json', 'application/octet-stream', 'message/rfc822']);
+
+/**
+ * Refuses compressed bodies (bodySizeLimit checks the bytes sent, so a small gzip could inflate
+ * far past it; no client compresses) and bodies of a type nothing reads, with 415.
+ */
+function bodyTypeGuard(req: Request, res: Response, next: NextFunction): void {
+  const encoding = (req.get('content-encoding') ?? 'identity').trim().toLowerCase();
+  const hasBody = Number(req.get('content-length') ?? 0) > 0 || !!req.get('transfer-encoding');
+  const type = (req.get('content-type') ?? '').split(';')[0]!.trim().toLowerCase();
+  if (encoding !== 'identity' || (hasBody && !BODY_TYPES.has(type))) {
+    res.status(415).json({ statusCode: 415, message: 'Unsupported request body' });
+    return;
+  }
+  next();
+}
+
 export async function createApp(config: AppConfig): Promise<INestApplication> {
   const app = await NestFactory.create<NestExpressApplication>(AppModule.forRoot(config), {
     logger: config.NODE_ENV === 'test' ? ['error'] : appLogger(config),
@@ -53,14 +80,17 @@ export async function createApp(config: AppConfig): Promise<INestApplication> {
   );
   app.disable('x-powered-by');
   app.use(helmet());
+  app.use(noStore);
   app.use(bodySizeLimit);
+  app.use(bodyTypeGuard);
   // Bank statements and QuickBooks CSV files are sent as JSON text; bodySizeLimit keeps every
   // other route small.
-  app.useBodyParser('json', { limit: '25mb' });
+  app.useBodyParser('json', { limit: '25mb', inflate: false });
   // Uploads are sent as the raw file; email-in as raw MIME.
   app.useBodyParser('raw', {
     type: ['application/octet-stream', 'message/rfc822'],
     limit: `${config.MAX_UPLOAD_MB + 1}mb`,
+    inflate: false,
   });
   // First, so shutdown waits for every request that got this far.
   app.use(inflightRequests.middleware);

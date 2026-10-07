@@ -92,6 +92,8 @@ export interface IntuitOptions {
   clientSecret: string;
   redirectUri: string;
   minorVersion: number;
+  /** The largest attachment downloaded (bytes); bigger ones are refused before reading. */
+  maxDownloadBytes?: number;
   fetch?: typeof fetch;
   /** Waits between retries (tests pass a no-op). */
   sleep?: (ms: number) => Promise<void>;
@@ -107,6 +109,17 @@ const API_BASE = {
   production: 'https://quickbooks.api.intuit.com',
   mock: 'https://sandbox-quickbooks.api.intuit.com',
 };
+
+/**
+ * Where QuickBooks keeps attachment files (its S3 buckets). A download link anywhere else is
+ * refused, so a link can't point the server at an internal address (ASVS 12.6.1).
+ */
+function isAttachmentHost(host: string, environment: IntuitOptions['environment']): boolean {
+  if (environment === 'mock' && host.endsWith('.example')) return true;
+  return host.endsWith('.amazonaws.com') || host.endsWith('.intuit.com');
+}
+
+const DEFAULT_MAX_DOWNLOAD_BYTES = 100 * 1024 * 1024;
 
 export class IntuitQboApi implements QboApi {
   readonly environment: 'sandbox' | 'production' | 'mock';
@@ -209,10 +222,19 @@ export class IntuitQboApi implements QboApi {
       );
       url = (await res.text()).trim();
     }
-    if (!/^https:\/\//.test(url)) throw new Error('QuickBooks returned no download link');
-    const res = await this.withRetry(() => this.fetch(url!));
+    let link: URL;
+    try {
+      link = new URL(url);
+    } catch {
+      throw new Error('QuickBooks returned no download link');
+    }
+    if (link.protocol !== 'https:' || !isAttachmentHost(link.hostname, this.environment))
+      throw new Error('QuickBooks returned a download link to an unexpected address');
+    const res = await this.withRetry(() =>
+      this.fetch(link.href, { redirect: 'error', signal: AbortSignal.timeout(120_000) }),
+    );
     if (!res.ok) throw new Error(`Downloading the attachment failed (${res.status})`);
-    return Buffer.from(await res.arrayBuffer());
+    return readCapped(res, this.o.maxDownloadBytes ?? DEFAULT_MAX_DOWNLOAD_BYTES);
   }
 
   // ---- HTTP ---------------------------------------------------------------------------------
@@ -289,4 +311,28 @@ export class IntuitQboApi implements QboApi {
       await this.sleep(Number.isFinite(after) && after > 0 ? after * 1000 : 1000 * 2 ** attempt);
     }
   }
+}
+
+/** The body, refusing more than `max` bytes (by the stated length, then while reading). */
+async function readCapped(res: Response, max: number): Promise<Buffer> {
+  const tooLarge = () => new Error(`The attachment is larger than ${Math.round(max / 1048576)} MB`);
+  if (Number(res.headers.get('content-length') ?? 0) > max) {
+    await res.body?.cancel();
+    throw tooLarge();
+  }
+  if (!res.body) return Buffer.alloc(0);
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  const reader = res.body.getReader();
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    size += value.byteLength;
+    if (size > max) {
+      await reader.cancel();
+      throw tooLarge();
+    }
+    chunks.push(value);
+  }
+  return Buffer.concat(chunks);
 }

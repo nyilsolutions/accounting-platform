@@ -139,8 +139,8 @@ export function reportToCsv(report: ReportDto | GeneralLedgerDto): string {
   };
   const lines: Array<Array<string | null>> = [
     [safeCell(t.companyName)],
-    [t.title],
-    [t.period],
+    [safeCell(t.title)],
+    [safeCell(t.period)],
     [],
     t.header.map(safeCell),
   ];

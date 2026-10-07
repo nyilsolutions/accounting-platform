@@ -72,6 +72,8 @@ export class AuthController {
   ): Promise<void> {
     await this.auth.logout(auth, meta);
     this.sessions.clearCookie(res);
+    // The browser drops anything it kept from the session (ASVS 8.2.3).
+    res.setHeader('clear-site-data', '"cache", "cookies"');
   }
 
   @AllowPendingMfa()

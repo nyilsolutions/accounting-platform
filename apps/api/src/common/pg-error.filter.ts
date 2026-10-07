@@ -78,6 +78,9 @@ export class PgErrorFilter implements ExceptionFilter {
         if (err.hint === 'closing_date')
           return send(HttpStatus.CONFLICT, err.message, 'CLOSING_DATE');
         break;
+      case '22021': // invalid byte sequence (a NUL in text that skipped validation)
+      case '22P05':
+        return send(HttpStatus.BAD_REQUEST, 'The text contains a character that is not allowed');
       case '40001':
       case '40P01':
         return send(HttpStatus.CONFLICT, 'The record was changed by someone else. Please retry.');
