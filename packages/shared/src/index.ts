@@ -26,3 +26,4 @@ export * from './currency';
 export * from './accountant';
 export * from './online-payments';
 export * from './portals';
+export * from './efile';

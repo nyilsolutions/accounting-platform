@@ -22,7 +22,7 @@ import { partyCurrency } from '../currency/fx';
 import { balancesOf, openItems } from '../ledger/subledger';
 import { appliedTo, decodeCursor, encodeCursor, validationError } from '../sales/sales-common';
 import { purchaseStatus } from './purchase-documents.service';
-import { vendor1099Summary } from './vendor-1099';
+import { summary1099WithFiling } from './vendor-1099';
 
 const PURCHASE_TYPES = ['bill', 'vendor_credit', 'bill_payment', 'check', 'expense', 'cc_credit'];
 
@@ -241,7 +241,7 @@ export class ApService {
 
   summary1099(auth: AuthContext, ctx: CompanyContext, year: number): Promise<Vendor1099SummaryDto> {
     return withTenant(this.db, { userId: auth.userId, companyId: ctx.companyId }, (tx) =>
-      vendor1099Summary(tx, ctx.companyId, year),
+      summary1099WithFiling(tx, ctx.companyId, year),
     );
   }
 }

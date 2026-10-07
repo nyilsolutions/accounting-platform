@@ -1600,13 +1600,20 @@ export interface PriorPayrollDto {
 // ---------------------------------------------------------------------------------------------
 // Payroll tax forms (Phase 9)
 // ---------------------------------------------------------------------------------------------
-export const TAX_FILING_FORMS = ['form_941', 'form_940', 'w2', 'state_quarterly'] as const;
+export const TAX_FILING_FORMS = [
+  'form_941',
+  'form_940',
+  'w2',
+  'state_quarterly',
+  'form_1099',
+] as const;
 export type TaxFilingForm = (typeof TAX_FILING_FORMS)[number];
 export const TAX_FILING_FORM_LABELS: Record<TaxFilingForm, string> = {
   form_941: 'Form 941',
   form_940: 'Form 940',
   w2: 'Forms W-2 and W-3',
   state_quarterly: 'State quarterly reports',
+  form_1099: 'Forms 1099',
 };
 export const TAX_FILING_METHODS = ['electronic', 'paper', 'provider'] as const;
 export type TaxFilingMethod = (typeof TAX_FILING_METHODS)[number];
@@ -1654,6 +1661,8 @@ export interface TaxFilingDto {
   status: 'filed' | 'void';
   createdAt: string;
   voidedAt: string | null;
+  /** The IRS accepted it electronically here (ADR 0024): the record can't be voided. */
+  efiled: boolean;
 }
 
 /** What a form shows about its filing: the filing, and what changed since (a correction). */

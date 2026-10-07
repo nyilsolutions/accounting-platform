@@ -16,6 +16,8 @@ import {
   type ReportDto,
   type StateQuarterDto,
   type TaxFilingDto,
+  type TaxFilingForm,
+  type Vendor1099SummaryDto,
   type W2FormsDto,
   type taxFilingInputSchema,
 } from '@acct/shared';
@@ -28,11 +30,30 @@ import { ssnAad } from './employees.service';
 import { buildFederalQuarter, buildFutaAnnual, buildStateQuarter } from './forms/quarterly';
 import type { EmployeeFacts, PayRecord, PayRecordLine } from './forms/records';
 import { buildW2s, buildW3 } from './forms/w2';
+import { summary1099WithFiling } from '../purchases/vendor-1099';
 import { requirePayroll } from './payroll-common';
-import { changedFigures, filingDto, filingLabel } from './tax-filings';
+import {
+  filingDto,
+  filingLabel,
+  formFilingState,
+  efiledColumn,
+  PAYROLL_FORMS,
+  withoutFilingState,
+} from './tax-filings';
 import type { FederalTaxData, StateTaxData } from './tax/tax-data-types';
 
 type FilingInput = z.output<typeof taxFilingInputSchema>;
+/** Which forms a route files: payroll's, or Forms 1099 (Expenses › 1099, `purchases.manage`). */
+export type FilingScope = 'payroll' | '1099';
+const inScope = (form: string, scope: FilingScope) =>
+  scope === '1099' ? form === 'form_1099' : (PAYROLL_FORMS as readonly string[]).includes(form);
+/** A form and its period. */
+export interface FormPeriod {
+  form: TaxFilingForm;
+  taxYear: number;
+  quarter?: number | null;
+  state?: PayrollState | null;
+}
 
 const quarterRange = (year: number, q: number) => {
   const start = `${year}-${String((q - 1) * 3 + 1).padStart(2, '0')}-01`;
@@ -220,7 +241,12 @@ export class TaxFormsService {
     year: number | null,
   ): Promise<TaxFilingDto[]> {
     return this.tenant(auth, ctx, async (tx) => {
-      let q = tx.selectFrom('tax_filings').selectAll().where('company_id', '=', ctx.companyId);
+      let q = tx
+        .selectFrom('tax_filings')
+        .selectAll()
+        .select(efiledColumn)
+        .where('company_id', '=', ctx.companyId)
+        .where('form', 'in', PAYROLL_FORMS);
       if (year !== null) q = q.where('tax_year', '=', year);
       return (await q.orderBy('tax_year', 'desc').orderBy('created_at', 'desc').execute()).map(
         filingDto,
@@ -233,10 +259,31 @@ export class TaxFormsService {
     ctx: CompanyContext,
     input: FilingInput,
     meta: RequestMeta,
+    scope: FilingScope = 'payroll',
   ): Promise<TaxFilingDto> {
+    if (!inScope(input.form, scope))
+      throw new ConflictException(
+        scope === 'payroll'
+          ? 'Forms 1099 are filed from Expenses › 1099.'
+          : 'Only Forms 1099 are filed here.',
+      );
     return this.tenant(auth, ctx, async (tx) => {
-      await requirePayroll(tx, ctx.companyId);
-      const snapshot = await this.current(tx, ctx.companyId, input);
+      const sent = await tx
+        .selectFrom('efile_submissions')
+        .select('id')
+        .where('company_id', '=', ctx.companyId)
+        .where('form', '=', input.form)
+        .where('tax_year', '=', input.taxYear)
+        .where('status', 'in', ['sending', 'transmitted'])
+        .where((eb) =>
+          input.quarter ? eb('quarter', '=', input.quarter) : eb('quarter', 'is', null),
+        )
+        .executeTakeFirst();
+      if (sent)
+        throw new ConflictException(
+          `${filingLabel({ form: input.form, tax_year: input.taxYear, quarter: input.quarter ?? null, state: null })} was sent electronically and is waiting for the IRS's answer.`,
+        );
+      const snapshot = await this.formInTx(tx, ctx.companyId, input);
       const blocking =
         'w2s' in snapshot
           ? snapshot.w2s.flatMap((w) => w.problems).concat(snapshot.w3.problems)
@@ -300,6 +347,7 @@ export class TaxFormsService {
     ctx: CompanyContext,
     id: string,
     meta: RequestMeta,
+    scope: FilingScope = 'payroll',
   ): Promise<TaxFilingDto> {
     return this.tenant(auth, ctx, async (tx) => {
       const row = await tx
@@ -308,8 +356,19 @@ export class TaxFormsService {
         .where('company_id', '=', ctx.companyId)
         .where('id', '=', id)
         .executeTakeFirst();
-      if (!row) throw new NotFoundException('Filing not found');
+      if (!row || !inScope(row.form, scope)) throw new NotFoundException('Filing not found');
       if (row.status === 'void') throw new ConflictException('This filing is already void.');
+      const efiled = await tx
+        .selectFrom('efile_submissions')
+        .select('id')
+        .where('company_id', '=', ctx.companyId)
+        .where('filing_id', '=', id)
+        .where('status', '=', 'accepted')
+        .executeTakeFirst();
+      if (efiled)
+        throw new ConflictException(
+          'The IRS accepted this return electronically, so its filing record stays. Changes since are listed for a corrected return.',
+        );
       const updated = await tx
         .updateTable('tax_filings')
         .set({ status: 'void', voided_at: new Date(), voided_by: auth.userId })
@@ -335,7 +394,8 @@ export class TaxFormsService {
   }
 
   // --- Building -------------------------------------------------------------------------------
-  private current(tx: Tx, companyId: string, input: FilingInput) {
+  /** Today's figures for a form and period, with its filing state. */
+  formInTx(tx: Tx, companyId: string, input: FormPeriod) {
     switch (input.form) {
       case 'w2':
         return this.w2InTx(tx, companyId, input.taxYear);
@@ -345,7 +405,13 @@ export class TaxFormsService {
         return this.futaInTx(tx, companyId, input.taxYear);
       case 'state_quarterly':
         return this.stateQuarterInTx(tx, companyId, input.taxYear, input.quarter!, input.state!);
+      case 'form_1099':
+        return this.summary1099InTx(tx, companyId, input.taxYear);
     }
+  }
+
+  summary1099InTx(tx: Tx, companyId: string, year: number): Promise<Vendor1099SummaryDto> {
+    return summary1099WithFiling(tx, companyId, year);
   }
 
   private federal(year: number): FederalTaxData {
@@ -501,29 +567,16 @@ export class TaxFormsService {
     };
   }
 
-  private async filingState(
+  private filingState(
     tx: Tx,
     companyId: string,
-    form: string,
+    form: TaxFilingForm,
     year: number,
     quarter: number | null,
     state: string | null,
     current: unknown,
   ) {
-    let q = tx
-      .selectFrom('tax_filings')
-      .selectAll()
-      .where('company_id', '=', companyId)
-      .where('form', '=', form)
-      .where('tax_year', '=', year)
-      .where('status', '=', 'filed');
-    q = quarter === null ? q.where('quarter', 'is', null) : q.where('quarter', '=', quarter);
-    q = state === null ? q.where('state', 'is', null) : q.where('state', '=', state);
-    const row = await q.executeTakeFirst();
-    return {
-      filing: row ? filingDto(row) : null,
-      changedSinceFiled: row ? changedFigures(row.snapshot, withoutFilingState(current)) : [],
-    };
+    return formFilingState(tx, companyId, form, year, quarter, state, current);
   }
 
   private async filedSnapshots(tx: Tx, companyId: string, form: string, year: number) {
@@ -717,13 +770,4 @@ export class TaxFormsService {
       }))
       .sort((a, b) => a.name.localeCompare(b.name));
   }
-}
-
-/** What a snapshot keeps: the figures, not the filing state or SSNs. */
-function withoutFilingState(v: unknown): unknown {
-  return JSON.parse(
-    JSON.stringify(v, (k, x: unknown) =>
-      k === 'filing' || k === 'changedSinceFiled' || k === 'ssnMasked' ? undefined : x,
-    ),
-  );
 }

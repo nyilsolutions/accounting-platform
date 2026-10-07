@@ -26,6 +26,7 @@ export async function startApp(overrides: Record<string, string> = {}): Promise<
     RATE_LIMIT_AUTH_PER_MINUTE: '1000',
     WEB_ORIGIN: 'http://localhost:3000',
     REPORT_SCHEDULER: 'off',
+    EFILE_ACK_POLLER: 'off',
     ...overrides,
   });
   process.env.RATE_LIMIT_AUTH_PER_MINUTE = config.RATE_LIMIT_AUTH_PER_MINUTE.toString();
