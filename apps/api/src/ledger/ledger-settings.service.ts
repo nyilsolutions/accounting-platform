@@ -11,12 +11,14 @@ import type { LedgerSettingsDto, LedgerSettingsInput } from '@acct/shared';
 import { AuditService } from '../audit/audit.service';
 import type { AuthContext, CompanyContext, RequestMeta } from '../common/request';
 import { DB } from '../db/db.module';
+import { ClosingPasswordAttempts } from './closing-password-attempts';
 
 @Injectable()
 export class LedgerSettingsService {
   constructor(
     @Inject(DB) private readonly db: Db,
     private readonly audit: AuditService,
+    private readonly attempts: ClosingPasswordAttempts,
   ) {}
 
   get(auth: AuthContext, ctx: CompanyContext): Promise<LedgerSettingsDto> {
@@ -96,10 +98,13 @@ export class LedgerSettingsService {
         input.closingPassword !== undefined;
       if (closingChange) {
         if (c.closing_password_hash) {
+          await this.attempts.assertNotLocked(ctx.companyId, auth.userId);
           if (
             !input.currentClosingPassword ||
             !(await verifyPassword(c.closing_password_hash, input.currentClosingPassword))
           ) {
+            if (input.currentClosingPassword)
+              await this.attempts.recordFailure(ctx.companyId, auth.userId);
             throw new ForbiddenException(
               'Enter the current closing date password to change the closing date',
             );

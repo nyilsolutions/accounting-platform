@@ -261,6 +261,11 @@ export class PayrollLiabilitiesService {
     via?: { provider: string },
   ): Promise<PayrollLiabilityPaymentDto> {
     {
+      // One payment at a time per company: two at once would each see the whole balance and
+      // pay it twice (ASVS 11.1.6). Held until the transaction ends.
+      await sql`select pg_advisory_xact_lock(hashtextextended(${`payroll-liability:${ctx.companyId}`}, 0))`.execute(
+        tx,
+      );
       const today = todayIso();
       const current = await this.compute(tx, ctx.companyId, today);
       const row = current.liabilities.find(

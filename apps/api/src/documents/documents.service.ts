@@ -881,6 +881,40 @@ export class DocumentsService implements OnModuleInit {
               due.rows.map((r) => r.id),
             )
             .execute();
+          // What was read from the files, and the text search built from them, go too
+          // (ASVS 8.3.8). The name, the history and the audit trail stay.
+          const docIds = [...new Set(due.rows.map((r) => r.document_id))];
+          await tx
+            .updateTable('document_extractions')
+            .set({ result: null })
+            .where('company_id', '=', ctx.companyId)
+            .where('document_id', 'in', docIds)
+            .where(({ exists, selectFrom }) =>
+              exists(
+                selectFrom('document_versions as v')
+                  .select('v.id')
+                  .whereRef('v.document_id', '=', 'document_extractions.document_id')
+                  .whereRef('v.version', '=', 'document_extractions.version')
+                  .where('v.purged_at', 'is not', null),
+              ),
+            )
+            .execute();
+          await tx
+            .updateTable('documents')
+            .set({ search_vector: sql`null`, email_from: null, email_subject: null })
+            .where('company_id', '=', ctx.companyId)
+            .where('id', 'in', docIds)
+            .where(({ not, exists, selectFrom }) =>
+              not(
+                exists(
+                  selectFrom('document_versions as v')
+                    .select('v.id')
+                    .whereRef('v.document_id', '=', 'documents.id')
+                    .where('v.purged_at', 'is', null),
+                ),
+              ),
+            )
+            .execute();
         }
         // The daily job leaves no trace when nothing was due; an admin's run always does.
         if (!due.rows.length && !userId) return;

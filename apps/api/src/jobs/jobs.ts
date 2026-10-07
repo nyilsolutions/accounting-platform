@@ -17,6 +17,8 @@ export interface JobPayloads {
   'payroll.partners': Record<string, never>;
   /** Email the memorized reports whose schedule is due. */
   'reports.scheduled': Record<string, never>;
+  /** Delete sessions, one-time links and invitations 30 days after they ended (ADR 0029). */
+  'security.cleanup': Record<string, never>;
   /** Tell a user about a change to their sign-in (ADR 0029). */
   'security.notice': { userId: string; event: SecurityEvent; at: string };
 }
@@ -73,6 +75,13 @@ export const JOBS: Record<JobName, JobDefinition> = {
     cron: '* * * * *',
     retryLimit: 0,
     expireInSeconds: 300,
+    concurrency: 1,
+    policy: 'standard',
+  },
+  'security.cleanup': {
+    cron: '41 3 * * *',
+    retryLimit: 0,
+    expireInSeconds: 600,
     concurrency: 1,
     policy: 'standard',
   },

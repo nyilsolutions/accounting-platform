@@ -5,6 +5,7 @@ import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { BREACH_CHECKER, HibpBreachChecker, NoBreachCheck } from './breach-check';
 import { RecentMfaGuard } from './recent-mfa.guard';
+import { CredentialCleanupService } from './credential-cleanup.service';
 import { SecurityNoticesService } from './security-notices.service';
 import { SessionGuard } from './session.guard';
 import { SessionService } from './session.service';
@@ -16,6 +17,7 @@ import { SessionService } from './session.service';
     AuthService,
     SessionService,
     SecurityNoticesService,
+    CredentialCleanupService,
     RecentMfaGuard,
     {
       provide: BREACH_CHECKER,

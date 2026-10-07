@@ -1,7 +1,9 @@
 import { generateTotp } from '@acct/crypto';
 import { createDb, sql, type Db } from '@acct/db';
 import { PASSWORD_BREACHED, STEP_UP_REQUIRED, type SessionDto } from '@acct/shared';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { Logger } from '@nestjs/common';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import { CredentialCleanupService } from '../src/auth/credential-cleanup.service';
 import { loadConfig } from '../src/config';
 import { agent, signUp, startApp, type Agent, type TestContext } from './helpers';
 
@@ -297,6 +299,69 @@ describe('sessions', () => {
     const out = await u.agent.post('/auth/sessions/sign-out-others').expect(200);
     expect(out.body).toEqual({ signedOut: 1 });
     await c.get('/auth/me').expect(401);
+    await u.agent.get('/auth/me').expect(200);
+  });
+});
+
+describe('security events', () => {
+  it('logs refused access, unknown sign-ins and rejected input, without values', async () => {
+    const warnings: string[] = [];
+    const spy = vi.spyOn(Logger.prototype, 'warn').mockImplementation(function (
+      this: Logger,
+      m: unknown,
+    ) {
+      if ((this as unknown as { context?: string }).context === 'Security')
+        warnings.push(String(m));
+    });
+    try {
+      await agent(ctx.app)
+        .post('/auth/login')
+        .send({ email: 'nobody-here@example.com', password: 'secret-guess-123' })
+        .expect(401);
+      const owner = await signUp(ctx.app, 'events-owner@example.com');
+      const company = (
+        await owner.agent.post('/companies').send({ name: 'Events Co', legalName: 'Events Co' })
+      ).body as { id: string };
+      const stranger = await signUp(ctx.app, 'events-stranger@example.com');
+      await stranger.agent.get(`/companies/${company.id}/accounts`).expect(404);
+      await owner.agent
+        .post(`/companies/${company.id}/bank-rules`)
+        .send({ name: 42, conditions: 'secret-value' })
+        .expect(400);
+    } finally {
+      spy.mockRestore();
+    }
+    expect(warnings.some((w) => w.startsWith('auth.login_unknown_account'))).toBe(true);
+    expect(warnings.some((w) => w.startsWith('access.not_member'))).toBe(true);
+    expect(warnings.some((w) => /^input\.rejected paths=.*name/.test(w))).toBe(true);
+    const all = warnings.join('\n');
+    for (const secret of ['nobody-here@example.com', 'secret-guess-123', 'secret-value'])
+      expect(all).not.toContain(secret);
+  });
+});
+
+describe('credential cleanup', () => {
+  it('deletes sessions 30 days after they ended and keeps live ones', async () => {
+    const u = await signUp(ctx.app, 'cleanup@example.com');
+    const ids = await admin
+      .selectFrom('sessions as s')
+      .innerJoin('users as x', 'x.id', 's.user_id')
+      .select('s.id')
+      .where('x.email', '=', 'cleanup@example.com')
+      .execute();
+    expect(ids).toHaveLength(1);
+    // An old session of the same person, ended 31 days ago.
+    await sql`insert into sessions (user_id, token_hash, expires_at, created_at, last_seen_at)
+              values (${u.userId}, 'old-session-hash', now() - interval '31 days',
+                      now() - interval '40 days', now() - interval '40 days')`.execute(admin);
+    const counts = await ctx.app.get(CredentialCleanupService).run();
+    expect(counts.sessions).toBeGreaterThanOrEqual(1);
+    const left = await admin
+      .selectFrom('sessions')
+      .select('id')
+      .where('user_id', '=', u.userId)
+      .execute();
+    expect(left).toEqual(ids);
     await u.agent.get('/auth/me').expect(200);
   });
 });

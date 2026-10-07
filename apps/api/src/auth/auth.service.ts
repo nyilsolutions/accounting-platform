@@ -36,6 +36,7 @@ import { AuditService } from '../audit/audit.service';
 import { APP_CONFIG, type AppConfig } from '../config';
 import type { AuthContext, RequestMeta } from '../common/request';
 import { DB, FIELD_ENCRYPTOR } from '../db/db.module';
+import { securityEvent } from '../observability/security-log';
 import { mfaAad } from '../security/aad';
 import { BREACH_CHECKER, type BreachChecker } from './breach-check';
 import { SecurityNoticesService, type SecurityEvent } from './security-notices.service';
@@ -102,6 +103,8 @@ export class AuthService {
       .executeTakeFirst();
     if (!user) {
       await verifyPassword(await getDummyPasswordHash(), input.password);
+      // No audit row (there is no account to tie it to) and never the address itself.
+      securityEvent('auth.login_unknown_account', { ip: meta.ip });
       throw new UnauthorizedException(INVALID_CREDENTIALS);
     }
     this.assertNotLocked(user);

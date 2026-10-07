@@ -372,6 +372,13 @@ describe("an employee's portal", () => {
     expect(e.bankAccounts).toEqual([
       expect.objectContaining({ accountMasked: '****4321', prenoteStatus: 'pending' }),
     ]);
+    // Once applied, the request keeps only its masked summary (ASVS 8.3.8).
+    const decided = await admin
+      .selectFrom('employee_change_requests')
+      .select(['secret_enc', 'summary'])
+      .where('id', '=', req.id)
+      .executeTakeFirstOrThrow();
+    expect(decided).toEqual({ secret_enc: null, summary: stored.summary });
     const after = (await ana.agent.get(portal('/profile')).expect(status(200)))
       .body as PortalEmployeeProfileDto;
     expect(after.bankAccounts).toEqual(['Checking ****4321 (routing 021000021): the rest']);

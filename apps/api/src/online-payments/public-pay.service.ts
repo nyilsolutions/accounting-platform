@@ -2,6 +2,8 @@ import { randomUUID } from 'node:crypto';
 import {
   BadRequestException,
   ConflictException,
+  HttpException,
+  HttpStatus,
   Inject,
   Injectable,
   NotFoundException,
@@ -26,6 +28,7 @@ import {
 } from './processors/payment-processor';
 
 const TOKEN = /^[A-Za-z0-9_-]{43}$/;
+const MAX_CHECKOUTS_PER_HOUR = 10;
 
 /**
  * The customer's side (ADR 0022): no sign-in, the pay link is the credential for one invoice.
@@ -53,6 +56,20 @@ export class PublicPayService {
         throw new ConflictException(dto.reason ?? 'This invoice is paid');
       if (input.method && !dto.methods.includes(input.method))
         throw new BadRequestException('That way of paying is not offered');
+      // Each checkout is a session at the processor: a public link may start only so many
+      // (ASVS 11.1.4). A customer retrying a few times never gets near it.
+      const recent = await tx
+        .selectFrom('online_payments')
+        .select((eb) => eb.fn.countAll<string>().as('n'))
+        .where('company_id', '=', link.companyId)
+        .where('pay_link_id', '=', link.linkId)
+        .where('created_at', '>', new Date(Date.now() - 60 * 60_000))
+        .executeTakeFirstOrThrow();
+      if (Number(recent.n) >= MAX_CHECKOUTS_PER_HOUR)
+        throw new HttpException(
+          'Too many payment attempts on this link. Try again in an hour.',
+          HttpStatus.TOO_MANY_REQUESTS,
+        );
       const account = await tx
         .selectFrom('payment_accounts')
         .select(['provider', 'account_id'])

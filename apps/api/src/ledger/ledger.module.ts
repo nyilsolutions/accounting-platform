@@ -4,6 +4,7 @@ import { JournalService } from './journal.service';
 import { LedgerController } from './ledger.controller';
 import { LedgerSettingsService } from './ledger-settings.service';
 import { LedgerSetupService } from './ledger-setup.service';
+import { ClosingPasswordAttempts } from './closing-password-attempts';
 import { PostingService } from './posting.service';
 
 @Global()
@@ -15,6 +16,7 @@ import { PostingService } from './posting.service';
     LedgerSettingsService,
     LedgerSetupService,
     PostingService,
+    ClosingPasswordAttempts,
   ],
   exports: [
     AccountsService,
@@ -22,6 +24,7 @@ import { PostingService } from './posting.service';
     LedgerSetupService,
     LedgerSettingsService,
     PostingService,
+    ClosingPasswordAttempts,
   ],
 })
 export class LedgerModule {}

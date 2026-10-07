@@ -529,6 +529,9 @@ describe('deleting and retention', () => {
     await owner.agent.post(`${base()}/documents/${doc.id}/restore`).expect(204);
     await owner.agent.delete(`${base()}/documents/${doc.id}`).expect(204);
 
+    const found = async () =>
+      (await list({ deleted: 'true', search: 'Old receipt' })).documents.map((d) => d.id);
+    expect(await found()).toContain(doc.id);
     // Nothing is purged inside the retention period…
     expect((await owner.agent.post(`${base()}/documents/purge`).expect(200)).body).toEqual({
       purged: 0,
@@ -551,6 +554,8 @@ describe('deleting and retention', () => {
     const purged: DocumentDto = (await owner.agent.get(`${base()}/documents/${doc.id}`).expect(200))
       .body;
     expect(purged.current.purged).toBe(true);
+    // The text read from it can't be searched any more either.
+    expect(await found()).not.toContain(doc.id);
     await owner.agent.post(`${base()}/documents/${doc.id}/restore`).expect(409);
     const audit = await owner.agent.get(`${base()}/audit-log?action=document.deleted`).expect(200);
     expect(audit.body.entries.length).toBeGreaterThanOrEqual(2);

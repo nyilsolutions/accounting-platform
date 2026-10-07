@@ -744,6 +744,28 @@ describe('liabilities', () => {
       [agency, 'posted'],
     ]);
   });
+
+  it('pays a balance once when two payments of it arrive at the same time', async () => {
+    const pay = () =>
+      payrollAdmin.agent.post(`${base()}/liabilities/payments`).send({
+        agency: 'federal_941',
+        periodStart: '2026-01-01',
+        periodEnd: '2026-01-31',
+        paymentDate: '2026-02-13',
+        amount: '451.23',
+        method: 'check',
+      });
+    const results = await Promise.all([pay(), pay(), pay()]);
+    expect(results.map((r) => r.status).sort()).toEqual([201, 400, 400]);
+    const paid = results.find((r) => r.status === 201)!.body as PayrollLiabilityPaymentDto;
+    // Back to the balance the reports below expect.
+    await payrollAdmin.agent
+      .post(`${base()}/liabilities/payments/${paid.id}/void`)
+      .send({})
+      .expect(200);
+    liabilities = (await payrollAdmin.agent.get(`${base()}/liabilities`).expect(200)).body;
+    expect(row('federal_941').balance).toBe('451.23');
+  });
 });
 
 describe('payroll reports', () => {
