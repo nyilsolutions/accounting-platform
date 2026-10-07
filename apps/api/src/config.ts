@@ -235,6 +235,13 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
       throw new Error('CLAMD_HOST must be the local host (a sidecar) in production');
     }
     if (config.LOG_FORMAT === 'pretty') throw new Error("LOG_FORMAT must be 'json' in production");
+    // Files on S3 are encrypted by S3 with our KMS key (ADR 0029), never S3-managed keys.
+    if (
+      config.DOCUMENT_STORAGE === 's3' &&
+      (config.S3_SSE !== 'aws:kms' || !config.S3_KMS_KEY_ID)
+    ) {
+      throw new Error("S3_SSE must be 'aws:kms' with S3_KMS_KEY_ID in production");
+    }
     if (isExampleFieldKey(config.FIELD_ENCRYPTION_KEY)) {
       throw new Error('FIELD_ENCRYPTION_KEY is the public example key; remove it in production');
     }

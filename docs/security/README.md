@@ -33,6 +33,7 @@ The ASVS Level 2 review is in [asvs-l2.md](asvs-l2.md), the threat model in
 ## To do before production (12d)
 
 - Secrets in AWS Secrets Manager; the KMS key policy; a key rotation runbook drill
+- S3 access through the task's IAM role instead of `S3_ACCESS_KEY_ID`/`S3_SECRET_ACCESS_KEY`
 - Log shipping, retention and alarms on security events (question 84)
 - Backups with point-in-time recovery and a tested restore; disaster-recovery drill
 - A penetration test after launch hardening

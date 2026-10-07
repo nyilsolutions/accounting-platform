@@ -45,7 +45,8 @@ their data with them, and written policies an auditor can test against. The owne
 - **All AADs in one place** (`security/aad.ts`).
 - **Signing is separate:** download links and OAuth state are signed with `SIGNING_KEY`, not a
   field key.
-- **Files:** on S3, objects use S3 server-side encryption (SSE-KMS with `S3_SSE=aws:kms` and `S3_KMS_KEY_ID`).
+- **Files:** on S3, objects use S3 server-side encryption with our KMS key (`S3_SSE=aws:kms` and
+  `S3_KMS_KEY_ID`, required in production).
   Local storage encrypts each file with its own data key, wrapped by the field encryptor, as do
   data exports.
 

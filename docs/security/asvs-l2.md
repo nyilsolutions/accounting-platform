@@ -119,15 +119,15 @@ Re-run this review before each major release and whenever a chapter's code chang
 
 ## V6 Stored cryptography
 
-| Req        | Control                                     | Status | Where                                                                                                           |
-| ---------- | ------------------------------------------- | ------ | --------------------------------------------------------------------------------------------------------------- |
-| 6.1.1-3    | Regulated data encrypted at rest            | Met    | SSNs, EINs, TINs, bank numbers, MFA secrets, tokens (`ENCRYPTED_COLUMNS`); documents per file                   |
-| 6.2.1      | Failures are not silent; vetted algorithms  | Met    | AES-256-GCM with AAD; **12c:** 16-byte tag length enforced                                                      |
-| 6.2.2-6    | Approved algorithms, random IVs, no reuse   | Met    | Node `crypto`, random 96-bit IVs                                                                                |
-| 6.3.1-2    | Random values from a CSPRNG                 | Met    | `randomBytes`, `randomUUID`                                                                                     |
-| 6.4.1      | Keys in a key management solution           | Met    | **12c:** AWS KMS envelope encryption; data keys wrapped with EncryptionContext (ADR 0029)                       |
-| 6.4.2      | Key material not exposed to the app's users | Met    | **12c:** keys unwrapped at start-up only; `keys:rotate` and `keys:reencrypt`; the public example key is refused |
-| (rotation) | Keys can be rotated without downtime        | Met    | **12c:** versioned keyring; every value names its key version                                                   |
+| Req        | Control                                     | Status | Where                                                                                                                        |
+| ---------- | ------------------------------------------- | ------ | ---------------------------------------------------------------------------------------------------------------------------- |
+| 6.1.1-3    | Regulated data encrypted at rest            | Met    | SSNs, EINs, TINs, bank numbers, MFA secrets, tokens (`ENCRYPTED_COLUMNS`); files with SSE-KMS on S3 (required in production) |
+| 6.2.1      | Failures are not silent; vetted algorithms  | Met    | AES-256-GCM with AAD; **12c:** 16-byte tag length enforced                                                                   |
+| 6.2.2-6    | Approved algorithms, random IVs, no reuse   | Met    | Node `crypto`, random 96-bit IVs                                                                                             |
+| 6.3.1-2    | Random values from a CSPRNG                 | Met    | `randomBytes`, `randomUUID`                                                                                                  |
+| 6.4.1      | Keys in a key management solution           | Met    | **12c:** AWS KMS envelope encryption; data keys wrapped with EncryptionContext (ADR 0029)                                    |
+| 6.4.2      | Key material not exposed to the app's users | Met    | **12c:** keys unwrapped at start-up only; `keys:rotate` and `keys:reencrypt`; the public example key is refused              |
+| (rotation) | Keys can be rotated without downtime        | Met    | **12c:** versioned keyring; every value names its key version                                                                |
 
 ## V7 Error handling and logging
 

@@ -421,6 +421,9 @@ describe('configuration', () => {
       'ECB_RATES_URL must be https',
     );
     expect(() => loadConfig({ ...prod, CLAMD_HOST: '10.0.0.5' })).toThrow('CLAMD_HOST');
+    expect(() => loadConfig({ ...prod, DOCUMENT_STORAGE: 's3', S3_SSE: 'AES256' })).toThrow(
+      "S3_SSE must be 'aws:kms'",
+    );
     expect(() => loadConfig({ ...prod, LOG_FORMAT: 'pretty' })).toThrow(
       "LOG_FORMAT must be 'json'",
     );

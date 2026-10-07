@@ -100,7 +100,7 @@ Stripe / Plaid ──signed webhooks──> API          Worker (same code, jobs
 
 | STRIDE | Threat                                   | Mitigation                                                                                                                              |
 | ------ | ---------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
-| I      | A database dump or backup stolen         | Restricted columns and files encrypted with keys wrapped by KMS; values bound to their row (AAD)                                        |
+| I      | A database dump or backup stolen         | Restricted columns encrypted with keys wrapped by KMS, bound to their row (AAD); files encrypted by S3 with our KMS key                 |
 | I      | Sensitive values in logs or traces       | Redacting logger and trace exporter; values never passed to logs; audit records redacted                                                |
 | T      | Tampering with the audit log             | `acct_app` can only insert and read; triggers refuse updates, deletes and truncation                                                    |
 | I      | Old credentials and secrets lying around | Sessions, links and invitations deleted 30 days after they end; decided change requests drop bank numbers; exports deleted after 7 days |
