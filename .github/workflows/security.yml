@@ -1,0 +1,86 @@
+name: Security
+
+# Security scanning (ADR 0029): static analysis with CodeQL, known-vulnerable dependencies, and
+# committed secrets. Runs on every pull request, on main, and weekly (new advisories appear for
+# code that hasn't changed). Dependabot (.github/dependabot.yml) proposes the updates.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: '23 5 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  codeql:
+    name: CodeQL (${{ matrix.language }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [javascript-typescript, csharp]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: github/codeql-action/init@v3
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: none
+          queries: security-extended
+      - uses: github/codeql-action/analyze@v3
+        with:
+          category: /language:${{ matrix.language }}
+
+  dependencies:
+    name: Vulnerable dependencies
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: npm advisories (any severity in production dependencies, high in development ones)
+        run: |
+          pnpm audit --prod --audit-level low
+          pnpm audit --audit-level high
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+      - name: NuGet advisories (the desktop agent's portable projects)
+        working-directory: apps/desktop-agent
+        run: |
+          for p in src/QbMigrationAgent.Core/QbMigrationAgent.Core.csproj tests/QbMigrationAgent.Tests/QbMigrationAgent.Tests.csproj; do
+            out=$(dotnet list "$p" package --vulnerable --include-transitive)
+            echo "$out"
+            if echo "$out" | grep -q "has the following vulnerable packages"; then exit 1; fi
+          done
+
+  secrets:
+    name: Committed secrets
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      GITLEAKS_VERSION: 8.28.0
+      GITLEAKS_SHA256: a65b5253807a68ac0cafa4414031fd740aeb55f54fb7e55f386acb52e6a840eb
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Install gitleaks (pinned and checked)
+        run: |
+          curl -sSL -o gitleaks.tgz "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          echo "${GITLEAKS_SHA256}  gitleaks.tgz" | sha256sum -c -
+          tar xzf gitleaks.tgz gitleaks
+      - name: Scan every commit (.gitleaksignore lists the known test fixtures)
+        run: ./gitleaks git . --redact --exit-code 1
