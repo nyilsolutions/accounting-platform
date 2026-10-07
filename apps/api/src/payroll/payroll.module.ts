@@ -21,6 +21,11 @@ import { PayrollLookupsService } from './payroll-lookups.service';
 import { PayrollSetupService } from './payroll-setup.service';
 import { PriorPayrollService } from './prior-payroll.service';
 import { TaxFormsService } from './tax-forms.service';
+import {
+  FixtureStateTaxEngine,
+  STATE_TAX_ENGINE,
+  type StateTaxEngine,
+} from './tax/state-tax-engine';
 
 export function createEftpsBatchProvider(config: AppConfig): EftpsBatchProvider | null {
   return config.EFTPS_BATCH_PROVIDER === 'stand-in' ? new StandInEftpsBatch() : null;
@@ -28,6 +33,13 @@ export function createEftpsBatchProvider(config: AppConfig): EftpsBatchProvider 
 
 export function createDepositPartner(config: AppConfig): DepositPartner | null {
   return config.DEPOSIT_PARTNER === 'stand-in' ? new StandInDepositPartner() : null;
+}
+
+/** The licensed state tax engine (ADR 0026); none until one is contracted. */
+export function createStateTaxEngine(config: AppConfig): StateTaxEngine | null {
+  return config.PAYROLL_TAX_ENGINE === 'test-fixture' && config.NODE_ENV === 'test'
+    ? new FixtureStateTaxEngine()
+    : null;
 }
 
 @Module({
@@ -53,6 +65,7 @@ export function createDepositPartner(config: AppConfig): DepositPartner | null {
     { provide: PAYMENT_RAIL, useClass: NachaFileRail },
     { provide: EFTPS_BATCH_PROVIDER, inject: [APP_CONFIG], useFactory: createEftpsBatchProvider },
     { provide: DEPOSIT_PARTNER, inject: [APP_CONFIG], useFactory: createDepositPartner },
+    { provide: STATE_TAX_ENGINE, inject: [APP_CONFIG], useFactory: createStateTaxEngine },
   ],
   exports: [
     PayrollSetupService,
@@ -64,6 +77,7 @@ export function createDepositPartner(config: AppConfig): DepositPartner | null {
     DepositPartnerService,
     EFTPS_BATCH_PROVIDER,
     DEPOSIT_PARTNER,
+    STATE_TAX_ENGINE,
   ],
 })
 export class PayrollModule {}

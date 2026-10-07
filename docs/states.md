@@ -14,6 +14,10 @@ Every rate, wage base, table and threshold for these states lives in
 (`apps/api/src/payroll/tax/tax-engine.ts`, ADR 0016); a licensed engine (Symmetry Tax Engine) or an
 embedded payroll provider can replace it later.
 
+Employees can work in any of the 50 states or DC (Phase 11c). Other states' taxes, and local
+taxes, come only from a licensed tax engine behind `StateTaxEngine` (ADR 0026). Until one is
+contracted, paychecks in those states are refused with the reason.
+
 ## What each state needs
 
 | State          | Income tax withholding                                                                                                                                                                                       | Unemployment (employer)                                                                                           | Other                                                                                                                                                                                            | Sources to read                                                          |

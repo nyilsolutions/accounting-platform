@@ -16,8 +16,8 @@ import {
   PAYROLL_ITEM_CATEGORY_LABELS,
   PAYROLL_ITEM_KIND_LIST,
   PAYROLL_ITEM_KINDS,
-  PAYROLL_STATE_LABELS,
-  PAYROLL_STATES,
+  PAYROLL_WORK_STATES,
+  WORK_STATE_NAMES,
   payrollItemCategory,
   PTO_ACCRUAL_LABELS,
   PTO_ACCRUAL_METHODS,
@@ -67,9 +67,9 @@ function dialogTitle(d: DialogState): string {
     case 'schedule':
       return d.value ? 'Edit pay schedule' : 'Add pay schedule';
     case 'state':
-      return d.value ? `Edit ${PAYROLL_STATE_LABELS[d.value.state]}` : 'Add state';
+      return d.value ? `Edit ${WORK_STATE_NAMES[d.value.state]}` : 'Add state';
     case 'rate':
-      return `Set ${PAYROLL_STATE_LABELS[d.value.state]} unemployment rate`;
+      return `Set ${WORK_STATE_NAMES[d.value.state]} unemployment rate`;
     case 'workers-comp':
       return d.value ? "Edit workers' comp class" : "Add workers' comp class";
     case 'pto':
@@ -431,12 +431,13 @@ function Setup({ companyId, settings }: { companyId: string; settings: PayrollSe
               'Unemployment account',
               'Deposit schedule',
               'Unemployment rate',
+              'Taxes',
               '',
             ]}
           >
             {states.data!.map((s) => (
               <tr key={s.id}>
-                <td className="px-2 py-2">{PAYROLL_STATE_LABELS[s.state]}</td>
+                <td className="px-2 py-2">{WORK_STATE_NAMES[s.state]}</td>
                 <td className="px-2 py-2">{s.withholdingAccountNumber ?? '—'}</td>
                 <td className="px-2 py-2">{s.unemploymentAccountNumber ?? '—'}</td>
                 <td className="px-2 py-2">
@@ -448,6 +449,15 @@ function Setup({ companyId, settings }: { companyId: string; settings: PayrollSe
                 </td>
                 <td className="px-2 py-2">
                   {s.unemploymentRates.map((r) => `${r.year}: ${r.rate}%`).join(', ') || '—'}
+                </td>
+                <td className="px-2 py-2" data-testid={`tax-source-${s.state}`}>
+                  {s.taxSource === 'built_in' ? (
+                    'Built in'
+                  ) : s.taxSource === 'tax_engine' ? (
+                    `${s.taxEngineName} (licensed engine)`
+                  ) : (
+                    <Badge tone="amber">Needs a licensed tax engine</Badge>
+                  )}
                 </td>
                 <td className="px-2 py-2 text-right">
                   {manage({ kind: 'rate', value: s }, 'Set rate')}
@@ -653,12 +663,13 @@ function Setup({ companyId, settings }: { companyId: string; settings: PayrollSe
                   <Select
                     label="State"
                     name="state"
-                    options={PAYROLL_STATES.filter(
+                    options={PAYROLL_WORK_STATES.filter(
                       (s) => !states.data?.some((r) => r.state === s),
                     ).map((s) => ({
                       value: s,
-                      label: PAYROLL_STATE_LABELS[s],
+                      label: WORK_STATE_NAMES[s],
                     }))}
+                    hint="California, Florida, Illinois, New York and Texas taxes are built in. Other states' taxes need a licensed tax engine; until one is set up, their paychecks are refused."
                   />
                 )}
                 <TextInput
@@ -708,10 +719,10 @@ function Setup({ companyId, settings }: { companyId: string; settings: PayrollSe
                 <Select
                   label="State"
                   name="state"
-                  defaultValue={dialog.value?.state ?? PAYROLL_STATES[0]}
-                  options={PAYROLL_STATES.map((s) => ({
+                  defaultValue={dialog.value?.state ?? PAYROLL_WORK_STATES[0]}
+                  options={PAYROLL_WORK_STATES.map((s) => ({
                     value: s,
-                    label: PAYROLL_STATE_LABELS[s],
+                    label: WORK_STATE_NAMES[s],
                   }))}
                 />
                 <TextInput

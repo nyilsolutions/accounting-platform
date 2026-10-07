@@ -3,7 +3,7 @@
 import { useParams } from 'next/navigation';
 import { useState, type FormEvent } from 'react';
 import {
-  PAYROLL_STATES,
+  PAYROLL_WORK_STATES,
   PRIOR_DEPOSIT_AGENCIES,
   PRIOR_DEPOSIT_AGENCY_LABELS,
   PAYROLL_TAX_CODES,
@@ -308,7 +308,7 @@ function PriorEditor({
                   value={r.state}
                   onChange={(e) => setTax(i, { state: e.target.value })}
                   placeholder="State"
-                  options={PAYROLL_STATES.map((s) => ({ value: s, label: s }))}
+                  options={PAYROLL_WORK_STATES.map((s) => ({ value: s, label: s }))}
                 />
               ) : (
                 <div />

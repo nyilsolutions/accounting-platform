@@ -2,6 +2,7 @@ import { parseMoney, type PayrollTaxCode } from '@acct/shared';
 import { describe, expect, it } from 'vitest';
 import { loadTaxData } from '../common/tax-data';
 import {
+  agencyLabel,
   agencyOf,
   payrollLiabilities,
   type LiabilityFacts,
@@ -53,6 +54,62 @@ describe('agencies', () => {
     expect(
       agencyOf({ lineType: 'deduction', taxCode: null, state: null, payrollItemId: 'k401' }),
     ).toBe('item:k401');
+  });
+});
+
+describe("a licensed engine's taxes (ADR 0026)", () => {
+  const engine = (
+    payDate: string,
+    code: PayrollTaxCode,
+    amount: string,
+    state: string,
+    jurisdiction: [string, string] | null,
+  ): LiabilityLine => ({
+    ...tax(payDate, code, amount, state),
+    jurisdictionCode: jurisdiction?.[0] ?? null,
+    jurisdictionName: jurisdiction?.[1] ?? null,
+  });
+
+  it('owes state income and unemployment tax to the state, and the rest to each jurisdiction', () => {
+    const lines = [
+      engine('2026-02-13', 'state_income', '61.40', 'PA', null),
+      engine('2026-02-13', 'state_unemployment', '1.20', 'PA', null),
+      engine('2026-02-13', 'local_income', '75.00', 'PA', ['510101', 'Philadelphia']),
+      engine('2026-02-27', 'local_income', '75.00', 'PA', ['510101', 'Philadelphia']),
+      engine('2026-02-13', 'state_other', '12.34', 'WA', ['WA-PFML', 'WA Paid Leave']),
+    ];
+    expect(lines.map(agencyOf)).toEqual([
+      'state_withholding:PA',
+      'state_unemployment:PA',
+      'local:PA:510101',
+      'local:PA:510101',
+      'state_other:WA:WA-PFML',
+    ]);
+    const names = new Map([
+      ['local:PA:510101', 'Philadelphia'],
+      ['state_other:WA:WA-PFML', 'WA Paid Leave'],
+    ]);
+    const { rows } = payrollLiabilities(facts({ lines, today: '2026-03-01' }), names);
+    const local = rows.find((r) => r.agency === 'local:PA:510101')!;
+    expect(local).toMatchObject({
+      agencyLabel: 'Pennsylvania: Philadelphia',
+      periodStart: '2026-01-01',
+      periodEnd: '2026-03-31',
+      accrued: '150.00',
+      dueDate: null,
+      status: 'no_due_date',
+      parts: [{ label: 'Philadelphia', amount: '150.00' }],
+    });
+    expect(local.dueNote).toMatch(/aren't in tax-data/);
+    expect(rows.find((r) => r.agency === 'state_withholding:PA')).toMatchObject({
+      agencyLabel: 'Pennsylvania: income tax withholding',
+      dueDate: null,
+    });
+    expect(rows.find((r) => r.agency === 'state_other:WA:WA-PFML')!.agencyLabel).toBe(
+      'Washington: WA Paid Leave',
+    );
+    // A payment whose lines are gone still names its agency.
+    expect(agencyLabel('local:OH:COL', new Map())).toBe('Ohio: local tax COL');
   });
 });
 

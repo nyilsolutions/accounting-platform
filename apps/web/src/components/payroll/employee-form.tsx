@@ -6,8 +6,8 @@ import {
   PAY_METHODS,
   PAY_TYPE_LABELS,
   PAY_TYPES,
-  PAYROLL_STATE_LABELS,
-  PAYROLL_STATES,
+  PAYROLL_WORK_STATES,
+  WORK_STATE_NAMES,
   US_STATES,
   type EmployeeDto,
   type PayType,
@@ -210,8 +210,9 @@ export function EmployeeForm({
             name="workState"
             defaultValue={e?.workState ?? ''}
             placeholder="Choose a state"
-            options={PAYROLL_STATES.map((s) => ({ value: s, label: PAYROLL_STATE_LABELS[s] }))}
+            options={PAYROLL_WORK_STATES.map((s) => ({ value: s, label: WORK_STATE_NAMES[s] }))}
             error={err('workState')}
+            hint="Other states than California, Florida, Illinois, New York and Texas need a licensed tax engine for their taxes."
             required
           />
           <TextInput

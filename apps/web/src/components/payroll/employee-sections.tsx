@@ -13,6 +13,8 @@ import {
   MAX_DEPOSIT_ACCOUNTS,
   PAYROLL_ITEM_CATEGORY_LABELS,
   PAYROLL_STATE_LABELS,
+  WORK_STATE_NAMES,
+  isPayrollState,
   STATE_CERTIFICATE_FORMS,
   todayIso,
   W4_2020_STATUS_LABELS,
@@ -295,7 +297,9 @@ export function StateCertificateSection({ companyId, employee }: Props) {
     : 'IL';
   const [state, setState] = useState<'CA' | 'IL' | 'NY'>(defaultState);
   const url = `/employees/${employee.id}/state-certificates`;
-  const noIncomeTax = STATE_CERTIFICATE_FORMS[employee.workState] === null;
+  const builtIn = isPayrollState(employee.workState);
+  const noIncomeTax =
+    isPayrollState(employee.workState) && STATE_CERTIFICATE_FORMS[employee.workState] === null;
 
   async function submit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -343,9 +347,11 @@ export function StateCertificateSection({ companyId, employee }: Props) {
     <Section
       title="State withholding"
       description={
-        noIncomeTax
-          ? `${PAYROLL_STATE_LABELS[employee.workState]} has no state income tax.`
-          : 'The state withholding certificate (IL-W-4, DE 4 or IT-2104).'
+        !builtIn
+          ? `${WORK_STATE_NAMES[employee.workState]} payroll taxes aren't built in: a licensed tax engine calculates them. Its withholding certificate can't be entered here yet.`
+          : noIncomeTax
+            ? `${WORK_STATE_NAMES[employee.workState]} has no state income tax.`
+            : 'The state withholding certificate (IL-W-4, DE 4 or IT-2104).'
       }
       testId="state-certificates"
       actions={

@@ -2,7 +2,7 @@ import { sql, type Tx } from '@acct/db';
 import {
   TAX_FILING_FORM_LABELS,
   type FormFilingState,
-  type PayrollState,
+  type WorkState,
   type TaxFilingDto,
   type TaxFilingForm,
   type TaxFilingMethod,
@@ -69,7 +69,7 @@ export function filingDto(r: {
     label: filingLabel(r),
     taxYear: r.tax_year,
     quarter: r.quarter,
-    state: r.state as PayrollState | null,
+    state: r.state as WorkState | null,
     filedOn: r.filed_on,
     method: r.method as TaxFilingMethod,
     confirmation: r.confirmation,

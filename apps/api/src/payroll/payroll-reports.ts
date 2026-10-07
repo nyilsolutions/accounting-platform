@@ -63,6 +63,8 @@ async function postedLines(s: Scope) {
       'i.name as item_name',
       'l.tax_code',
       'l.state',
+      'l.jurisdiction_code',
+      'l.jurisdiction_name',
       'l.payer',
       sql<string>`sum(l.amount)`.as('amount'),
       sql<string>`coalesce(sum(l.taxable_wages), 0)`.as('wages'),
@@ -82,6 +84,8 @@ async function postedLines(s: Scope) {
       'i.name',
       'l.tax_code',
       'l.state',
+      'l.jurisdiction_code',
+      'l.jurisdiction_name',
       'l.payer',
     ])
     .execute();
@@ -144,7 +148,7 @@ export async function payrollSummaryReport(s: Scope): Promise<ReportDto> {
     return total;
   };
   const taxLabel = (l: (typeof lines)[number]) =>
-    payrollTaxLabel(l.tax_code as PayrollTaxCode, l.state);
+    payrollTaxLabel(l.tax_code as PayrollTaxCode, l.state, l.jurisdiction_name);
 
   const gross = section('Earnings', (l) =>
     l.line_type === 'earning' ? (l.item_name ?? 'Pay') : null,
@@ -273,7 +277,10 @@ export async function payrollTaxLiabilityReport(s: Scope): Promise<ReportDto> {
     const code = l.tax_code as PayrollTaxCode;
     const section = l.state ? `State: ${l.state}` : 'Federal';
     // Employee and company halves of the same tax share a row (social security, Medicare).
-    const label = payrollTaxLabel(code, l.state).replace(' (company)', '');
+    // An engine's unemployment tax withheld from employees (ADR 0026) is its own row.
+    const label =
+      payrollTaxLabel(code, l.state, l.jurisdiction_name).replace(' (company)', '') +
+      (code === 'state_unemployment' && l.payer === 'employee' ? ' (employee)' : '');
     const sec = groups.get(section) ?? new Map<string, Acc>();
     const acc = sec.get(label) ?? { wages: ZERO, employee: ZERO, employer: ZERO };
     const amount = parseMoney(l.amount);

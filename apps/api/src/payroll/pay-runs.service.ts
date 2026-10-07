@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { ConflictException, Inject, Injectable, NotFoundException, Optional } from '@nestjs/common';
 import type { FieldEncryptor } from '@acct/crypto';
 import { sql, withTenant, type Db, type Tx } from '@acct/db';
 import {
@@ -7,6 +7,7 @@ import {
   ZERO,
   addDays,
   employeeDisplayName,
+  isPayrollState,
   maskSsn,
   moneyToString,
   parseMoney,
@@ -26,8 +27,8 @@ import {
   type PayRunStatus,
   type PayRunSummaryDto,
   type PayrollItemKind,
-  type PayrollState,
   type PayrollTaxCode,
+  type WorkState,
   type W4FilingStatus,
   type W4Version,
   type createPayRunSchema,
@@ -44,13 +45,23 @@ import { achOrigin } from './ach-origin';
 import {
   buildPaycheck,
   salaryForPeriod,
+  taxableItems,
   type ItemFacts,
+  type PaycheckFacts,
   type PaycheckInputFacts,
   type RecurringFacts,
 } from './paycheck-calc';
 import { bad, requirePayroll } from './payroll-common';
 import { DepositPartnerService } from './partners/deposit-partner.service';
 import { PAYMENT_RAIL, type PaymentRail, type PaymentRailResult } from './payment-rail';
+import {
+  STATE_TAX_ENGINE,
+  STATE_TAX_ENGINE_CODES,
+  askStateTaxEngine,
+  type StateTaxEngine,
+  type StateTaxEngineCode,
+  type StateTaxYtd,
+} from './tax/state-tax-engine';
 import { loadPayrollTaxData } from './tax/tax-data-types';
 import { NO_YTD, type StateCertificateFacts, type W4Facts, type YtdWages } from './tax/tax-engine';
 
@@ -81,6 +92,9 @@ export class PayRunsService {
     private readonly partner: DepositPartnerService,
     private readonly audit: AuditService,
     private readonly posting: PostingService,
+    @Optional()
+    @Inject(STATE_TAX_ENGINE)
+    private readonly stateTaxEngine: StateTaxEngine | null = null,
   ) {}
 
   private tenant<T>(auth: AuthContext, ctx: CompanyContext, fn: (tx: Tx) => Promise<T>) {
@@ -635,7 +649,11 @@ export class PayRunsService {
               `${l.description ?? 'Contribution'}: ${name}`,
             );
           } else {
-            const label = payrollTaxLabel(l.tax_code as PayrollTaxCode, l.state);
+            const label = payrollTaxLabel(
+              l.tax_code as PayrollTaxCode,
+              l.state,
+              l.jurisdiction_name,
+            );
             if (l.payer === 'employer')
               add(settings.tax_expense_account_id, amount, ZERO, `${label}: ${name}`, true);
             add(settings.liability_account_id, ZERO, amount, `${label}: ${name}`);
@@ -998,7 +1016,7 @@ export class PayRunsService {
       .executeTakeFirstOrThrow();
     const year = Number(pc.pay_date.slice(0, 4));
     const yearStart = `${year}-01-01`;
-    const workState = e.work_state as PayrollState;
+    const workState = e.work_state as WorkState;
 
     const w4 = await tx
       .selectFrom('employee_w4')
@@ -1047,7 +1065,7 @@ export class PayRunsService {
     );
     const ytd = await this.ytd(tx, companyId, e.id, pc.id, yearStart, pc.pay_date, workState);
 
-    const result = buildPaycheck({
+    const facts: PaycheckFacts = {
       payDate: pc.pay_date,
       taxData: loadPayrollTaxData(year),
       taxYear: year,
@@ -1080,7 +1098,37 @@ export class PayRunsService {
       returnedDepositAccounts: accounts
         .filter((a) => a.returned_at)
         .map((a) => `****${a.account_last4}${a.return_reason ? ` (${a.return_reason})` : ''}`),
-    });
+    };
+    let result = buildPaycheck(facts);
+    // A state without a built-in engine: the licensed engine calculates its state and local
+    // taxes from the paycheck's items (ADR 0026), and the paycheck is built again with them.
+    if (!isPayrollState(workState) && registration && result.grossPay > ZERO && facts.taxData) {
+      const externalState = await askStateTaxEngine(this.stateTaxEngine, {
+        payDate: pc.pay_date,
+        frequency: facts.frequency,
+        workState,
+        workAddress: {
+          line1: e.work_address_line1,
+          city: e.work_city,
+          state: e.work_state,
+          postalCode: e.work_postal_code,
+        },
+        homeAddress: {
+          line1: e.address_line1,
+          city: e.city,
+          state: e.state,
+          postalCode: e.postal_code,
+        },
+        items: taxableItems(result, items).map((i) => ({
+          kind: i.kind,
+          amount: moneyToString(i.amount),
+        })),
+        supplemental: pc.supplemental,
+        unemploymentRatePercent: facts.unemploymentRatePercent,
+        ytd: await this.engineYtd(tx, companyId, e.id, pc.id, yearStart, pc.pay_date),
+      });
+      result = buildPaycheck({ ...facts, externalState });
+    }
 
     await tx.deleteFrom('paycheck_lines').where('paycheck_id', '=', pc.id).execute();
     if (result.lines.length)
@@ -1101,6 +1149,8 @@ export class PayRunsService {
             amount: moneyToString(l.amount, 4),
             taxable_wages: l.taxableWages === null ? null : moneyToString(l.taxableWages, 4),
             subject_wages: l.subjectWages === null ? null : moneyToString(l.subjectWages, 4),
+            jurisdiction_code: l.jurisdictionCode,
+            jurisdiction_name: l.jurisdictionName,
             description: l.description,
           })),
         )
@@ -1259,6 +1309,86 @@ export class PayRunsService {
       parseMoney((await q.executeTakeFirstOrThrow()).total) +
       parseMoney((await prior.executeTakeFirstOrThrow()).total)
     );
+  }
+
+  /**
+   * A licensed engine's taxes already paid this calendar year (posted paychecks up to this pay
+   * date), by code, state and jurisdiction, for its wage bases and caps.
+   */
+  private async engineYtd(
+    tx: Tx,
+    companyId: string,
+    employeeId: string,
+    paycheckId: string,
+    yearStart: string,
+    payDate: string,
+  ): Promise<StateTaxYtd[]> {
+    const rows = await tx
+      .selectFrom('paycheck_lines as l')
+      .innerJoin('paychecks as p', 'p.id', 'l.paycheck_id')
+      .select([
+        'l.tax_code',
+        'l.payer',
+        'l.state',
+        'l.jurisdiction_code',
+        sql<string>`sum(l.taxable_wages)`.as('taxable'),
+        sql<string>`sum(l.subject_wages)`.as('subject'),
+        sql<string>`sum(l.amount)`.as('amount'),
+      ])
+      .where('l.company_id', '=', companyId)
+      .where('l.line_type', '=', 'tax')
+      .where('l.tax_code', 'in', [...STATE_TAX_ENGINE_CODES])
+      .where('p.employee_id', '=', employeeId)
+      .where('p.status', '=', 'posted')
+      .where('p.id', '<>', paycheckId)
+      .where('p.pay_date', '>=', yearStart)
+      .where('p.pay_date', '<=', payDate)
+      .groupBy(['l.tax_code', 'l.payer', 'l.state', 'l.jurisdiction_code'])
+      .execute();
+    // Pay from before payroll started here (prior payroll has state income and unemployment tax).
+    const prior = await tx
+      .selectFrom('prior_payroll_lines as l')
+      .innerJoin('prior_payroll_entries as e', 'e.id', 'l.entry_id')
+      .select([
+        'l.tax_code',
+        'l.payer',
+        'l.state',
+        'l.jurisdiction_code',
+        sql<string>`sum(l.taxable_wages)`.as('taxable'),
+        sql<string>`sum(l.subject_wages)`.as('subject'),
+        sql<string>`sum(l.amount)`.as('amount'),
+      ])
+      .where('l.company_id', '=', companyId)
+      .where('l.line_type', '=', 'tax')
+      .where('l.tax_code', 'in', [...STATE_TAX_ENGINE_CODES])
+      .where('e.employee_id', '=', employeeId)
+      .where('e.pay_date', '>=', yearStart)
+      .where('e.pay_date', '<=', payDate)
+      .groupBy(['l.tax_code', 'l.payer', 'l.state', 'l.jurisdiction_code'])
+      .execute();
+    const totals = new Map<string, StateTaxYtd>();
+    for (const r of [...rows, ...prior]) {
+      const key = `${r.tax_code}|${r.payer}|${r.state}|${r.jurisdiction_code ?? ''}`;
+      const taxable = parseMoney(r.taxable ?? '0');
+      const subject = parseMoney(r.subject ?? r.taxable ?? '0');
+      const amount = parseMoney(r.amount);
+      const t = totals.get(key);
+      if (t) {
+        t.taxableWages = moneyToString(parseMoney(t.taxableWages) + taxable);
+        t.subjectWages = moneyToString(parseMoney(t.subjectWages) + subject);
+        t.amount = moneyToString(parseMoney(t.amount) + amount);
+      } else
+        totals.set(key, {
+          code: r.tax_code as StateTaxEngineCode,
+          payer: r.payer as 'employee' | 'employer',
+          state: r.state ?? '',
+          jurisdictionCode: r.jurisdiction_code,
+          taxableWages: moneyToString(taxable),
+          subjectWages: moneyToString(subject),
+          amount: moneyToString(amount),
+        });
+    }
+    return [...totals.values()];
   }
 
   /** Taxable wages already taxed this calendar year (posted paychecks up to this pay date). */
@@ -1428,11 +1558,18 @@ export class PayRunsService {
     const taxes = await tx
       .selectFrom('paycheck_lines as l')
       .innerJoin('paychecks as p', 'p.id', 'l.paycheck_id')
-      .select(['l.tax_code', 'l.state', 'l.payer', sql<string>`sum(l.amount)`.as('amount')])
+      .select([
+        'l.tax_code',
+        'l.state',
+        'l.jurisdiction_code',
+        'l.jurisdiction_name',
+        'l.payer',
+        sql<string>`sum(l.amount)`.as('amount'),
+      ])
       .where('p.pay_run_id', '=', id)
       .where('p.status', '<>', 'void')
       .where('l.line_type', '=', 'tax')
-      .groupBy(['l.tax_code', 'l.state', 'l.payer'])
+      .groupBy(['l.tax_code', 'l.state', 'l.jurisdiction_code', 'l.jurisdiction_name', 'l.payer'])
       .execute();
     const deposit = await tx
       .selectFrom('ach_batches')
@@ -1470,12 +1607,14 @@ export class PayRunsService {
       taxes: taxes
         .sort(
           (a, b) =>
-            order(a.tax_code!) - order(b.tax_code!) || (a.state ?? '').localeCompare(b.state ?? ''),
+            order(a.tax_code!) - order(b.tax_code!) ||
+            (a.state ?? '').localeCompare(b.state ?? '') ||
+            (a.jurisdiction_name ?? '').localeCompare(b.jurisdiction_name ?? ''),
         )
         .map((t) => ({
           code: t.tax_code as PayrollTaxCode,
           state: t.state,
-          label: payrollTaxLabel(t.tax_code as PayrollTaxCode, t.state),
+          label: payrollTaxLabel(t.tax_code as PayrollTaxCode, t.state, t.jurisdiction_name),
           payer: t.payer as 'employee' | 'employer',
           amount: moneyToString(parseMoney(t.amount)),
         })),
@@ -1525,6 +1664,7 @@ export class PayRunsService {
         'l.payroll_item_id',
         'l.tax_code',
         'l.state',
+        'l.jurisdiction_code',
         'l.payer',
         sql<string>`sum(l.amount)`.as('amount'),
       ])
@@ -1546,16 +1686,24 @@ export class PayRunsService {
           ]),
         ]),
       )
-      .groupBy(['l.line_type', 'l.payroll_item_id', 'l.tax_code', 'l.state', 'l.payer'])
+      .groupBy([
+        'l.line_type',
+        'l.payroll_item_id',
+        'l.tax_code',
+        'l.state',
+        'l.jurisdiction_code',
+        'l.payer',
+      ])
       .execute();
     const key = (l: {
       line_type: string;
       payroll_item_id: string | null;
       tax_code: string | null;
       state: string | null;
+      jurisdiction_code: string | null;
       payer: string | null;
     }) =>
-      `${l.line_type}|${l.payroll_item_id ?? ''}|${l.tax_code ?? ''}|${l.state ?? ''}|${l.payer ?? ''}`;
+      `${l.line_type}|${l.payroll_item_id ?? ''}|${l.tax_code ?? ''}|${l.state ?? ''}|${l.jurisdiction_code ?? ''}|${l.payer ?? ''}`;
     const ytdByKey = new Map(ytdRows.map((r) => [key(r), parseMoney(r.amount)]));
     const counted = p.status === 'posted';
     const ytdFor = (l: (typeof lines)[number]) => {
@@ -1602,7 +1750,7 @@ export class PayRunsService {
         payer: (l.payer as 'employee' | 'employer' | null) ?? null,
         state: l.state,
         label: l.tax_code
-          ? payrollTaxLabel(l.tax_code as PayrollTaxCode, l.state)
+          ? payrollTaxLabel(l.tax_code as PayrollTaxCode, l.state, l.jurisdiction_name)
           : (l.name ?? l.description ?? ''),
         hours: l.hours === null ? null : trimDecimal(l.hours),
         rate: l.rate === null ? null : trimDecimal(l.rate),
@@ -1653,6 +1801,9 @@ const PAYROLL_TAX_ORDER: PayrollTaxCode[] = [
   'ca_sdi',
   'ny_pfl',
   'ny_dbl',
+  'local_income',
+  'state_other',
+  'local_other',
   'social_security_employer',
   'medicare_employer',
   'futa',

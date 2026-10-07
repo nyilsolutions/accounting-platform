@@ -103,6 +103,12 @@ const envSchema = z.object({
   EFTPS_BATCH_PROVIDER: z.enum(['stand-in', 'none']).default('stand-in'),
   /** Direct deposit through a payments partner (ADR 0025): 'stand-in' or 'none'. */
   DEPOSIT_PARTNER: z.enum(['stand-in', 'none']).default('stand-in'),
+  /**
+   * State and local payroll taxes outside the built-in engine's states (ADR 0026): 'none' (such
+   * paychecks are refused with the reason) or 'test-fixture' (figures programmed by each test;
+   * NODE_ENV=test only). A licensed engine is added here once one is contracted.
+   */
+  PAYROLL_TAX_ENGINE: z.enum(['none', 'test-fixture']).default('none'),
   /** Asks EFTPS and the payments partner for updates every 15 minutes. 'off' in tests. */
   PAYROLL_PARTNER_POLLER: z.enum(['on', 'off']).default('on'),
   /** Asks the transmitter for acknowledgements every 15 minutes. 'off' in tests. */
@@ -122,6 +128,10 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     throw new Error(`Invalid configuration: ${issues}`);
   }
   const config = parsed.data;
+  if (config.PAYROLL_TAX_ENGINE === 'test-fixture' && config.NODE_ENV !== 'test') {
+    // Its figures aren't tax law: they must never reach a real paycheck.
+    throw new Error("PAYROLL_TAX_ENGINE 'test-fixture' is only for tests (NODE_ENV=test)");
+  }
   if (config.NODE_ENV === 'production') {
     if (!config.COOKIE_SECURE) throw new Error('COOKIE_SECURE must be true in production');
     if (['console', 'capture', 'file'].includes(config.MAIL_TRANSPORT)) {

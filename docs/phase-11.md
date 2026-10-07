@@ -21,7 +21,7 @@ The owner decided (2026-10-07):
 | ---- | ----------------------------------------------------------------- | ------- |
 | 11a  | Electronic filing of Forms 941, 940 and 1099, and the ATS harness | This PR |
 | 11b  | EFTPS batch payments and a payments partner, with stand-ins       | This PR |
-| 11c  | A plug-in point for a licensed tax engine or an embedded provider | Planned |
+| 11c  | A plug-in point for a licensed tax engine or an embedded provider | This PR |
 
 ## 11a: Electronic filing (ADR 0024)
 
@@ -154,3 +154,64 @@ Screenshots: `docs/screenshots/122-eftps-scheduled.png`, `123-partner-deposits.p
 - **The Treasury's batch provider enrollment** and the EFTPS specifications (question 77).
 - **The payments partner itself** (question 78).
 - **State tax payments** through a provider.
+
+## 11c: A licensed state tax engine (ADR 0026)
+
+The owner's decisions (2026-10-07):
+
+- **A plug-in point for a licensed tax engine.** The built-in engine keeps federal taxes and its
+  five states; an engine calculates any other state and its local taxes. The embedded provider
+  is designed only.
+- **No stand-in:** until an engine is contracted, paychecks in other states are refused with the
+  reason. Tests use a fixture engine whose figures they program.
+
+### Delivered
+
+- **Any state:** employees can work in any of the 50 states or DC, and any of them can be added
+  under **Payroll › Setup › States**. The States table has a **Taxes** column: **Built in**, the
+  licensed engine's name, or **Needs a licensed tax engine**.
+- **Refused paychecks:** a paycheck in a state nobody calculates has the problem "<State> payroll
+  taxes aren't built in. They need a licensed tax engine, and none is set up on this platform
+  yet." The run can't be approved until it is fixed. The employee's **State withholding**
+  section says the same.
+- **The engine's taxes on paychecks** (once one is set up):
+  - state income and unemployment tax, either payer;
+  - other state taxes, and local income and other local taxes, each named by its jurisdiction
+    (e.g. "Philadelphia").
+
+  Federal taxes stay built in. Every answer is checked before it reaches a paycheck.
+
+- **Liabilities:** local and other state taxes are owed to each jurisdiction ("Pennsylvania:
+  Philadelphia") and can be paid like any other. They have no due date in tax-data, which the
+  row says.
+- **Forms:**
+  - the W-2 gets state boxes for any state, localities (boxes 18–20) from local income taxes, and
+    the employee's other engine taxes in box 14;
+  - the state quarterly report works for any registered state, with the engine's taxes listed by
+    jurisdiction.
+- **Stubs, run totals, journal entries and payroll reports** name each jurisdiction.
+
+### Demo script
+
+1. Sign in as the demo user. Open **Payroll › Setup**: Washington is listed with **Needs a
+   licensed tax engine**, and Texas with **Built in**.
+2. Add an employee who works in Washington, and start a pay run for their schedule. Their
+   paycheck shows the refusal, and the run can't be approved. Remove them from the run.
+
+Screenshots: `docs/screenshots/124-state-tax-sources.png`, `125-state-tax-refused.png`.
+
+### Tests
+
+| Suite                   | Count | Highlights                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| ----------------------- | ----- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `packages/db`           | 116   | +1: engine lines name their state and jurisdiction, and built-in codes never do; the new agencies are accepted and malformed ones refused                                                                                                                                                                                                                                                                                                                                                    |
+| `packages/shared`       | 158   | Changed: any of the 50 states or DC as the work state, not a territory or an unknown code                                                                                                                                                                                                                                                                                                                                                                                                    |
+| `apps/api`              | 605   | +31. **Checks:** every malformed answer refused whole, the engine's own refusal passed on, an engine that fails refuses without its message. **Paychecks:** refused with the reason without an engine; the fixture's state and local taxes on the paycheck and stub with federal unchanged; what the engine is sent (no SSN); earlier taxes sent for wage bases. **After:** liabilities by jurisdiction, paid; W-2 localities and box 14; state quarterly; the fixture refused outside tests |
+| `apps/web` (Playwright) | 21    | +1: add Washington in Setup and see **Needs a licensed tax engine**; a Washington employee's paycheck is refused with the reason                                                                                                                                                                                                                                                                                                                                                             |
+
+### Not in this part
+
+- **A licensed engine or an embedded provider** (question 81).
+- **Other states' withholding certificates, reciprocity and residence-state withholding**
+  (question 82).
+- **Engine-only taxes in prior payroll** (question 83).

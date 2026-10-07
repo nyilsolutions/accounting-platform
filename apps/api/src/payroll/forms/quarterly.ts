@@ -7,12 +7,20 @@ import {
   type FederalQuarterDto,
   type FutaAnnualDto,
   type Money,
-  type PayrollState,
+  type WorkState,
   type PayrollTaxCode,
   type StateQuarterDto,
 } from '@acct/shared';
 import type { FederalTaxData, StateTaxData } from '../tax/tax-data-types';
-import { quarterOf, sumKinds, sumTax, type EmployeeFacts, type PayRecord } from './records';
+import {
+  engineTaxGroups,
+  payerOf,
+  quarterOf,
+  sumKinds,
+  sumTax,
+  type EmployeeFacts,
+  type PayRecord,
+} from './records';
 
 /**
  * The figures behind the quarterly and annual payroll returns (ADR 0017), from pay records.
@@ -189,7 +197,7 @@ const OTHER_EMPLOYER_CODES: PayrollTaxCode[] = ['ny_reemployment_fund', 'ca_ett'
 export interface StateQuarterFacts {
   taxYear: number;
   quarter: number;
-  state: PayrollState;
+  state: WorkState;
   stateName: string;
   stateData: StateTaxData | undefined;
   records: PayRecord[];
@@ -219,11 +227,14 @@ export function buildStateQuarter(
   for (const e of f.employees) {
     const mine = recs.filter((r) => r.employeeId === e.id);
     const lines = mine.flatMap((r) =>
-      r.lines.filter((l) => l.taxCode === 'state_unemployment' && l.state === f.state),
+      r.lines.filter(
+        (l) =>
+          l.taxCode === 'state_unemployment' && l.state === f.state && payerOf(l) === 'employer',
+      ),
     );
     if (lines.length === 0) continue;
-    const subject = sumTax(mine, ['state_unemployment'], 'subjectWages', f.state);
-    const taxable = sumTax(mine, ['state_unemployment'], 'taxableWages', f.state);
+    const subject = sumTax(mine, ['state_unemployment'], 'subjectWages', f.state, 'employer');
+    const taxable = sumTax(mine, ['state_unemployment'], 'taxableWages', f.state, 'employer');
     employees.push({
       employeeId: e.id,
       name: e.name,
@@ -231,7 +242,7 @@ export function buildStateQuarter(
       subjectWages: m(subject),
       excessWages: m(subject - taxable),
       taxableWages: m(taxable),
-      tax: m(sumTax(mine, ['state_unemployment'], 'amount', f.state)),
+      tax: m(sumTax(mine, ['state_unemployment'], 'amount', f.state, 'employer')),
     });
   }
   const total = (k: 'subjectWages' | 'excessWages' | 'taxableWages' | 'tax') =>
@@ -247,12 +258,42 @@ export function buildStateQuarter(
       amount: m(amount),
     });
   }
+  // A licensed engine's other state and local taxes (ADR 0026), by jurisdiction.
+  const engine = engineTaxGroups(
+    recs,
+    (l) =>
+      l.jurisdictionName ??
+      (l.taxCode === 'state_unemployment'
+        ? `${f.state} unemployment tax (employee)`
+        : payrollTaxLabel(l.taxCode!, l.state)),
+    f.state,
+  );
+  for (const g of engine) {
+    if (g.payer === 'employee')
+      withholding.push({
+        code: g.code,
+        label: g.label,
+        wages: m(g.taxableWages),
+        tax: m(g.amount),
+      });
+    else if (g.amount !== ZERO)
+      otherEmployerTaxes.push({
+        code: g.code,
+        label: g.label,
+        taxableWages: m(g.taxableWages),
+        amount: m(g.amount),
+      });
+  }
   const returns = f.stateData?.quarterlyReturns;
   const due = returns?.dueDates ?? returns?.delinquentDates;
   const notes: string[] = [];
   if (!returns)
     notes.push(
       `${f.stateName}'s quarterly return form and due date aren't in tax-data yet; this report has the figures it needs.`,
+    );
+  if (engine.some((g) => g.code === 'local_income' || g.code === 'local_other'))
+    notes.push(
+      "Local taxes are usually filed with each locality, not on the state's return; they're listed here for reference.",
     );
   if (employees.some((e) => !e.ssnMasked))
     notes.push('Some employees have no social security number; the state needs one for each.');

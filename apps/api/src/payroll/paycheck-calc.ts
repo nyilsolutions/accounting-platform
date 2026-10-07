@@ -7,10 +7,11 @@ import {
   type Money,
   type PayFrequency,
   type PayrollItemKind,
-  type PayrollState,
   type PayrollTaxCode,
+  type WorkState,
 } from '@acct/shared';
 import { dec, div, mul, q, toCents } from './tax/rational';
+import type { CheckedStateTaxes } from './tax/state-tax-engine';
 import type { PayrollTaxData } from './tax/tax-data-types';
 import {
   TaxCalculationRefused,
@@ -57,8 +58,13 @@ export interface PaycheckFacts {
   taxData: PayrollTaxData | null;
   taxYear: number;
   frequency: PayFrequency;
-  workState: PayrollState;
+  workState: WorkState;
   stateRegistered: boolean;
+  /**
+   * For a state without a built-in engine, the licensed engine's checked answer or refusal
+   * (ADR 0026). The pay run service asks the engine with `taxableItems` of a first build.
+   */
+  externalState?: CheckedStateTaxes | { refused: string[] } | null;
   w4: W4Facts | null;
   stateCertificate: StateCertificateFacts | null;
   firstPaidBefore2020: boolean;
@@ -95,6 +101,9 @@ export interface LineDraft {
   amount: Money;
   taxableWages: Money | null;
   subjectWages: Money | null;
+  /** A licensed engine's jurisdiction (state_other, local_income, local_other). */
+  jurisdictionCode: string | null;
+  jurisdictionName: string | null;
   description: string | null;
 }
 
@@ -158,6 +167,8 @@ export function buildPaycheck(f: PaycheckFacts): PaycheckResult {
     amount,
     taxableWages: null,
     subjectWages: null,
+    jurisdictionCode: null,
+    jurisdictionName: null,
     description: item.name,
   });
 
@@ -261,6 +272,7 @@ export function buildPaycheck(f: PaycheckFacts): PaycheckResult {
         ytd: f.ytd,
         unemploymentRatePercent: f.unemploymentRatePercent,
         newYork: f.newYork,
+        externalState: f.externalState,
       });
       notices.push(...taxes.notices);
       for (const t of taxes.lines) {
@@ -275,6 +287,8 @@ export function buildPaycheck(f: PaycheckFacts): PaycheckResult {
           amount: t.amount,
           taxableWages: t.taxableWages,
           subjectWages: t.subjectWages,
+          jurisdictionCode: t.jurisdiction?.code ?? null,
+          jurisdictionName: t.jurisdiction?.name ?? null,
           description: null,
         });
         if (t.payer === 'employee') employeeTaxes += t.amount;
@@ -308,6 +322,16 @@ export function buildPaycheck(f: PaycheckFacts): PaycheckResult {
     problems,
     notices,
   };
+}
+
+/** A built paycheck's earnings, deductions and contributions, as a tax engine is sent them. */
+export function taxableItems(
+  result: PaycheckResult,
+  items: Map<string, ItemFacts>,
+): { kind: PayrollItemKind; amount: Money }[] {
+  return result.lines
+    .filter((l) => l.lineType !== 'tax')
+    .map((l) => ({ kind: items.get(l.payrollItemId!)!.kind, amount: l.amount }));
 }
 
 function sum(values: Money[]): Money {

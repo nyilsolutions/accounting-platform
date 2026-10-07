@@ -143,6 +143,8 @@ export class PayrollLiabilitiesService {
         'l.line_type',
         'l.tax_code',
         'l.state',
+        'l.jurisdiction_code',
+        'l.jurisdiction_name',
         'l.payroll_item_id',
         'i.name',
         sql<string>`sum(l.amount)`.as('amount'),
@@ -155,6 +157,8 @@ export class PayrollLiabilitiesService {
         'l.line_type',
         'l.tax_code',
         'l.state',
+        'l.jurisdiction_code',
+        'l.jurisdiction_name',
         'l.payroll_item_id',
         'i.name',
       ])
@@ -165,6 +169,8 @@ export class PayrollLiabilitiesService {
         lineType: r.line_type as LiabilityLine['lineType'],
         taxCode: r.tax_code as PayrollTaxCode | null,
         state: r.state,
+        jurisdictionCode: r.jurisdiction_code,
+        jurisdictionName: r.jurisdiction_name,
         payrollItemId: r.payroll_item_id,
         itemName: r.name,
         amount: parseMoney(r.amount),
@@ -179,9 +185,28 @@ export class PayrollLiabilitiesService {
       .select(['i.id', 'i.name', 'v.display_name'])
       .where('i.company_id', '=', companyId)
       .execute();
-    return new Map(
-      items.map((i) => [i.id, i.display_name ? `${i.name} (${i.display_name})` : i.name]),
-    );
+    // A licensed engine's jurisdictions (ADR 0026), by agency.
+    const jurisdictions = await tx
+      .selectFrom('paycheck_lines')
+      .select(['tax_code', 'state', 'jurisdiction_code', 'jurisdiction_name'])
+      .distinctOn(['tax_code', 'state', 'jurisdiction_code'])
+      .where('company_id', '=', companyId)
+      .where('jurisdiction_code', 'is not', null)
+      .orderBy('tax_code')
+      .orderBy('state')
+      .orderBy('jurisdiction_code')
+      .orderBy('jurisdiction_name')
+      .execute();
+    return new Map([
+      ...items.map((i): [string, string] => [
+        i.id,
+        i.display_name ? `${i.name} (${i.display_name})` : i.name,
+      ]),
+      ...jurisdictions.map((j): [string, string] => [
+        `${j.tax_code === 'state_other' ? 'state_other' : 'local'}:${j.state}:${j.jurisdiction_code}`,
+        j.jurisdiction_name!,
+      ]),
+    ]);
   }
 
   // --- Payments ------------------------------------------------------------------------------------

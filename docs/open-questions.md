@@ -443,3 +443,29 @@ Add new questions here instead of guessing.
     voided automatically?
 80. **A returned prenote:** it turns the account off, as a returned deposit does, until it is
     corrected or marked fixed. Confirm.
+
+## A licensed state tax engine (Phase 11c)
+
+81. **Which engine, or an embedded provider (still needed).** ADR 0026 has the plug-in point for
+    a licensed state and local tax engine, and a design for an embedded payroll provider. Until
+    one is chosen, paychecks outside California, Florida, Illinois, New York and Texas are
+    refused. Choosing needs:
+    - the engine's or provider's contract, API documents and test environment;
+    - its timeouts and limits: the engine is asked inside the pay run's transaction, once per
+      paycheck in another state, each time the paycheck is recalculated;
+    - for an embedded provider, the owner's decision to hand it the payroll (ADR 0026, "The
+      embedded provider").
+82. **Readings in 11c, to confirm:**
+    - **State certificates:** the engine isn't sent a withholding certificate for other states
+      (there is no screen for them yet). Which inputs does the chosen engine need?
+    - **Which state:** every line the engine returns must be for the work state. Residence-state
+      withholding and reciprocity agreements need lines for another state; allow them once the
+      engine is chosen?
+    - **W-2 box 14:** the employee's other state and local taxes, and unemployment tax withheld
+      from employees, are listed in box 14 by jurisdiction name ("PA UI" for unemployment).
+      Local income taxes go in boxes 18–20 with the jurisdiction name as the locality.
+    - **Due dates:** the engine's taxes have no due dates (tax-data has none for them). Should
+      the engine supply them?
+83. **Engine taxes in prior payroll:** pay from before payroll started here can include state
+    income and unemployment tax in any state, but not local or other state taxes yet. Their wage
+    bases count only the engine's own paychecks until then.

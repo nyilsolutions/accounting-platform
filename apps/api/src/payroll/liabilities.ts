@@ -7,6 +7,7 @@ import {
   parseMoney,
   payrollTaxLabel,
   weekday,
+  WORK_STATE_NAMES,
   type Money,
   type PayrollLiabilityDto,
   type PayrollLiabilityStatus,
@@ -34,6 +35,9 @@ export interface LiabilityLine {
   lineType: 'tax' | 'deduction' | 'contribution';
   taxCode: PayrollTaxCode | null;
   state: string | null;
+  /** A licensed engine's jurisdiction (state_other, local_income, local_other; ADR 0026). */
+  jurisdictionCode?: string | null;
+  jurisdictionName?: string | null;
   payrollItemId: string | null;
   itemName: string | null;
   amount: Money;
@@ -78,17 +82,11 @@ const STATE_UNEMPLOYMENT: PayrollTaxCode[] = [
   'ny_reemployment_fund',
   'ca_ett',
 ];
-const STATE_NAMES: Record<string, string> = {
-  CA: 'California',
-  FL: 'Florida',
-  IL: 'Illinois',
-  NY: 'New York',
-  TX: 'Texas',
-};
+const STATE_NAMES: Record<string, string> = WORK_STATE_NAMES;
 
 /** The agency a paycheck line is owed to. */
 export function agencyOf(
-  l: Pick<LiabilityLine, 'lineType' | 'taxCode' | 'state' | 'payrollItemId'>,
+  l: Pick<LiabilityLine, 'lineType' | 'taxCode' | 'state' | 'payrollItemId' | 'jurisdictionCode'>,
 ): string {
   if (l.lineType !== 'tax') return `item:${l.payrollItemId}`;
   const code = l.taxCode!;
@@ -98,16 +96,26 @@ export function agencyOf(
   if (code === 'ny_dbl') return 'ny_dbl';
   if (STATE_WITHHOLDING.includes(code)) return `state_withholding:${l.state}`;
   if (STATE_UNEMPLOYMENT.includes(code)) return `state_unemployment:${l.state}`;
+  // A licensed engine's other state and local taxes: owed to each jurisdiction.
+  if (code === 'state_other') return `state_other:${l.state}:${l.jurisdictionCode}`;
+  if (code === 'local_income' || code === 'local_other')
+    return `local:${l.state}:${l.jurisdictionCode}`;
   throw new Error(`No agency for ${code}`);
 }
 
+/**
+ * An agency's name. `names` has payroll items by id and, for a licensed engine's jurisdictions,
+ * their names by agency (e.g. 'local:PA:510101' → 'Philadelphia').
+ */
 export function agencyLabel(agency: string, itemNames: Map<string, string>): string {
   if (agency === 'federal_941')
     return 'IRS: Form 941 taxes (income tax, social security, Medicare)';
   if (agency === 'federal_940') return 'IRS: Form 940 (FUTA)';
   if (agency === 'ny_pfl') return 'New York Paid Family Leave (your carrier)';
   if (agency === 'ny_dbl') return 'New York disability benefits (your carrier)';
-  const [kind, rest] = agency.split(':') as [string, string];
+  const [kind, rest, jurisdiction] = agency.split(':') as [string, string, string?];
+  if (kind === 'state_other' || kind === 'local')
+    return `${STATE_NAMES[rest] ?? rest}: ${itemNames.get(agency) ?? (kind === 'local' ? `local tax ${jurisdiction}` : `state tax ${jurisdiction}`)}`;
   if (kind === 'state_withholding') return `${STATE_NAMES[rest] ?? rest}: income tax withholding`;
   if (kind === 'state_unemployment') return `${STATE_NAMES[rest] ?? rest}: unemployment`;
   return itemNames.get(rest) ?? 'Payroll item';
@@ -241,7 +249,9 @@ export function payrollLiabilities(
     g.accrued += amount;
   };
   const partLabel = (l: LiabilityLine) =>
-    l.lineType === 'tax' ? payrollTaxLabel(l.taxCode!, l.state) : (l.itemName ?? 'Payroll item');
+    l.lineType === 'tax'
+      ? payrollTaxLabel(l.taxCode!, l.state, l.jurisdictionName)
+      : (l.itemName ?? 'Payroll item');
 
   // --- Form 941 taxes: monthly or semiweekly, with the $100,000 next-day rule. -----------------
   let effective: 'monthly' | 'semiweekly' = f.depositSchedule;
@@ -419,7 +429,9 @@ export function payrollLiabilities(
     if (g.dueDate || g.dueNote) continue;
     const state = agency.includes(':') ? agency.split(':')[1]! : 'NY';
     const data = f.states(year, state);
-    if (agency.startsWith('state_unemployment:')) {
+    if (agency.startsWith('state_other:') || agency.startsWith('local:')) {
+      g.dueNote = `${l.jurisdictionName ?? 'This tax'}: its deposit and return due dates aren't in tax-data; check with the agency or your tax engine provider.`;
+    } else if (agency.startsWith('state_unemployment:')) {
       const returns = data?.quarterlyReturns;
       const due = (returns?.dueDates ?? returns?.delinquentDates)?.[`Q${q}`];
       if (due) {
