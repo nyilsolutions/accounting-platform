@@ -10,6 +10,7 @@ import {
   type ReceiptExtraction,
   type ReceiptExtractionDto,
 } from '@acct/shared';
+import { documentVersionAad } from '../security/aad';
 
 /** Content types of each kind, for the kind filter. */
 export const CONTENT_TYPES_BY_KIND: Record<DocumentKind, string[]> = {
@@ -43,7 +44,7 @@ export const INLINE_TYPES = new Set([
 ]);
 
 /** AAD that binds a stored file's data key to its version row. */
-export const versionAad = (versionId: string) => `document_version:${versionId}`;
+export { documentVersionAad as versionAad };
 
 /**
  * Checks that a linked record exists in the company and returns how it is shown ("Bill GS-4410",

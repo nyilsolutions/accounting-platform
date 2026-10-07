@@ -12,6 +12,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@aws-sdk/client-kms": "^3.1147.0",
     "@node-rs/argon2": "^2.2.1"
   },
   "devDependencies": {

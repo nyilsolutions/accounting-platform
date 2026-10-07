@@ -29,7 +29,7 @@ import type { z } from 'zod';
 import type { documentSettingsSchema, folderInputSchema, updateDocumentSchema } from '@acct/shared';
 import { AuditService } from '../audit/audit.service';
 import type { AuthContext, CompanyContext, RequestMeta } from '../common/request';
-import { APP_CONFIG, type AppConfig } from '../config';
+import { APP_CONFIG, signingKey, type AppConfig } from '../config';
 import { DB } from '../db/db.module';
 import { JobQueue } from '../jobs/job-queue.service';
 import {
@@ -89,7 +89,7 @@ export class DocumentsService implements OnModuleInit {
     private readonly audit: AuditService,
     private readonly jobs: JobQueue,
   ) {
-    this.tokens = new FileTokens(config.FIELD_ENCRYPTION_KEY);
+    this.tokens = new FileTokens(signingKey(config));
   }
 
   /** The daily 'documents.purge' job (ADR 0027): every company with deleted documents. */

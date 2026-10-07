@@ -14,6 +14,7 @@ import type { AuthContext, CompanyContext, RequestMeta } from '../common/request
 import { buildTree, flattenTree } from '../common/tree';
 import { assertPartyCurrency } from '../currency/fx';
 import { DB, FIELD_ENCRYPTOR } from '../db/db.module';
+import { vendorTinAad } from '../security/aad';
 
 type CustomerPatch = z.output<typeof customerUpdateSchema> | z.output<typeof customerInputSchema>;
 type VendorPatch = z.output<typeof vendorUpdateSchema> | z.output<typeof vendorInputSchema>;
@@ -357,7 +358,7 @@ export class VendorsService {
           input.tin === ''
             ? { tin_enc: null, tin_last4: null }
             : {
-                tin_enc: this.encryptor.encrypt(input.tin, `vendor:${savedId}:tin`),
+                tin_enc: this.encryptor.encrypt(input.tin, vendorTinAad(savedId!)),
                 tin_last4: input.tin.slice(-4),
               },
         )

@@ -4,8 +4,8 @@ import { createCipheriv, createDecipheriv, randomBytes } from 'node:crypto';
  * Encrypts sensitive fields (SSN, EIN, bank numbers, MFA secrets, third-party tokens)
  * before they reach the database. Format: `v<keyVersion>:<iv>:<tag>:<ciphertext>` (base64url).
  *
- * Phase 0 uses a local AES-256-GCM key from the environment. The interface is designed so a
- * KMS envelope-encryption provider can replace it without changing callers (ADR 0004).
+ * The keys come from the environment in development, or from `field_keys` unwrapped by AWS KMS
+ * (envelope encryption, ADR 0029); callers don't change.
  */
 export interface FieldEncryptor {
   encrypt(plaintext: string, aad?: string): string;
@@ -27,6 +27,11 @@ export class LocalAesGcmEncryptor implements FieldEncryptor {
       }),
     );
     if (!this.keys.has(currentVersion)) throw new Error('Current key version is not configured');
+  }
+
+  /** The version new values are encrypted with. */
+  get version(): number {
+    return this.currentVersion;
   }
 
   encrypt(plaintext: string, aad = ''): string {

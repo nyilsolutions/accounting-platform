@@ -1508,7 +1508,17 @@ export interface EfileSubmissionsTable {
   acknowledged_at: Date | null;
 }
 
+export interface FieldKeysTable {
+  version: number;
+  provider: 'aws-kms' | 'local-wrap';
+  kms_key_id: string | null;
+  wrapped_key: string;
+  created_at: Generated<Timestamp>;
+  reencrypted_at: Timestamp | null;
+}
+
 export interface Database {
+  field_keys: FieldKeysTable;
   users: UsersTable;
   mfa_recovery_codes: MfaRecoveryCodesTable;
   sessions: SessionsTable;

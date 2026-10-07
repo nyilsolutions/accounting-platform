@@ -16,6 +16,7 @@ import { AuditService, diff } from '../audit/audit.service';
 import type { AuthContext, CompanyContext, RequestMeta } from '../common/request';
 import { DB, FIELD_ENCRYPTOR } from '../db/db.module';
 import { LedgerSetupService } from '../ledger/ledger-setup.service';
+import { einAad } from '../security/aad';
 
 type CompanyInput = z.output<typeof companyInputSchema>;
 type CompanyPatch = z.output<typeof companyUpdateSchema>;
@@ -187,10 +188,6 @@ export class CompaniesService {
     }
     return row as CompanyUpdateRow & { legal_name: string };
   }
-}
-
-function einAad(companyId: string): string {
-  return `company:${companyId}:ein`;
 }
 
 function toDto(c: Company): CompanyDto {

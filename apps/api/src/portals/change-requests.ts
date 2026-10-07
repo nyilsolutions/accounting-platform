@@ -1,8 +1,9 @@
 import type { Tx } from '@acct/db';
 import type { ChangeRequestDto, ChangeRequestStatus } from '@acct/shared';
+import { changeRequestAad } from '../security/aad';
 
 /** The AAD binding a request's encrypted bank accounts to the request. */
-export const requestAad = (id: string) => `employee_change_request:${id}:bank_accounts`;
+export { changeRequestAad as requestAad };
 
 /** Change requests as the employee and the payroll admin see them (never account numbers). */
 export async function changeRequestRows(

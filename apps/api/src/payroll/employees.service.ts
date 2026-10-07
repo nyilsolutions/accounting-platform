@@ -42,6 +42,7 @@ import { bad, requirePayroll, trimNumber } from './payroll-common';
 import { achBatches } from './ach-batches';
 import { DepositPartnerService } from './partners/deposit-partner.service';
 import { PAYMENT_RAIL, type PaymentRail, type PaymentRailResult } from './payment-rail';
+import { employeeAccountAad, ssnAad } from '../security/aad';
 
 type EmployeeInput = z.output<typeof employeeInputSchema>;
 type W4Input = z.output<typeof w4InputSchema>;
@@ -56,9 +57,8 @@ export interface EmployeeListQuery {
   search?: string;
 }
 
-export const ssnAad = (employeeId: string) => `employee:${employeeId}:ssn`;
-const accountAad = (bankAccountId: string) =>
-  `employee_bank_account:${bankAccountId}:account_number`;
+export { ssnAad };
+const accountAad = employeeAccountAad;
 
 /** Regular pay comes from the employee's pay type, not from recurring items. */
 const NOT_RECURRING: PayrollItemKind[] = ['hourly', 'salary', 'overtime', 'double_time'];

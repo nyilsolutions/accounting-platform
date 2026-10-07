@@ -7,7 +7,25 @@ const envSchema = z.object({
   DATABASE_URL: z.string().min(1),
   /** Database connections per API or worker process (ADR 0028). */
   DB_POOL_SIZE: z.coerce.number().int().min(1).max(100).default(10),
-  FIELD_ENCRYPTION_KEY: z.string().min(1),
+  /**
+   * Field encryption keys (ADR 0029):
+   * - 'env': one key from FIELD_ENCRYPTION_KEY (development and tests);
+   * - 'aws-kms': data keys in `field_keys`, wrapped by the KMS key FIELD_KMS_KEY_ID (production);
+   * - 'local-wrap': the same keyring wrapped by FIELD_KEY_WRAPPING_KEY instead of KMS (a stand-in
+   *   for development and tests).
+   */
+  FIELD_KEY_PROVIDER: z.enum(['env', 'aws-kms', 'local-wrap']).default('env'),
+  /** 32 bytes, base64. Needed for 'env', and for importing it as version 1 (`keys:rotate`). */
+  FIELD_ENCRYPTION_KEY: z.string().min(1).optional(),
+  /** The KMS key that wraps the data keys: a key ARN or an alias ARN. */
+  FIELD_KMS_KEY_ID: z.string().min(1).optional(),
+  /** 32 bytes, base64: the stand-in's wrapping key ('local-wrap'). */
+  FIELD_KEY_WRAPPING_KEY: z.string().min(1).optional(),
+  /**
+   * 32 bytes, base64: signs download links and OAuth state (never encrypts). Required with KMS;
+   * with 'env' it falls back to FIELD_ENCRYPTION_KEY, as before 12c.
+   */
+  SIGNING_KEY: z.string().min(1).optional(),
   API_PORT: z.coerce.number().int().default(4000),
   WEB_ORIGIN: z.url().default('http://localhost:3000'),
   SESSION_IDLE_MINUTES: z.coerce
@@ -150,8 +168,26 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     // Its figures aren't tax law: they must never reach a real paycheck.
     throw new Error("PAYROLL_TAX_ENGINE 'test-fixture' is only for tests (NODE_ENV=test)");
   }
+  if (config.FIELD_KEY_PROVIDER === 'env' && !config.FIELD_ENCRYPTION_KEY) {
+    throw new Error("FIELD_ENCRYPTION_KEY is required when FIELD_KEY_PROVIDER is 'env'");
+  }
+  if (config.FIELD_KEY_PROVIDER === 'aws-kms' && !config.FIELD_KMS_KEY_ID) {
+    throw new Error("FIELD_KMS_KEY_ID is required when FIELD_KEY_PROVIDER is 'aws-kms'");
+  }
+  if (config.FIELD_KEY_PROVIDER === 'local-wrap' && !config.FIELD_KEY_WRAPPING_KEY) {
+    throw new Error("FIELD_KEY_WRAPPING_KEY is required when FIELD_KEY_PROVIDER is 'local-wrap'");
+  }
+  if (config.FIELD_KEY_PROVIDER !== 'env' && !config.SIGNING_KEY) {
+    throw new Error('SIGNING_KEY is required unless FIELD_KEY_PROVIDER is env');
+  }
+  if (config.FIELD_KEY_PROVIDER === 'local-wrap' && config.NODE_ENV === 'production') {
+    throw new Error("FIELD_KEY_PROVIDER 'local-wrap' is a stand-in, not for production");
+  }
   if (config.NODE_ENV === 'production') {
     if (!config.COOKIE_SECURE) throw new Error('COOKIE_SECURE must be true in production');
+    if (config.FIELD_KEY_PROVIDER !== 'aws-kms') {
+      throw new Error("FIELD_KEY_PROVIDER must be 'aws-kms' in production");
+    }
     if (['console', 'capture', 'file'].includes(config.MAIL_TRANSPORT)) {
       throw new Error('A real mail transport must be configured in production');
     }
@@ -213,4 +249,11 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     throw new Error('INBOUND_EMAIL_SECRET is required when INBOUND_EMAIL_DOMAIN is set');
   }
   return config;
+}
+
+/** The key that signs download links and OAuth state (ADR 0029). */
+export function signingKey(config: AppConfig): string {
+  const key = config.SIGNING_KEY ?? config.FIELD_ENCRYPTION_KEY;
+  if (!key) throw new Error('SIGNING_KEY is not configured');
+  return key;
 }

@@ -35,6 +35,7 @@ import {
   type BankDataProvider,
   type ProviderTransaction,
 } from './providers/bank-data-provider';
+import { bankConnectionAad } from '../security/aad';
 
 type MapInput = z.output<typeof mapFeedAccountsSchema>;
 
@@ -188,7 +189,7 @@ export class ConnectionsService implements OnModuleInit {
           provider: provider.name,
           institution_name: name,
           item_id: exchanged.itemId,
-          access_token_enc: this.encryptor.encrypt(exchanged.accessToken, aad(id)),
+          access_token_enc: this.encryptor.encrypt(exchanged.accessToken, bankConnectionAad(id)),
           created_by: auth.userId,
           updated_by: auth.userId,
         })
@@ -608,7 +609,7 @@ export class ConnectionsService implements OnModuleInit {
   }
 
   private decrypt(conn: ConnectionRow): string {
-    return this.encryptor.decrypt(conn.access_token_enc, aad(conn.id));
+    return this.encryptor.decrypt(conn.access_token_enc, bankConnectionAad(conn.id));
   }
 
   private async load(tx: Tx, companyId: string, id: string): Promise<ConnectionRow> {
@@ -647,10 +648,6 @@ export class ConnectionsService implements OnModuleInit {
       })),
     };
   }
-}
-
-function aad(connectionId: string): string {
-  return `bank_connection:${connectionId}:access_token`;
 }
 
 function badMap(i: number, message: string): BadRequestException {

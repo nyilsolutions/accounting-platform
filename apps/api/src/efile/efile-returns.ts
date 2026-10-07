@@ -17,6 +17,7 @@ import type {
   EfileRecipient,
   EfileReturn,
 } from './transmitters/efile-transmitter';
+import { einAad, vendorTinAad } from '../security/aad';
 
 export interface EfilePeriod {
   form: EfileForm;
@@ -142,7 +143,7 @@ export async function buildReturn(
     .executeTakeFirstOrThrow();
   const filer: EfileFiler = {
     name: c.legal_name,
-    ein: digits(encryptor.decrypt(c.ein_enc!, `company:${companyId}:ein`)),
+    ein: digits(encryptor.decrypt(c.ein_enc!, einAad(companyId))),
     address: address(c),
     phone: c.phone,
   };
@@ -196,7 +197,7 @@ export async function buildReturn(
           vendorId: v.vendorId,
           name: r.display_name,
           tinType: r.tin_type === 'ssn' ? 'ssn' : 'ein',
-          tin: digits(encryptor.decrypt(r.tin_enc!, `vendor:${r.id}:tin`)),
+          tin: digits(encryptor.decrypt(r.tin_enc!, vendorTinAad(r.id))),
           address: address(r),
           boxes: Object.fromEntries(
             FORM_1099_BOXES.filter((b) => v.reportableBoxes.includes(b)).map((b) => [

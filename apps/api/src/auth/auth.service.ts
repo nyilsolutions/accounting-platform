@@ -25,6 +25,7 @@ import { APP_CONFIG, type AppConfig } from '../config';
 import type { AuthContext, RequestMeta } from '../common/request';
 import { DB, FIELD_ENCRYPTOR } from '../db/db.module';
 import { SessionService } from './session.service';
+import { mfaAad } from '../security/aad';
 
 const INVALID_CREDENTIALS = 'Invalid email or password';
 
@@ -281,10 +282,6 @@ export class AuthService {
       meta,
     );
   }
-}
-
-function mfaAad(userId: string): string {
-  return `user:${userId}:mfa`;
 }
 
 function toMe(user: User, mfaVerified: boolean): MeDto {

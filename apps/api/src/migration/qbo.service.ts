@@ -12,7 +12,7 @@ import type { FieldEncryptor } from '@acct/crypto';
 import { sql, withTenant, type Db, type Tx } from '@acct/db';
 import { addDays, fiscalYearEnd, fiscalYearStart, todayIso, type SourceReport } from '@acct/shared';
 import { AuditService } from '../audit/audit.service';
-import { APP_CONFIG, type AppConfig } from '../config';
+import { APP_CONFIG, signingKey, type AppConfig } from '../config';
 import type { AuthContext, CompanyContext, RequestMeta } from '../common/request';
 import { DB, FIELD_ENCRYPTOR } from '../db/db.module';
 import {
@@ -32,6 +32,7 @@ import {
 } from './sources/qbo/qbo-api';
 import { mapQbo, type RawRecord } from './sources/qbo/qbo-mapper';
 import { parseQboAging, parseQboTrialBalance } from './sources/qbo/qbo-reports';
+import { qboTokenAad } from '../security/aad';
 
 const PAGE = 1000;
 const STATE_TTL_SECONDS = 15 * 60;
@@ -49,8 +50,6 @@ const TXN_ENTITIES = new Set([
   'BillPayment',
   'JournalEntry',
 ]);
-
-const aad = (id: string, kind: 'access_token' | 'refresh_token') => `qbo_connection:${id}:${kind}`;
 
 type Connection = {
   id: string;
@@ -84,7 +83,7 @@ export class QboService implements BeforeApplicationShutdown {
     this.stateKey = Buffer.from(
       hkdfSync(
         'sha256',
-        Buffer.from(config.FIELD_ENCRYPTION_KEY, 'base64'),
+        Buffer.from(signingKey(config), 'base64'),
         Buffer.alloc(0),
         'qbo-oauth-state',
         32,
@@ -192,8 +191,14 @@ export class QboService implements BeforeApplicationShutdown {
         (await sql<{ id: string }>`select gen_random_uuid() as id`.execute(tx)).rows[0]!.id;
       const values = {
         company_name: companyName,
-        access_token_enc: this.encryptor.encrypt(tokens.accessToken, aad(id, 'access_token')),
-        refresh_token_enc: this.encryptor.encrypt(tokens.refreshToken, aad(id, 'refresh_token')),
+        access_token_enc: this.encryptor.encrypt(
+          tokens.accessToken,
+          qboTokenAad(id, 'access_token'),
+        ),
+        refresh_token_enc: this.encryptor.encrypt(
+          tokens.refreshToken,
+          qboTokenAad(id, 'refresh_token'),
+        ),
         access_expires_at: new Date(Date.now() + (tokens.expiresIn - 60) * 1000),
         refresh_expires_at: tokens.refreshExpiresIn
           ? new Date(Date.now() + tokens.refreshExpiresIn * 1000)
@@ -254,7 +259,7 @@ export class QboService implements BeforeApplicationShutdown {
       const conn = await this.connection(tx, m.qbo_connection_id);
       try {
         await this.client.revoke(
-          this.encryptor.decrypt(conn.refresh_token_enc, aad(conn.id, 'refresh_token')),
+          this.encryptor.decrypt(conn.refresh_token_enc, qboTokenAad(conn.id, 'refresh_token')),
         );
       } catch (e) {
         this.logger.warn(`Revoking QuickBooks tokens failed: ${describeError(e)}`);
@@ -566,11 +571,14 @@ export class QboService implements BeforeApplicationShutdown {
     if (conn.access_expires_at.getTime() > Date.now() + 60_000)
       return {
         realmId: conn.realm_id,
-        accessToken: this.encryptor.decrypt(conn.access_token_enc, aad(conn.id, 'access_token')),
+        accessToken: this.encryptor.decrypt(
+          conn.access_token_enc,
+          qboTokenAad(conn.id, 'access_token'),
+        ),
       };
     try {
       const tokens = await this.client.refresh(
-        this.encryptor.decrypt(conn.refresh_token_enc, aad(conn.id, 'refresh_token')),
+        this.encryptor.decrypt(conn.refresh_token_enc, qboTokenAad(conn.id, 'refresh_token')),
       );
       await withTenant(this.db, { userId, companyId }, (tx) =>
         tx
@@ -578,11 +586,11 @@ export class QboService implements BeforeApplicationShutdown {
           .set({
             access_token_enc: this.encryptor.encrypt(
               tokens.accessToken,
-              aad(conn.id, 'access_token'),
+              qboTokenAad(conn.id, 'access_token'),
             ),
             refresh_token_enc: this.encryptor.encrypt(
               tokens.refreshToken,
-              aad(conn.id, 'refresh_token'),
+              qboTokenAad(conn.id, 'refresh_token'),
             ),
             access_expires_at: new Date(Date.now() + (tokens.expiresIn - 60) * 1000),
             refresh_expires_at: tokens.refreshExpiresIn
