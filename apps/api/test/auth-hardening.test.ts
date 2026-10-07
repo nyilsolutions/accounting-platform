@@ -305,7 +305,8 @@ describe('configuration', () => {
   it('limits sessions and needs a pepper and breach checks in production', () => {
     const prod = {
       NODE_ENV: 'production',
-      DATABASE_URL: 'postgres://x',
+      DATABASE_URL: 'postgres://db.internal/acct?sslmode=verify-full',
+      WEB_ORIGIN: 'https://books.example.com',
       COOKIE_SECURE: 'true',
       FIELD_KEY_PROVIDER: 'aws-kms',
       FIELD_KMS_KEY_ID: 'arn:aws:kms:x',
@@ -325,5 +326,38 @@ describe('configuration', () => {
       }),
     ).toThrow('PASSWORD_PEPPER must be 32 bytes');
     expect(PASSWORD_BREACHED).toBe('PASSWORD_BREACHED');
+  });
+
+  it('requires TLS to every service and JSON logs in production', () => {
+    const prod = {
+      NODE_ENV: 'production',
+      DATABASE_URL: 'postgres://db.internal/acct?sslmode=verify-full',
+      WEB_ORIGIN: 'https://books.example.com',
+      COOKIE_SECURE: 'true',
+      FIELD_KEY_PROVIDER: 'aws-kms',
+      FIELD_KMS_KEY_ID: 'arn:aws:kms:x',
+      SIGNING_KEY: PEPPER,
+      PASSWORD_PEPPER: PEPPER,
+      PASSWORD_BREACH_CHECK: 'hibp',
+    };
+    // Valid so far: the next check is the mail transport, which has no production choice yet.
+    expect(() => loadConfig(prod)).toThrow('real mail transport');
+    for (const sslmode of ['', '?sslmode=require', '?sslmode=disable'])
+      expect(() =>
+        loadConfig({ ...prod, DATABASE_URL: `postgres://db.internal/acct${sslmode}` }),
+      ).toThrow('sslmode=verify-full');
+    expect(() => loadConfig({ ...prod, WEB_ORIGIN: 'http://books.example.com' })).toThrow(
+      'WEB_ORIGIN must be https',
+    );
+    expect(() => loadConfig({ ...prod, S3_ENDPOINT: 'http://minio:9000' })).toThrow(
+      'S3_ENDPOINT must be https',
+    );
+    expect(() => loadConfig({ ...prod, ECB_RATES_URL: 'http://rates.example' })).toThrow(
+      'ECB_RATES_URL must be https',
+    );
+    expect(() => loadConfig({ ...prod, CLAMD_HOST: '10.0.0.5' })).toThrow('CLAMD_HOST');
+    expect(() => loadConfig({ ...prod, LOG_FORMAT: 'pretty' })).toThrow(
+      "LOG_FORMAT must be 'json'",
+    );
   });
 });

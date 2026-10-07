@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import { HttpException } from '@nestjs/common';
+import { DatabaseError } from 'pg';
 import { ZodError } from 'zod';
 import {
   PERMISSIONS,
@@ -71,9 +72,19 @@ export function describeError(e: unknown): string {
     if (Array.isArray(body.message)) return body.message.join('; ');
     return e.message;
   }
+  if (e instanceof DatabaseError) {
+    if (e.code === '23505') return `Duplicate value (${e.constraint ?? 'unique constraint'})`;
+    // Ledger triggers and checks word their messages for people; anything else is internal and
+    // is only logged (ASVS 7.4.1).
+    if (e.code === 'P0001' || (e.code === '23514' && !e.message.startsWith('new row')))
+      return e.message.slice(0, 2000);
+    return `The record couldn't be saved (database error ${e.code ?? 'unknown'}).`;
+  }
   if (e instanceof Error) {
-    const pg = e as Error & { code?: string; constraint?: string };
-    if (pg.code === '23505') return `Duplicate value (${pg.constraint ?? 'unique constraint'})`;
+    // Network failures (fetch's TypeError, socket errors) name internal hosts and addresses.
+    const sys = e as Error & { syscall?: string; cause?: unknown };
+    if (sys.syscall || (e instanceof TypeError && sys.cause !== undefined))
+      return 'A network error interrupted this step. Try again.';
     return e.message.slice(0, 2000);
   }
   return String(e).slice(0, 2000);

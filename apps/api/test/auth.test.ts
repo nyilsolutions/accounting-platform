@@ -69,6 +69,7 @@ describe('sign-in', () => {
     const u = await signUp(ctx.app, 'signin@example.com');
     const me = await u.agent.get('/auth/me').expect(200);
     expect(me.headers['cache-control']).toBe('no-store');
+    expect(me.headers['content-disposition']).toBe('attachment; filename="api.json"');
     const out = await u.agent.post('/auth/logout').expect(204);
     expect(out.headers['clear-site-data']).toBe('"cache", "cookies"');
     await u.agent.get('/auth/me').expect(401);

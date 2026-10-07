@@ -42,10 +42,19 @@ function bodySizeLimit(req: Request, res: Response, next: NextFunction): void {
 
 /**
  * Responses carry companies' books and people's pay: no browser or proxy keeps them (ASVS 8.2.1).
- * File downloads set their own (also no-store).
+ * And a response opened directly is saved, never rendered (14.4.2). File downloads and exports
+ * set their own headers over these.
  */
-function noStore(_req: Request, res: Response, next: NextFunction): void {
+function apiResponseHeaders(_req: Request, res: Response, next: NextFunction): void {
   res.setHeader('cache-control', 'no-store');
+  // Only on JSON: a file's own Content-Disposition must win (StreamableFile sets its filename
+  // only when none is there yet).
+  const json = res.json.bind(res);
+  res.json = (body: unknown) => {
+    if (!res.getHeader('content-disposition'))
+      res.setHeader('content-disposition', 'attachment; filename="api.json"');
+    return json(body);
+  };
   next();
 }
 
@@ -80,7 +89,7 @@ export async function createApp(config: AppConfig): Promise<INestApplication> {
   );
   app.disable('x-powered-by');
   app.use(helmet());
-  app.use(noStore);
+  app.use(apiResponseHeaders);
   app.use(bodySizeLimit);
   app.use(bodyTypeGuard);
   // Bank statements and QuickBooks CSV files are sent as JSON text; bodySizeLimit keeps every

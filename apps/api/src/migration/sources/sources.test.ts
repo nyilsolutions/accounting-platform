@@ -1,6 +1,7 @@
+import { DatabaseError } from 'pg';
 import { describe, expect, it } from 'vitest';
 import { openingEntry } from '../agent.service';
-import { withoutSensitive } from '../migration-common';
+import { describeError, withoutSensitive } from '../migration-common';
 import { csvToCanonical } from './csv';
 import {
   parseDesktopAging,
@@ -561,5 +562,35 @@ describe('balances brought forward (Desktop, from a later year)', () => {
       expect.objectContaining({ account: 'A8', credit: '1100' }),
     ]);
     expect(entry.warnings).toBeUndefined();
+  });
+});
+
+describe('describeError', () => {
+  const pg = (code: string, message: string) => {
+    const e = new DatabaseError(message, 0, 'error');
+    e.code = code;
+    return e;
+  };
+
+  it('shows people messages meant for them, not internal ones', () => {
+    expect(describeError(pg('P0001', 'The books are closed through 2024-12-31'))).toBe(
+      'The books are closed through 2024-12-31',
+    );
+    expect(
+      describeError(pg('22P02', 'invalid input syntax for type uuid: "x" at relation accounts')),
+    ).toBe("The record couldn't be saved (database error 22P02).");
+    expect(describeError(pg('23514', 'new row for relation "items" violates check'))).toBe(
+      "The record couldn't be saved (database error 23514).",
+    );
+    const network = Object.assign(new Error('connect ECONNREFUSED 10.0.3.7:443'), {
+      syscall: 'connect',
+    });
+    expect(describeError(network)).toBe('A network error interrupted this step. Try again.');
+    expect(describeError(new TypeError('fetch failed', { cause: network }))).toBe(
+      'A network error interrupted this step. Try again.',
+    );
+    expect(describeError(new Error('QuickBooks returned no download link'))).toBe(
+      'QuickBooks returned no download link',
+    );
   });
 });

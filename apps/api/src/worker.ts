@@ -5,6 +5,7 @@ import { NestFactory } from '@nestjs/core';
 import { appLogger } from './app.factory';
 import { AppModule } from './app.module';
 import { loadConfig } from './config';
+import { installProcessHandlers } from './observability/process-handlers';
 
 /**
  * The background worker (ADR 0027): the same modules as the API without an HTTP server, running
@@ -12,6 +13,7 @@ import { loadConfig } from './config';
  * sure each job runs once and each schedule fires once.
  */
 async function bootstrap(): Promise<void> {
+  installProcessHandlers('Process');
   const config = loadConfig();
   if (config.JOB_QUEUE !== 'pg-boss') throw new Error("The worker needs JOB_QUEUE='pg-boss'");
   const app = await NestFactory.createApplicationContext(
@@ -22,4 +24,9 @@ async function bootstrap(): Promise<void> {
   new Logger('Bootstrap').log('Worker running');
 }
 
-void bootstrap();
+bootstrap().catch((e: unknown) => {
+  new Logger('Bootstrap').error(
+    `Worker failed to start: ${e instanceof Error ? (e.stack ?? e.message) : String(e)}`,
+  );
+  process.exit(1);
+});

@@ -140,6 +140,25 @@ describe('moving from the environment key to wrapped keys', () => {
     }
   });
 
+  it('never imports the public .env.example key', async () => {
+    const example = (await import('node:fs'))
+      .readFileSync(new URL('../../../.env.example', import.meta.url), 'utf8')
+      .match(/^FIELD_ENCRYPTION_KEY=(.+)$/m)![1]!;
+    // An empty keyring: the first rotation is the one that would import.
+    const fresh = await createTestDatabase();
+    const db = createDb(fresh.adminUrl, 1);
+    try {
+      await expect(
+        rotate(db, new LocalKeyWrapper(WRAPPING_KEY), { importEnvKey: example }),
+      ).rejects.toThrow('public .env.example key');
+      const keys = await db.selectFrom('field_keys').select('version').execute();
+      expect(keys).toEqual([]);
+    } finally {
+      await db.destroy();
+      await fresh.drop();
+    }
+  });
+
   it('adds versions without importing again, and refuses keys from another provider', async () => {
     const wrapper = new LocalKeyWrapper(WRAPPING_KEY);
     expect(await rotate(admin, wrapper, { importEnvKey: ENV_KEY })).toEqual({

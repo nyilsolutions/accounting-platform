@@ -336,7 +336,9 @@ export class QboService implements BeforeApplicationShutdown {
     });
     const job = this.doPull(ctx.companyId, auth.userId, migrationId, mode, meta)
       .catch(async (e: unknown) => {
-        this.logger.warn(`QuickBooks pull ${migrationId} failed: ${describeError(e)}`);
+        this.logger.warn(
+          `QuickBooks pull ${migrationId} failed: ${e instanceof Error ? e.message : String(e)}`,
+        );
         await withTenant(this.db, { userId: auth.userId, companyId: ctx.companyId }, (tx) =>
           tx
             .updateTable('migrations')
@@ -354,7 +356,14 @@ export class QboService implements BeforeApplicationShutdown {
             .where('id', '=', migrationId)
             .execute(),
         );
-      });
+      })
+      // Recording the failure can fail too (the database went away): log it rather than leave
+      // a rejected promise, which would stop the process (ASVS 7.4.3). The lease then expires.
+      .catch((e: unknown) =>
+        this.logger.error(
+          `QuickBooks pull ${migrationId} could not record its result: ${e instanceof Error ? e.message : String(e)}`,
+        ),
+      );
     this.running.set(migrationId, job);
   }
 

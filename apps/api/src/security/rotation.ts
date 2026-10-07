@@ -1,5 +1,6 @@
 import { LocalAesGcmEncryptor, type FieldEncryptor, type KeyWrapper } from '@acct/crypto';
 import { sql, type Db } from '@acct/db';
+import { isExampleFieldKey } from '../config';
 import {
   bankConnectionAad,
   changeRequestAad,
@@ -94,6 +95,11 @@ export async function rotate(
         })
         .execute();
     if (next === 1 && opts.importEnvKey) {
+      // Values written under the published example key can be read by anyone with the repo.
+      if (isExampleFieldKey(opts.importEnvKey))
+        throw new Error(
+          'FIELD_ENCRYPTION_KEY is the public .env.example key; it is never imported. Unset it to start a new keyring.',
+        );
       const key = Buffer.from(opts.importEnvKey, 'base64');
       if (key.length !== 32) throw new Error('FIELD_ENCRYPTION_KEY must be 32 bytes');
       await insert(1, await wrapper.wrap(key, 1));

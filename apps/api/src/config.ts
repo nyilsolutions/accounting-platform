@@ -1,4 +1,17 @@
+import { createHash } from 'node:crypto';
 import { z } from 'zod';
+
+/**
+ * Whether a key is the development key in .env.example (compared by SHA-256): it is public, so
+ * never a key for real data.
+ */
+export function isExampleFieldKey(key: string | undefined): boolean {
+  return (
+    !!key &&
+    createHash('sha256').update(key).digest('hex') ===
+      'e223965e1cba674d08c8accd0abbbbdb013db22efb7f99ecccbc7f9649361cc3'
+  );
+}
 
 const bool = z.enum(['true', 'false']).transform((v) => v === 'true');
 
@@ -203,6 +216,28 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     if (config.FIELD_KEY_PROVIDER !== 'aws-kms') {
       throw new Error("FIELD_KEY_PROVIDER must be 'aws-kms' in production");
     }
+    // ASVS 9.2.2: every connection that leaves the host is TLS, with the server checked.
+    const sslmode = sslModeOf(config.DATABASE_URL);
+    if (sslmode !== 'verify-full') {
+      throw new Error('DATABASE_URL must use sslmode=verify-full in production');
+    }
+    for (const [name, url] of [
+      ['WEB_ORIGIN', config.WEB_ORIGIN],
+      ['S3_ENDPOINT', config.S3_ENDPOINT],
+      ['ECB_RATES_URL', config.ECB_RATES_URL],
+      ['PLAID_WEBHOOK_URL', config.PLAID_WEBHOOK_URL],
+    ] as const) {
+      if (url && !url.startsWith('https://'))
+        throw new Error(`${name} must be https in production`);
+    }
+    // clamd speaks plain TCP: it runs beside the API (a sidecar), never across the network.
+    if (!['127.0.0.1', 'localhost', '::1'].includes(config.CLAMD_HOST)) {
+      throw new Error('CLAMD_HOST must be the local host (a sidecar) in production');
+    }
+    if (config.LOG_FORMAT === 'pretty') throw new Error("LOG_FORMAT must be 'json' in production");
+    if (isExampleFieldKey(config.FIELD_ENCRYPTION_KEY)) {
+      throw new Error('FIELD_ENCRYPTION_KEY is the public example key; remove it in production');
+    }
     // ASVS 3.3.2: at most 30 minutes idle and 12 hours in all.
     if (config.SESSION_IDLE_MINUTES > 30 || config.SESSION_ABSOLUTE_HOURS > 12) {
       throw new Error('Sessions may last at most 30 minutes idle and 12 hours in production');
@@ -279,4 +314,13 @@ export function signingKey(config: AppConfig): string {
   const key = config.SIGNING_KEY ?? config.FIELD_ENCRYPTION_KEY;
   if (!key) throw new Error('SIGNING_KEY is not configured');
   return key;
+}
+
+/** The sslmode of a Postgres URL (null when it has none or isn't a URL). */
+function sslModeOf(databaseUrl: string): string | null {
+  try {
+    return new URL(databaseUrl).searchParams.get('sslmode');
+  } catch {
+    return null;
+  }
 }
