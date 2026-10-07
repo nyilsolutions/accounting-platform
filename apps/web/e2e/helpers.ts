@@ -55,3 +55,19 @@ export function latestInviteLink(to: string): string {
   }
   throw new Error(`No invitation email for ${to}`);
 }
+
+/** The path of the latest emailed link to `to` under `path` (e.g. '/portal/customer/sign-in'). */
+export function latestLink(to: string, path: string): string {
+  const files = readdirSync(OUTBOX_DIR).sort().reverse();
+  for (const f of files) {
+    const msg = JSON.parse(readFileSync(join(OUTBOX_DIR, f), 'utf8')) as {
+      to: string;
+      text: string;
+    };
+    if (msg.to === to) {
+      const m = msg.text.match(new RegExp(`https?://[^\\s]+${path}/[\\w-]+`));
+      if (m) return new URL(m[0]).pathname;
+    }
+  }
+  throw new Error(`No ${path} email for ${to}`);
+}

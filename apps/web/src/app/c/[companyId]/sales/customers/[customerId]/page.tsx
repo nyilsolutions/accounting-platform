@@ -23,6 +23,7 @@ export default function CustomerPage() {
   const router = useRouter();
   const access = useAccess(companyId);
   const [statement, setStatement] = useState(false);
+  const [portalNotice, setPortalNotice] = useState<string | null>(null);
   const customer = useQuery({
     queryKey: ['company', companyId, 'customers', 'one', customerId],
     queryFn: () => api<CustomerDto>(`/companies/${companyId}/customers/${customerId}`),
@@ -95,8 +96,33 @@ export default function CustomerPage() {
               <Button variant="secondary" size="sm" onClick={() => setStatement(true)}>
                 Statement
               </Button>
+              {canManage && c.email && (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={async () => {
+                    setPortalNotice(null);
+                    try {
+                      const r = await api<{ email: string }>(
+                        `/companies/${companyId}/customers/${customerId}/portal-invite`,
+                        { method: 'POST' },
+                      );
+                      setPortalNotice(`Sent ${r.email} a link to their account.`);
+                    } catch (err) {
+                      setPortalNotice(errorMessage(err));
+                    }
+                  }}
+                >
+                  Invite to customer portal
+                </Button>
+              )}
             </div>
           </div>
+          {portalNotice && (
+            <div className="mt-3">
+              <Alert kind="info">{portalNotice}</Alert>
+            </div>
+          )}
         </Card>
         <Card className="p-5">
           <dl className="space-y-2 text-sm" data-testid="customer-balances">

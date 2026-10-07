@@ -13,11 +13,13 @@ import {
 import { payDescription, Section } from '@/components/payroll/payroll-ui';
 import { Alert, Badge, Spinner } from '@/components/ui';
 import { errorMessage } from '@/lib/api';
-import { useEmployee } from '@/lib/queries';
+import { useAccess, useEmployee } from '@/lib/queries';
+import { PortalAccessCard } from '@/components/portal/portal-access-card';
 
 export default function EmployeePage() {
   const { companyId, employeeId } = useParams<{ companyId: string; employeeId: string }>();
   const employee = useEmployee(companyId, employeeId);
+  const access = useAccess(companyId);
   if (employee.isPending) return <Spinner />;
   if (employee.isError) return <Alert>{errorMessage(employee.error)}</Alert>;
   const e = employee.data;
@@ -44,6 +46,13 @@ export default function EmployeePage() {
       <DirectDepositSection companyId={companyId} employee={e} />
       <PayItemsSection companyId={companyId} employee={e} />
       <PtoSection companyId={companyId} employee={e} />
+      <PortalAccessCard
+        companyId={companyId}
+        kind="employee"
+        workerId={e.id}
+        defaultEmail={e.email}
+        canManage={access.can('payroll.manage')}
+      />
     </>
   );
 }

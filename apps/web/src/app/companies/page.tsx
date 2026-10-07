@@ -2,9 +2,9 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
-import { ROLE_LABELS, type CompanyDto } from '@acct/shared';
+import { useEffect, useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { ROLE_LABELS, type CompanyDto, type MyPortalLinkDto } from '@acct/shared';
 import { CompanyForm } from '@/components/company/company-form';
 import { UserMenu } from '@/components/shell/user-menu';
 import { Badge, Button, Card, PageHeader, Spinner } from '@/components/ui';
@@ -17,9 +17,18 @@ function CompaniesView() {
   const router = useRouter();
   const qc = useQueryClient();
   const companies = useCompanies();
+  const portals = useQuery({
+    queryKey: ['portal', 'me'],
+    queryFn: () => api<MyPortalLinkDto[]>('/portal/me'),
+  });
   const [creating, setCreating] = useState(false);
+  // Employees and contractors with portal access only belong in their portal.
+  const portalOnly = !creating && companies.data?.length === 0 && (portals.data?.length ?? 0) > 0;
+  useEffect(() => {
+    if (portalOnly) router.replace('/portal');
+  }, [portalOnly, router]);
 
-  if (companies.isPending) return <Spinner />;
+  if (companies.isPending || portals.isPending || portalOnly) return <Spinner />;
   const list = companies.data ?? [];
   const showForm = creating || list.length === 0;
 
@@ -80,6 +89,14 @@ function CompaniesView() {
                 ))}
               </ul>
             </Card>
+            {(portals.data?.length ?? 0) > 0 && (
+              <p className="mt-4 text-sm text-gray-600">
+                Your own pay, time and tax forms:{' '}
+                <Link href="/portal" className="text-brand-700 hover:underline">
+                  open your portal
+                </Link>
+              </p>
+            )}
           </>
         )}
       </main>

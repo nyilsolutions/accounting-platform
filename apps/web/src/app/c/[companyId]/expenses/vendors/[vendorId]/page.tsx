@@ -10,6 +10,7 @@ import { Alert, Badge, buttonClass, Card, Spinner } from '@/components/ui';
 import { api, errorMessage } from '@/lib/api';
 import { keys, useAccess } from '@/lib/queries';
 import { Attachments } from '@/components/documents/attachments';
+import { PortalAccessCard } from '@/components/portal/portal-access-card';
 
 export default function VendorPage() {
   const { companyId, vendorId } = useParams<{ companyId: string; vendorId: string }>();
@@ -107,6 +108,15 @@ export default function VendorPage() {
             </div>
           </dl>
         </Card>
+      </div>
+      <div className="mt-6">
+        <PortalAccessCard
+          companyId={companyId}
+          kind="contractor"
+          workerId={vendorId}
+          defaultEmail={v.email}
+          canManage={canManage}
+        />
       </div>
       <PurchaseTransactionsTable companyId={companyId} vendorId={vendorId} />
       <Attachments companyId={companyId} entityType="vendor" entityId={vendorId} />

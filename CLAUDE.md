@@ -60,7 +60,9 @@ A single package: `pnpm --filter @acct/api test`, `pnpm --filter @acct/db test`,
   online-payments (Stripe Connect behind `PaymentProcessor` with a stand-in in
   `online-payments/processors/`; settings and pay links in `online-payments.service.ts`, the
   customer's pay page in `public-pay.service.ts`, webhooks to payments and payout deposits in
-  `payment-events.service.ts`).
+  `payment-events.service.ts`), portals (employee and contractor portal in
+  `worker-portal.service.ts` behind `WorkerPortalGuard`, invitations and change requests in
+  `portal-admin.service.ts`, the customer portal and its sessions in `customer-portal.service.ts`).
   The A/R and A/P subledgers share one engine: `ledger/subledger.ts`.
 - `apps/desktop-agent`: QuickBooks Desktop migration agent (C#/.NET 8; `Core` is portable and
   tested on Linux with `dotnet test`, `Windows` is the WinForms wizard and QBXMLRP2 session).
@@ -204,6 +206,14 @@ A single package: `pnpm --filter @acct/api test`, `pnpm --filter @acct/db test`,
   `DepositsService.saveInTx` that must equal the payout, or it waits for review (never guess).
   Pay links store only a token hash; public routes find the company through the
   security-definer lookups and then use `withTenant()`.
+- Portals (ADR 0023): employees and contractors are users linked to their record through
+  `portal_links`, never members; company routes stay closed to them (404). Portal routes
+  (`portal/c/:companyId`) prove the record is the person's own, then call the normal services
+  with `portalCompanyContext` granting only the permission that call needs; the worker comes
+  from the link, never the request. Employees change their W-4 or direct deposit only through
+  `employee_change_requests` that a payroll admin approves (bank numbers encrypted with the
+  request's AAD, applied through `EmployeesService`, prenoted). Customers use emailed one-time
+  links and their own session cookie; every customer query is scoped to the session's customer.
 - Database errors map to HTTP in `common/pg-error.filter.ts`; add friendly messages for new unique
   indexes there.
 
@@ -219,6 +229,6 @@ A single package: `pnpm --filter @acct/api test`, `pnpm --filter @acct/db test`,
 - [x] Phase 7: Reports suite, sales tax, budgets (columns/comparisons, cash flow, detail reports, custom builder, PDF/Excel/CSV, memorized + scheduled, sales tax, budgets)
 - [x] Phase 8: Payroll core (setup, employees, tax engine with golden tests, pay runs, pay stubs, direct deposit, liabilities + EFTPS, payroll reports; tax data owner-approved, awaiting professional review)
 - [ ] Phase 9: Payroll and 1099 tax forms (part 1 done: prior payroll, W-2/W-3 figures, quarterly and FUTA summaries, state reports, filings; official PDFs, EFW2, 1099/IRIS and state layouts wait on documents)
-- [ ] Phase 10: Advanced, in six parts (10a inventory done: items and assemblies, FIFO/average costing with backdated recosting, no negative stock, adjustments, builds, valuation and stock status reports, QuickBooks cut-over; 10b time tracking done: timesheets, approvals, paychecks and invoices from approved time, progress invoicing; 10c multi-currency done: foreign-currency customers, vendors, documents and payments, rates by hand or from the ECB, realized and unrealized gains and losses; 10d accountant tools done: reclassify, write off invoices, fix undeposited funds, client change review, month-end close, Adjusted Trial Balance; 10e online payments done: Stripe Connect Standard accounts (stand-in until the platform's keys exist), pay links and the pay page, payments into Undeposited Funds, payouts as deposits net of fees, refunds and chargebacks; next portals)
+- [x] Phase 10: Advanced, in six parts (10a inventory done: items and assemblies, FIFO/average costing with backdated recosting, no negative stock, adjustments, builds, valuation and stock status reports, QuickBooks cut-over; 10b time tracking done: timesheets, approvals, paychecks and invoices from approved time, progress invoicing; 10c multi-currency done: foreign-currency customers, vendors, documents and payments, rates by hand or from the ECB, realized and unrealized gains and losses; 10d accountant tools done: reclassify, write off invoices, fix undeposited funds, client change review, month-end close, Adjusted Trial Balance; 10e online payments done: Stripe Connect Standard accounts (stand-in until the platform's keys exist), pay links and the pay page, payments into Undeposited Funds, payouts as deposits net of fees, refunds and chargebacks; 10f portals done: employee and contractor portals with password and MFA (pay stubs, W-2 figures, own time, W-4 and direct deposit requests approved by payroll, contractor payments and 1099 totals), customer portal by emailed link (invoices, statement, paying online, accepting estimates); follow-ups are open questions 62, 64, 66–69 and 71–73)
 - [ ] Phase 11: E-file and partners
 - [ ] Phase 12: Hardening and launch

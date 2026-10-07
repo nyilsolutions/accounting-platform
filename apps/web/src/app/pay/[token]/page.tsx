@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
@@ -163,7 +164,12 @@ function Shell({ children }: { children: React.ReactNode }) {
     <main className="flex min-h-full items-start justify-center bg-gray-50 px-4 py-10">
       <div className="w-full max-w-lg">
         <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">{children}</div>
-        <p className="mt-4 text-center text-xs text-gray-400">
+        <p className="mt-4 text-center text-xs">
+          <Link href="/portal/customer" className="text-brand-700 hover:underline">
+            See all your invoices
+          </Link>
+        </p>
+        <p className="mt-2 text-center text-xs text-gray-400">
           Payments are processed securely by Stripe · {APP_NAME}
         </p>
       </div>

@@ -345,7 +345,7 @@ export class PortalAdminService {
             `Your request for ${r.kind === 'w4' ? 'a new Form W-4' : 'new direct deposit accounts'} was ${status}.`,
             ...(note ? ['', note] : []),
             '',
-            `See it in your portal: ${this.config.WEB_ORIGIN}/portal/${ctx.companyId}`,
+            `See it in your portal: ${this.config.WEB_ORIGIN}/portal/c/${ctx.companyId}/details`,
           ].join('\n'),
         });
       return dto!;

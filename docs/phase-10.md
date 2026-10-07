@@ -9,7 +9,7 @@ Phase 10 comes in six parts, each its own pull request, in this order (decided 2
 | 10c  | Multi-currency                                | This PR |
 | 10d  | Accountant tools                              | This PR |
 | 10e  | Card and bank payments through Stripe Connect | This PR |
-| 10f  | Customer, employee and contractor portals     | Planned |
+| 10f  | Customer, employee and contractor portals     | This PR |
 
 The owner's decisions for the later parts:
 
@@ -379,3 +379,79 @@ Screenshots: `docs/screenshots/113-online-payments-settings.png`, `114-pay-invoi
 - Paying part of an invoice (question 68).
 - Refunds started from the app (question 69).
 - Saved cards and automatic recurring charges.
+
+## 10f: Customer, employee and contractor portals (ADR 0023)
+
+The owner's decisions (2026-10-07):
+
+- **Customers** view their invoices, pay them and accept or decline estimates.
+- **Employees** see their pay stubs and W-2 figures and enter their time; W-4 and direct deposit
+  changes are requests a payroll admin approves.
+- **Contractors** enter their time and see their payments and 1099 totals.
+- Employees and contractors use the normal sign-in, linked to their own record, never a company
+  membership.
+
+### Delivered
+
+- **Inviting employees and contractors:** a **Portal access** card on the employee page
+  (payroll managers) and on the vendor page (purchases managers).
+  - It emails an invitation the person accepts with their own account (password and MFA).
+  - The card shows whether they accepted.
+  - **Remove access** ends it at once.
+- **The employee portal** (`/portal`):
+  - **Pay stubs**, the same statement staff see, printable;
+  - **W-2** figures by year (the year so far);
+  - **Time**, a weekly timesheet submitted to the normal approvals;
+  - **W-4 and direct deposit**: what is on file (accounts masked), with **Change my W-4** and
+    **Change my account** sending requests.
+- **Employee requests** (Payroll › Employee requests):
+  - each request with its summary;
+  - **Approve** applies it through the payroll services (new accounts are prenoted);
+  - **Reject** takes a note;
+  - the employee and the approvers are emailed.
+
+  Bank account numbers in a request are stored only encrypted and never shown or logged.
+
+- **The contractor portal:** **Payments** by year, **1099** totals by box, and **Time**.
+- **The customer portal** (`/portal/customer`): customers ask for a sign-in link by email (one
+  use, 15 minutes), or the business sends one from the customer's page (**Invite to customer
+  portal**, 7 days). In it:
+  - their balance;
+  - **Invoices** (open, overdue, paid), each printable with **Pay online** (10e);
+  - **Statement** for any dates;
+  - **Estimates** to **accept** or **decline**.
+
+  Its session uses its own cookie, separate from staff sign-in.
+
+- Someone with portal access but no companies goes straight to their portal after signing in.
+
+### Demo script
+
+1. Sign in as the demo user. The demo login is also linked to employee **Maria Lopez**'s portal:
+   open `/portal` to see her pay stubs, W-2 figures and time.
+2. **Payroll › Employee requests**: Maria asked for a new W-4 (married filing jointly, $4,000
+   of dependents, from January 1). Approve it, and her W-4 history on the employee page has the
+   new certificate.
+3. Open **Sales › Customers › Oakwood Dental** and choose **Invite to customer portal**. The
+   development mail transport prints the email; open its link to see Oakwood's invoices
+   (including ONL-1003, payable online), statement and estimates.
+4. Invite an employee or vendor from their page and open the printed invitation in a private
+   window to create a portal account.
+
+Screenshots: `docs/screenshots/116-portal-pay-stub.png`, `117-employee-requests.png`,
+`118-customer-portal.png`.
+
+### Tests
+
+| Suite                   | Count | Highlights                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| ----------------------- | ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `packages/db`           | 107   | +4: kept within the company; lookups without a company return ids and names only; one live link per worker and per person per company; one open request of each kind, bank details only encrypted, requests never deleted                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| `apps/api`              | 552   | +12. **Invitations:** only the invited email accepts, with the right permission. **No books:** a portal user gets 404 on every company route and on other companies' portals. **Employees:** their own pay stubs only, W-2 figures, own timesheet submitted to approvals; W-4 requests approved into the history with emails; bank requests stored encrypted (not in the audit log), approved with prenotes; withdraw and reject. **Contractors:** payments, 1099 totals and time; access revoked. **Customers:** links never say whether an email is known, links work once, invoices with statuses, others' invoices refused, statement, estimates accepted once, signing out, staff-sent invitations |
+| `apps/web` (Playwright) | 18    | +1: invite an employee from her page, she creates her account and sees her pay stub, asks for a new W-4, the owner approves it; a customer signs in by email, sees the balance and invoices, and accepts an estimate                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+
+### Not in this part
+
+- Official W-2 copies and their electronic delivery, which needs the employee's consent
+  (question 72).
+- Earnings and customers on portal timesheets (question 71).
+- State withholding certificate requests (question 73).

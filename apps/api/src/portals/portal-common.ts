@@ -8,6 +8,7 @@ import {
 } from '@nestjs/common';
 import { withTenant, type Db } from '@acct/db';
 import {
+  formatDate,
   formatMoney,
   W4_2020_STATUS_LABELS,
   W4_PRE2020_STATUS_LABELS,
@@ -100,7 +101,7 @@ export function w4Lines(
       ? (W4_2020_STATUS_LABELS as Record<string, string>)[w.filingStatus]
       : (W4_PRE2020_STATUS_LABELS as Record<string, string>)[w.filingStatus];
   const lines = [
-    `Form W-4 (${w.formVersion === '2020' ? '2020 or later' : 'before 2020'}), effective ${w.effectiveFrom}`,
+    `Form W-4 (${w.formVersion === '2020' ? '2020 or later' : 'before 2020'}), effective ${formatDate(w.effectiveFrom)}`,
     `Filing status: ${status ?? w.filingStatus}`,
   ];
   if (w.formVersion === '2020') {
