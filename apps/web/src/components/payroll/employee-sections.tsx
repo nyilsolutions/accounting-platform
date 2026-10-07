@@ -549,6 +549,8 @@ interface AccountRow {
   amount: string;
   prenote: boolean;
   prenoteLabel?: string;
+  /** A partner deposit to it came back (ADR 0025). */
+  returnReason?: string | null;
 }
 
 function accountRows(employee: EmployeeDto): AccountRow[] {
@@ -568,6 +570,7 @@ function accountRows(employee: EmployeeDto): AccountRow[] {
         : a.prenoteStatus === 'pending'
           ? 'Prenote waiting to be sent'
           : undefined,
+    returnReason: a.returnedAt ? (a.returnReason ?? 'returned') : null,
   }));
 }
 
@@ -634,6 +637,29 @@ export function DirectDepositSection({ companyId, employee }: Props) {
               Account {i + 1}{' '}
               {r.prenoteLabel && <span className="ml-2 text-gray-500">{r.prenoteLabel}</span>}
             </legend>
+            {r.returnReason && r.id && (
+              <div className="flex flex-wrap items-center gap-2 sm:col-span-6">
+                <Badge tone="red">A deposit came back: {r.returnReason}</Badge>
+                <span className="text-xs text-gray-600">
+                  It isn&apos;t paid into until the account is corrected, or the bank says it is
+                  fixed.
+                </span>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={async () => {
+                    const result = await m.run<EmployeeDto>(
+                      `/employees/${employee.id}/bank-accounts/${r.id}/clear-return`,
+                      'POST',
+                      {},
+                    );
+                    if (result) setRows(accountRows(result));
+                  }}
+                >
+                  It&apos;s fixed: use it again
+                </Button>
+              </div>
+            )}
             <label className="text-xs text-gray-600 sm:col-span-1">
               Routing number
               <input

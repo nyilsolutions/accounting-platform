@@ -418,3 +418,28 @@ Add new questions here instead of guessing.
       on time. The IRS's rules for that come with the documents.
     - **Forms 1099:** each recipient is reported under the vendor's display name, with only the
       boxes that meet their thresholds (as the 1099 summary marks them "Needs a 1099").
+
+## EFTPS and the direct deposit partner (Phase 11b)
+
+77. **The EFTPS batch provider enrollment (still needed).** Until it exists, a stand-in plays
+    EFTPS (ADR 0025). Going live needs:
+    - the Treasury's enrollment of the platform as a batch provider;
+    - the EFTPS batch provider specifications: request formats, how each company is enrolled and
+      authorizes the debits (the authorization wording here is the app's own), settlement-date
+      cut-off times, and cancellation rules.
+
+    The stand-in only accepts settlement dates after today, and lets a payment be cancelled until
+    its settlement date. The real rules replace both.
+
+78. **The payments partner (still needed).** Which partner will originate direct deposits? It
+    decides:
+    - how each company is onboarded, and which of its accounts is debited and when (before or on
+      the pay date);
+    - how returns are reported. Today the platform asks every 15 minutes and stops once a batch
+      settles; returns that arrive later need the partner's notifications;
+    - whether prenotes are still useful with its account checks.
+79. **A tax payment returned in a closed period:** it stays in the books, and the payroll admins
+    are emailed to void it with the closing password. Is that right, or should a return always be
+    voided automatically?
+80. **A returned prenote:** it turns the account off, as a returned deposit does, until it is
+    corrected or marked fixed. Confirm.

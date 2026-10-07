@@ -11,6 +11,7 @@ import {
   formatDate,
   todayIso,
   weekday,
+  type AchBatchDto,
   type PayRunDto,
 } from '@acct/shared';
 import { PaycheckEditor } from '@/components/payroll/paycheck-editor';
@@ -18,7 +19,7 @@ import { PAYCHECK_STATUS, RUN_STATUS, usd } from '@/components/payroll/pay-run-u
 import { errText, Section, Table, usePayrollMutation } from '@/components/payroll/payroll-ui';
 import { Alert, Badge, Button, Card, Spinner, TextInput } from '@/components/ui';
 import { api, ApiError, downloadFile, errorMessage } from '@/lib/api';
-import { keys, useAccess, usePayRun, usePayrollItems } from '@/lib/queries';
+import { keys, useAccess, usePayRun, usePayrollItems, usePayrollSettings } from '@/lib/queries';
 
 /** The pay date, or the next weekday when the pay date has passed. */
 function settlementDefault(payDate: string): string {
@@ -33,6 +34,7 @@ export default function PayRunPage() {
   const qc = useQueryClient();
   const access = useAccess(companyId);
   const run = usePayRun(companyId, runId);
+  const settings = usePayrollSettings(companyId);
   const items = usePayrollItems(companyId);
   const m = usePayrollMutation(companyId);
   const [editing, setEditing] = useState<string | null>(null);
@@ -51,6 +53,7 @@ export default function PayRunPage() {
     const result = await m.run<PayRunDto>(`/pay-runs/${r.id}/${path}`, 'POST', {});
     if (result) setMessage(done);
   };
+  const viaPartner = settings.data?.settings?.depositRail === 'partner';
   const hasDeposits = r.paychecks.some(
     (p) => p.payMethod === 'direct_deposit' && p.status === 'posted',
   );
@@ -61,6 +64,22 @@ export default function PayRunPage() {
     setFileBusy(true);
     setFileError(null);
     try {
+      if (viaPartner) {
+        const batch = await api<AchBatchDto>(
+          `/companies/${companyId}/payroll/pay-runs/${r.id}/direct-deposits`,
+          { method: 'POST', body: { effectiveDate } },
+        );
+        await qc.invalidateQueries({ queryKey: keys.payroll(companyId) });
+        if (batch.status === 'failed')
+          setFileError(`The payments partner did not take the deposits: ${batch.providerMessage}`);
+        else
+          setMessage(
+            batch.status === 'submitted'
+              ? 'Direct deposits sent through the payments partner.'
+              : 'The payments partner has not confirmed the deposits yet. See Payroll › Direct deposit.',
+          );
+        return;
+      }
       await downloadFile(`/companies/${companyId}/payroll/pay-runs/${r.id}/deposit-file`, {
         method: 'POST',
         body: { effectiveDate },
@@ -278,13 +297,19 @@ export default function PayRunPage() {
 
       {r.status === 'posted' && hasDeposits && (
         <Section
-          title="Direct deposit file"
-          description="The NACHA file for your bank. It is created once per run and not kept here."
+          title={viaPartner ? 'Direct deposits' : 'Direct deposit file'}
+          description={
+            viaPartner
+              ? 'Sent once per run through the payments partner.'
+              : 'The NACHA file for your bank. It is created once per run and not kept here.'
+          }
           testId="run-deposit-file"
         >
           {r.depositFileCreated ? (
             <p className="text-sm text-gray-700">
-              The file for this run has been created. See Payroll › Direct deposit for its record.
+              {viaPartner
+                ? "This run's deposits were sent. See Payroll › Direct deposit for their status."
+                : 'The file for this run has been created. See Payroll › Direct deposit for its record.'}
             </p>
           ) : (
             manage && (
@@ -298,7 +323,7 @@ export default function PayRunPage() {
                   />
                 </div>
                 <Button type="submit" loading={fileBusy}>
-                  Create direct deposit file
+                  {viaPartner ? 'Send direct deposits' : 'Create direct deposit file'}
                 </Button>
               </form>
             )

@@ -2,6 +2,7 @@
 
 import { useQuery } from '@tanstack/react-query';
 import type {
+  PayrollPartnersDto,
   EfileForm,
   EfileReturnStatusDto,
   EfileSubmissionDto,
@@ -404,6 +405,14 @@ export function useEfileReturn(id: string, form: EfileForm, year: number, quarte
           ? `/companies/${id}/1099/efile?year=${year}`
           : `/companies/${id}/payroll/efile/return?form=${form}&year=${year}${quarter ? `&quarter=${quarter}` : ''}`,
       ),
+  });
+}
+
+/** EFTPS enrollment and the direct deposit partner (ADR 0025). */
+export function usePayrollPartners(id: string) {
+  return useQuery({
+    queryKey: [...keys.payroll(id), 'partners'],
+    queryFn: payrollGet<PayrollPartnersDto>(id, '/partners'),
   });
 }
 
