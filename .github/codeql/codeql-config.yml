@@ -1,0 +1,10 @@
+# CodeQL configuration (ADR 0029). Exclusions are for verified false positives only, each with
+# its reason, and as narrow as possible: one file, never a whole query.
+name: accounting-platform
+paths-ignore:
+  # js/insufficient-password-hash: the Pwned Passwords range API (k-anonymity) is defined over
+  # the SHA-1 of the password. The hash is never stored; only its first 5 hex characters leave
+  # the server, to check the password against known breaches (ASVS 2.1.7). Passwords themselves
+  # are hashed with argon2id and a pepper in packages/crypto, which stays scanned. This file
+  # does nothing else.
+  - apps/api/src/auth/breach-check.ts

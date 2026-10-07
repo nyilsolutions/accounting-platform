@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { base32Encode } from './base32';
+import { base32Decode, base32Encode } from './base32';
 import {
   generateTotp,
   generateTotpSecret,
@@ -73,5 +73,18 @@ describe('TOTP', () => {
     expect(isReplayedTotp(secret, code, null, { nowMs: now })).toBe(false);
     const wrong = code === '000000' ? '111111' : '000000';
     expect(isReplayedTotp(secret, wrong, step, { nowMs: now })).toBe(false);
+  });
+});
+
+describe('base32', () => {
+  it('round-trips, ignores padding and spaces, and stays fast on long runs of =', () => {
+    const bytes = new Uint8Array([0, 1, 2, 250, 251, 255, 42]);
+    const enc = base32Encode(bytes);
+    expect([...base32Decode(enc)]).toEqual([...bytes]);
+    expect([...base32Decode(`${enc.toLowerCase()}====`)]).toEqual([...bytes]);
+    expect([...base32Decode(enc.replace(/(.{4})/g, '$1 '))]).toEqual([...bytes]);
+    const started = performance.now();
+    expect(() => base32Decode(`${'='.repeat(50_000)}!`)).toThrow('Invalid base32 character');
+    expect(performance.now() - started).toBeLessThan(500);
   });
 });
