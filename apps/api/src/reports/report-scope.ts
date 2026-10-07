@@ -92,6 +92,54 @@ export async function ledgerNet(
   return out;
 }
 
+/**
+ * `ledgerNet` for several periods at once (a report's columns), in one pass over the journal when
+ * the filters differ only in their dates and the basis is accrual (ADR 0028). Otherwise each is
+ * run on its own. Periods may overlap.
+ */
+export async function ledgerNets(
+  tx: Tx,
+  companyId: string,
+  filters: NetFilter[],
+): Promise<Array<Map<string, Money>>> {
+  const rest = ({ from: _from, to: _to, ...r }: NetFilter) => JSON.stringify(r);
+  const first = filters[0];
+  if (
+    !first ||
+    filters.length < 2 ||
+    first.basis === 'cash' ||
+    filters.some((f) => rest(f) !== rest(first))
+  ) {
+    const out: Array<Map<string, Money>> = [];
+    for (const f of filters) out.push(await ledgerNet(tx, companyId, f));
+    return out;
+  }
+  const to = filters.reduce((m, f) => (f.to > m ? f.to : m), first.to);
+  const open = filters.some((f) => !f.from);
+  const from = open ? null : filters.reduce((m, f) => (f.from! < m ? f.from! : m), first.from!);
+  const periods = sql.join(
+    filters.map((f, i) => sql`(${i}::int, ${f.from ?? null}::date, ${f.to}::date)`),
+  );
+  const rows = await sql<{ i: number; account_id: string; net: string }>`
+    select p.i, l.account_id, sum(l.debit - l.credit) as net
+    from journal_lines l
+    join transactions t on t.id = l.transaction_id and t.version = l.version
+    join (values ${periods}) as p(i, from_date, to_date)
+      on l.txn_date <= p.to_date and (p.from_date is null or l.txn_date >= p.from_date)
+    where l.company_id = ${companyId} and t.status = 'posted'
+      and l.txn_date <= ${to}
+      ${from ? sql`and l.txn_date >= ${from}` : sql``}
+      ${dimension('l.class_id', first.classId)}
+      ${dimension('l.location_id', first.locationId)}
+      ${dimension('l.customer_id', first.customerId)}
+      ${dimension('l.vendor_id', first.vendorId)}
+      ${first.adjusting !== undefined ? sql`and t.is_adjusting = ${first.adjusting}` : sql``}
+    group by p.i, l.account_id`.execute(tx);
+  const out = filters.map(() => new Map<string, Money>());
+  for (const r of rows.rows) out[r.i]!.set(r.account_id, parseMoney(r.net));
+  return out;
+}
+
 export function basisOf(q: { basis?: Basis }, company: ReportCompany): Basis {
   return q.basis ?? (company.accounting_basis === 'cash' ? 'cash' : 'accrual');
 }

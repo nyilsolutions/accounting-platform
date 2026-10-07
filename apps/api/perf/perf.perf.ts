@@ -1,9 +1,9 @@
 import { spawn, type ChildProcess } from 'node:child_process';
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import autocannon from 'autocannon';
-import { createTestDatabase, type TestDatabase } from '@acct/db';
-import { createDb, sql } from '@acct/db';
+import { createDb, createTestDatabase, migrate, sql, type TestDatabase } from '@acct/db';
+import { Client } from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createApp } from '../src/app.factory';
 import { loadConfig } from '../src/config';
@@ -20,7 +20,8 @@ import { FULL, SMOKE, generateCompany, total } from './generate';
  * - 50 concurrent users working at once: no errors.
  *
  * PERF_SCALE=full builds the full company (minutes); the default 'smoke' builds the same shape at
- * 2% for CI. Results go to perf/results/<scale>.json and the console.
+ * 2% for CI. Results go to perf/results/<scale>.json and the console. PERF_DB_NAME keeps the
+ * database under that name and reuses it on the next run (for working on a slow query).
  */
 const scaleName = process.env.PERF_SCALE === 'full' ? 'full' : 'smoke';
 const scale = scaleName === 'full' ? FULL : SMOKE;
@@ -89,10 +90,8 @@ async function time(
   return row;
 }
 
-beforeAll(async () => {
-  tdb = await createTestDatabase();
-  await installJobQueue(tdb.adminUrl);
-  // Build the company in-process through the services.
+/** Builds the company in-process through the services. */
+async function build(): Promise<Kept> {
   const app = await createApp(
     loadConfig({
       NODE_ENV: 'test',
@@ -108,7 +107,7 @@ beforeAll(async () => {
   );
   await app.init();
   const owner = await signUp(app, 'perf-owner@example.com', 'Perf Owner');
-  companyId = (
+  const companyId = (
     await owner.agent
       .post('/companies')
       .send({ legalName: 'Perf Landscaping Co.', taxForm: 'form_1120s' })
@@ -130,6 +129,61 @@ beforeAll(async () => {
   );
   results.generateSeconds = Math.round(generated.seconds);
   await app.close();
+  return {
+    email: owner.email,
+    password: owner.password,
+    secret: owner.secret,
+    companyId,
+    scale: scaleName,
+  };
+}
+
+/** A named database kept between runs (PERF_DB_NAME), or a fresh one dropped at the end. */
+async function database(): Promise<TestDatabase> {
+  const name = process.env.PERF_DB_NAME;
+  if (!name) return createTestDatabase();
+  if (!/^[a-z0-9_]+$/.test(name)) throw new Error('PERF_DB_NAME: lowercase letters, digits, _');
+  const base = new URL(
+    process.env.ADMIN_DATABASE_URL ?? 'postgres://postgres:postgres@localhost:5432/postgres',
+  );
+  const maintenance = new URL(base);
+  maintenance.pathname = '/postgres';
+  const client = new Client({ connectionString: maintenance.toString() });
+  await client.connect();
+  const exists = await client.query('select 1 from pg_database where datname = $1', [name]);
+  if (!exists.rowCount) await client.query(`create database ${name}`);
+  await client.end();
+  const admin = new URL(base);
+  admin.pathname = `/${name}`;
+  await migrate(admin.toString());
+  const app = new URL(admin);
+  app.username = 'acct_app';
+  app.password = process.env.APP_DB_PASSWORD ?? 'acct_app_dev_password';
+  return { adminUrl: admin.toString(), appUrl: app.toString(), drop: async () => undefined };
+}
+
+interface Kept {
+  email: string;
+  password: string;
+  secret: string;
+  companyId: string;
+  scale: string;
+}
+
+beforeAll(async () => {
+  tdb = await database();
+  await installJobQueue(tdb.adminUrl);
+  const keptFile = process.env.PERF_DB_NAME
+    ? join(__dirname, 'results', `${process.env.PERF_DB_NAME}.db.json`)
+    : null;
+  const kept =
+    keptFile && existsSync(keptFile) ? (JSON.parse(readFileSync(keptFile, 'utf8')) as Kept) : null;
+  const owner = kept ?? (await build());
+  if (keptFile && !kept) {
+    mkdirSync(join(__dirname, 'results'), { recursive: true });
+    writeFileSync(keptFile, JSON.stringify(owner));
+  }
+  companyId = owner.companyId;
 
   // Fresh planner statistics, as autovacuum would have after a load like this.
   const admin = createDb(tdb.adminUrl, 1);
