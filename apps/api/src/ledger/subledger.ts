@@ -248,7 +248,9 @@ export async function openItems(
       foreignOpen: o.currency ? 0n : null,
     });
   }
-  return items.sort((a, b) => a.txnDate.localeCompare(b.txnDate) || a.txnId.localeCompare(b.txnId));
+  // ISO dates and uuids order the same by code unit, without a collator.
+  const cmp = (x: string, y: string) => (x < y ? -1 : x > y ? 1 : 0);
+  return items.sort((a, b) => cmp(a.txnDate, b.txnDate) || cmp(a.txnId, b.txnId));
 }
 
 export interface PartyBalance {
@@ -302,8 +304,16 @@ export const AGING_LABELS: Record<AgingBucket, string> = {
   over90: '91 and over',
 };
 
+/** Days since 1970-01-01 for a YYYY-MM-DD date (Date.parse is slow over thousands of items). */
+function dayNumber(iso: string): number {
+  return (
+    Date.UTC(Number(iso.slice(0, 4)), Number(iso.slice(5, 7)) - 1, Number(iso.slice(8, 10))) /
+    86_400_000
+  );
+}
+
 export function daysBetween(from: string, to: string): number {
-  return Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86_400_000);
+  return dayNumber(to) - dayNumber(from);
 }
 
 /** Days past due as of `asOf` (documents by due date, everything else by transaction date). */

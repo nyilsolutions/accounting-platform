@@ -22,8 +22,15 @@ export class InflightRequests {
       this.active--;
       if (this.active === 0) for (const wake of [...this.idle]) wake();
     };
+    // A request is running until its handler answers. 'close' alone isn't enough: when the
+    // client goes away first, the handler is still working (and using the database), and only
+    // its call to res.end() says it is done.
+    const resEnd = res.end.bind(res) as (...args: unknown[]) => Response;
+    res.end = ((...args: unknown[]) => {
+      end();
+      return resEnd(...args);
+    }) as Response['end'];
     res.once('finish', end);
-    res.once('close', end);
     next();
   };
 

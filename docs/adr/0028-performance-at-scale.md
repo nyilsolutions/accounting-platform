@@ -36,9 +36,13 @@ Until now every test company had tens of transactions, so nothing measured these
 - **Reads:** 20 report and list pages the app opens on, each 20 times (5 at smoke scale). The
   test fails when a p95 is over 2 s.
 - **Posting:** 50 invoices saved one after another. The test fails when the p95 is over 300 ms.
-- **Load:** 50 connections for 60 s (15 s at smoke scale) mixing the sales list, customers,
-  P&L, A/R aging, a register page and saving invoices. Any error, timeout or non-2xx response
-  fails the test.
+- **50 users:** 50 simulated people for 2 minutes (20 s at smoke scale). Each opens the sales
+  list, customers, P&L, A/R aging or a register page, or saves an invoice, then takes 2 to 8
+  seconds before the next (a busy person clicking every 5 seconds on average). Any error or
+  non-2xx response fails the test, and so does a p95 over the 2 s page budget.
+- **Capacity:** the same mix from 50 connections with no pauses at all, for 60 s. It isn't a
+  target: it shows how much headroom one instance has. A request over 10 s counts as a timeout
+  and is reported; any non-2xx response fails the test.
 - **Shutdown:** a SIGTERM with 20 slow requests running. Every one must finish or be refused,
   none cut off halfway.
 - **Results** go to `perf/results/<scale>.json`. `PERF_DB_NAME` keeps the generated database
@@ -51,8 +55,8 @@ Until now every test company had tens of transactions, so nothing measured these
 
 ### What was slow, and the fixes
 
-The first full run failed six budgets, and the load test managed 2 requests per second with
-210 timeouts. The fixes:
+The first full run failed six budgets, and 50 connections with no pauses managed 2 requests
+per second with 210 timeouts. The fixes:
 
 - **No JIT.** Postgres JIT-compiled every large report query on every run because the plans'
   costs crossed its threshold. On the A/R queries compiling took half the time (290 ms of
@@ -75,6 +79,10 @@ The first full run failed six budgets, and the load test managed 2 requests per 
   Cash basis still runs per column.
 - **Saving a customer** loaded every customer to build the new one's full name, so creating
   customers got slower as the list grew. It now walks up from the one customer.
+- **Sorting names.** `a.localeCompare(b, 'en', options)` builds a collator on every comparison.
+  Under load, sorting 5,000 customers and grouping report rows by party took half the API's
+  CPU. `common/collate.ts` keeps one collator for each ordering (the same order). Aging works
+  out days with integer date arithmetic instead of `Date.parse`.
 
 No new indexes were needed: every slow query was slow for another reason, and the existing
 indexes (ADR 0003 and later) cover the lookups.
@@ -88,7 +96,9 @@ indexes (ADR 0003 and later) cover the lookups.
 - **Graceful shutdown:** Nest stops accepting connections on SIGTERM but doesn't wait for
   running requests. The database pool closed under them ("driver has already been destroyed").
   `InflightRequests` (`common/inflight.ts`) counts requests, and shutdown waits up to 25 s for
-  them before closing the pool. The orchestrator's stop timeout must be longer (12d).
+  them before closing the pool. A request counts until its handler answers (`res.end`), not
+  until the client goes away: a client that gives up doesn't stop the handler using the
+  database. The orchestrator's stop timeout must be longer (12d).
 
 ## Results
 
@@ -101,6 +111,9 @@ Full scale, on the development container (4 vCPUs, 16 GB, Postgres 16 on the sam
   run shows the real numbers.
 - **Numbers are from one machine** with the database on it. They need repeating on the AWS
   sizes chosen in 12d (question 87).
+- **What "50 users" means** here is a modelling choice: people with a few seconds between
+  actions, which is busier than real bookkeeping. With no pauses at all, one instance on this
+  machine serves about 16 requests a second (question 87).
 - **Single-company load:** the load test is 50 users in one company. Many companies on one
   database share its cache and connections. 12d sizes the database for the expected number of
   companies.

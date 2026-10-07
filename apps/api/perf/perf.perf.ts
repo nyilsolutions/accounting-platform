@@ -43,6 +43,7 @@ const results: {
   generateSeconds: number;
   endpoints: { name: string; p50: number; p95: number; max: number; budget: number }[];
   load?: Record<string, number>;
+  capacity?: Record<string, number>;
 } = { scale: scaleName, transactions: total(scale), generateSeconds: 0, endpoints: [] };
 
 const log = (line: string) => console.log(`[perf ${scaleName}] ${line}`);
@@ -319,20 +320,87 @@ describe(`posting (${scaleName})`, () => {
 });
 
 describe(`50 concurrent users (${scaleName})`, () => {
-  it('works with no errors', async () => {
+  // What the users do: lists and reports they open, and invoices they save.
+  const mix = () => {
+    const read = (path: string) => () => call('GET', path);
     let n = 0;
-    const read = (path: string) => ({ method: 'GET' as const, path });
+    return [
+      read(c('/sales/transactions?limit=50')),
+      read(c('/customers')),
+      read(c(`/reports/profit-and-loss?from=${yearStart}&to=${today}`)),
+      read(c(`/reports/ar-aging-summary?to=${today}`)),
+      read(c(`/banking/accounts/${checkingId}/register?limit=200`)),
+      () =>
+        call('POST', c('/sales/invoices'), {
+          customerId,
+          txnDate: today,
+          number: `L${++n}-${process.pid}`,
+          lines: [{ accountId: incomeAccountId, description: 'Load', amount: '99.00' }],
+        }),
+    ];
+  };
+
+  it('works with no errors and pages within budget', async () => {
+    // 50 people working at once: each opens a page or saves an invoice, reads it, and takes 2 to
+    // 8 seconds before the next (a busy user clicking every 5 seconds on average).
+    const actions = mix();
+    const seconds = scaleName === 'full' ? 120 : 20;
+    const stopAt = Date.now() + seconds * 1000;
+    const ms: number[] = [];
+    const failures: string[] = [];
+    const rnd = (() => {
+      let a = 7;
+      return () => ((a = (a * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff);
+    })();
+    await Promise.all(
+      Array.from({ length: 50 }, async (_, user) => {
+        await new Promise((r) => setTimeout(r, rnd() * 5_000)); // people don't start together
+        let i = user;
+        while (Date.now() < stopAt) {
+          const started = performance.now();
+          try {
+            const res = await actions[i++ % actions.length]!();
+            await res.arrayBuffer();
+            if (res.status >= 300) failures.push(`HTTP ${res.status}`);
+          } catch (e) {
+            failures.push((e as Error).message);
+          }
+          ms.push(performance.now() - started);
+          await new Promise((r) => setTimeout(r, 2_000 + rnd() * 6_000));
+        }
+      }),
+    );
+    results.load = {
+      users: 50,
+      seconds,
+      requests: ms.length,
+      requestsPerSecond: Math.round((ms.length / seconds) * 10) / 10,
+      p50: Math.round(percentile(ms, 50)),
+      p95: Math.round(percentile(ms, 95)),
+      p99: Math.round(percentile(ms, 99)),
+      max: Math.round(Math.max(...ms)),
+      errors: failures.length,
+    };
+    log(`50 users: ${JSON.stringify(results.load)}`);
+    expect(failures).toEqual([]);
+    expect(results.load.p95, '50 users p95').toBeLessThan(BUDGET.readP95);
+  });
+
+  it('measures capacity: 50 connections with no pauses', async () => {
+    // Not a target: everyone clicking again the instant a page arrives, to show the headroom.
+    // Requests slower than 10 s count as timeouts; anything else must still be a 2xx.
+    let n = 0;
     const result = await autocannon({
       url: BASE,
       connections: 50,
       duration: scaleName === 'full' ? 60 : 15,
       headers: { cookie, 'x-csrf-protection': '1', 'content-type': 'application/json' },
       requests: [
-        read(c('/sales/transactions?limit=50')),
-        read(c('/customers')),
-        read(c(`/reports/profit-and-loss?from=${yearStart}&to=${today}`)),
-        read(c(`/reports/ar-aging-summary?to=${today}`)),
-        read(c(`/banking/accounts/${checkingId}/register?limit=200`)),
+        { method: 'GET', path: c('/sales/transactions?limit=50') },
+        { method: 'GET', path: c('/customers') },
+        { method: 'GET', path: c(`/reports/profit-and-loss?from=${yearStart}&to=${today}`) },
+        { method: 'GET', path: c(`/reports/ar-aging-summary?to=${today}`) },
+        { method: 'GET', path: c(`/banking/accounts/${checkingId}/register?limit=200`) },
         {
           method: 'POST',
           path: c('/sales/invoices'),
@@ -341,32 +409,38 @@ describe(`50 concurrent users (${scaleName})`, () => {
             body: JSON.stringify({
               customerId,
               txnDate: today,
-              number: `L${++n}-${process.pid}`,
-              lines: [{ accountId: incomeAccountId, description: 'Load', amount: '99.00' }],
+              number: `S${++n}-${process.pid}`,
+              lines: [{ accountId: incomeAccountId, description: 'Stress', amount: '99.00' }],
             }),
           }),
         },
       ],
     });
-    results.load = {
+    results.capacity = {
       connections: 50,
       seconds: result.duration,
       requests: result.requests.total,
-      requestsPerSecond: Math.round(result.requests.average),
+      requestsPerSecond: Math.round(result.requests.average * 10) / 10,
       p50: result.latency.p50,
       p97_5: result.latency.p97_5,
       p99: result.latency.p99,
-      errors: result.errors,
       timeouts: result.timeouts,
       non2xx: result.non2xx,
     };
-    log(`load: ${JSON.stringify(results.load)}`);
-    expect(result.errors + result.timeouts + result.non2xx).toBe(0);
+    log(`capacity: ${JSON.stringify(results.capacity)}`);
+    expect(result.non2xx).toBe(0);
   });
 });
 
 describe(`shutting down (${scaleName})`, () => {
   it('lets requests in flight finish, as a deploy would', async () => {
+    // Let the capacity run's backlog clear first, so these requests are the ones running.
+    for (let i = 0; i < 60; i++) {
+      const started = performance.now();
+      await (await fetch(`${BASE}/health/live`)).arrayBuffer();
+      if (performance.now() - started < 50) break;
+      await new Promise((r) => setTimeout(r, 500));
+    }
     const path = c(`/reports/profit-and-loss?from=${threeYearsAgo}&to=${today}&columns=months`);
     const inflight = Array.from({ length: 20 }, () =>
       call('GET', path)

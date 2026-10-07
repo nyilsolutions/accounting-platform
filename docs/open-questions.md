@@ -486,7 +486,12 @@ Add new questions here instead of guessing.
 87. **Performance on AWS:** the 12b numbers are from a 4-vCPU development container with
     Postgres on the same machine (ADR 0028). Which API task and database sizes should 12d start
     from, and how many companies per database? The nightly performance workflow can run against
-    a staging database once 12d creates one.
+    a staging database once 12d creates one. Also confirm the reading of "50 concurrent users":
+    the test simulates 50 people each acting every 2 to 8 seconds, and requires no errors and
+    p95 under 2 s. With no pauses at all (everyone clicking the instant a page arrives) one
+    instance on the development machine serves about 16 requests a second and some requests
+    take over 10 s. Should the target be that harder case, or a number of users per instance
+    that 12d scales out to?
 88. **Cash basis P&L by period:** accrual P&L columns are read in one query; cash basis still
     runs one query per column, which a 36-month cash basis P&L will feel (about 3–4 s at
     100,000 transactions). Worth doing before launch, or after the first customers use it?
