@@ -16,7 +16,7 @@ import { usd } from '@/components/payroll/pay-run-ui';
 import { errText, formField, Select, usePayrollMutation } from '@/components/payroll/payroll-ui';
 import { Alert, Badge, Button, Dialog, TextInput } from '@/components/ui';
 
-/** Quarterly | Year end | Prior payroll. */
+/** Quarterly | Year end | Prior payroll | E-file. */
 export function FormsNav({ companyId }: { companyId: string }) {
   const path = usePathname();
   const base = `/c/${companyId}/payroll/forms`;
@@ -24,6 +24,7 @@ export function FormsNav({ companyId }: { companyId: string }) {
     { href: base, label: 'Quarterly' },
     { href: `${base}/year-end`, label: 'Year end' },
     { href: `${base}/prior`, label: 'Prior payroll' },
+    { href: `${base}/efile`, label: 'E-file' },
   ];
   return (
     <nav aria-label="Tax forms" className="mb-6 flex gap-2">
@@ -124,6 +125,7 @@ export function FilingPanel({
   canManage,
   blocked,
   label,
+  scope = 'payroll',
 }: {
   companyId: string;
   state: FormFilingState;
@@ -135,15 +137,22 @@ export function FilingPanel({
   /** Why it can't be marked filed yet. */
   blocked?: string | null;
   label: string;
+  /** Forms 1099 are filed from Expenses › 1099. */
+  scope?: 'payroll' | '1099';
 }) {
-  const m = usePayrollMutation(companyId);
+  const m = usePayrollMutation(
+    companyId,
+    scope,
+    scope === '1099' ? ['company', companyId, 'sales'] : undefined,
+  );
+  const filings = scope === '1099' ? '/filings' : '/forms/filings';
   const [open, setOpen] = useState(false);
   const f = state.filing;
 
   async function submit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const d = new FormData(e.currentTarget);
-    const ok = await m.run('/forms/filings', 'POST', {
+    const ok = await m.run(filings, 'POST', {
       form,
       taxYear,
       quarter: quarter ?? null,
@@ -172,7 +181,7 @@ export function FilingPanel({
               </>
             )}
           </p>
-          {canManage && (
+          {canManage && !f.efiled && (
             <Button
               size="sm"
               variant="ghost"
@@ -182,7 +191,7 @@ export function FilingPanel({
                     `Void the filing record for ${label}? The form itself stays filed with the agency.`,
                   )
                 )
-                  void m.run(`/forms/filings/${f.id}/void`, 'POST', {});
+                  void m.run(`${filings}/${f.id}/void`, 'POST', {});
               }}
             >
               Void filing record

@@ -1,0 +1,36 @@
+{
+  "id": "sample-1099-nec",
+  "source": "Sample written for the harness (not an IRS scenario)",
+  "form": "form_1099",
+  "taxYear": 2026,
+  "quarter": null,
+  "filer": {
+    "name": "Sample Landscaping Co.",
+    "ein": "001234567",
+    "address": {
+      "line1": "100 Sample Way",
+      "line2": null,
+      "city": "Austin",
+      "state": "TX",
+      "postalCode": "78701"
+    },
+    "phone": "512-555-0100"
+  },
+  "signer": { "name": "Pat Sample", "title": "Owner", "phone": "512-555-0100" },
+  "recipients": [
+    {
+      "vendorId": "sample-recipient-1",
+      "name": "Jordan Sample",
+      "tinType": "ssn",
+      "tin": "000000001",
+      "address": {
+        "line1": "5 Recipient Rd",
+        "line2": null,
+        "city": "Dallas",
+        "state": "TX",
+        "postalCode": "75201"
+      },
+      "boxes": { "nec_1": "1200.00" }
+    }
+  ]
+}

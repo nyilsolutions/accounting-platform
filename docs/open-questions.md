@@ -385,3 +385,36 @@ Add new questions here instead of guessing.
 73. **State withholding certificates in the portal:** open. Employees can ask for a new federal
     W-4 only. State certificates (IL-W-4, DE 4, IT-2104 and others) stay with the payroll admin.
     Should they be requests too?
+
+## Electronic filing (Phase 11a)
+
+74. **What the IRS transmitters need (still needed).** Until these exist, a stand-in plays the IRS
+    (ADR 0024). Electronic filing through the platform needs:
+    - **Modernized e-File for Forms 941 and 940:**
+      - IRS Publication 4164 and the tax year's 94x MeF schemas and business rules;
+      - the 94x ATS scenarios;
+      - an e-Services account with the Software Developer and Transmitter roles (an ETIN);
+      - passing ATS;
+      - the credentials the IRS issues for system-to-system transmission.
+    - **IRIS for Forms 1099:**
+      - IRS Publication 5717 and the IRIS A2A schemas and business rules;
+      - the IRIS test scenarios;
+      - an IRIS TCC for A2A.
+
+    The scenarios go in `/efile-ats/<year>/`. Each transmitter then implements `EfileTransmitter`.
+
+75. **Signing Forms 941 and 940 electronically:** open. The app records the signer's name, title,
+    phone and their statement, in the app's own words. An e-filed return also needs an IRS
+    signature method. As we understand it, the options are either:
+    - each business gets its own 94x online signature PIN; or
+    - the platform acts as Reporting Agent (Form 8655) and signs with its own PIN.
+
+    Which will the platform use? The forms' official statement and the method's details should
+    come from Publication 4164.
+
+76. **Readings in electronic filing, to confirm:**
+    - **Filed date:** an accepted return is recorded as filed on the date it was sent.
+    - **Rejections:** the app doesn't say whether a corrected return sent again still counts as
+      on time. The IRS's rules for that come with the documents.
+    - **Forms 1099:** each recipient is reported under the vendor's display name, with only the
+      boxes that meet their thresholds (as the 1099 summary marks them "Needs a 1099").

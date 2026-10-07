@@ -62,7 +62,11 @@ A single package: `pnpm --filter @acct/api test`, `pnpm --filter @acct/db test`,
   customer's pay page in `public-pay.service.ts`, webhooks to payments and payout deposits in
   `payment-events.service.ts`), portals (employee and contractor portal in
   `worker-portal.service.ts` behind `WorkerPortalGuard`, invitations and change requests in
-  `portal-admin.service.ts`, the customer portal and its sessions in `customer-portal.service.ts`).
+  `portal-admin.service.ts`, the customer portal and its sessions in `customer-portal.service.ts`),
+  efile (Forms 941/940 through MeF and Forms 1099 through IRIS behind `EfileTransmitter`, a
+  stand-in in `efile/transmitters/`; submissions and acknowledgements in `efile.service.ts`, the
+  returns and pre-send checks in `efile-returns.ts`, the ATS harness in `efile/ats/` with
+  scenarios in `/efile-ats/<year>/`).
   The A/R and A/P subledgers share one engine: `ledger/subledger.ts`.
 - `apps/desktop-agent`: QuickBooks Desktop migration agent (C#/.NET 8; `Core` is portable and
   tested on Linux with `dotnet test`, `Windows` is the WinForms wizard and QBXMLRP2 session).
@@ -214,6 +218,15 @@ A single package: `pnpm --filter @acct/api test`, `pnpm --filter @acct/db test`,
   `employee_change_requests` that a payroll admin approves (bank numbers encrypted with the
   request's AAD, applied through `EmployeesService`, prenoted). Customers use emailed one-time
   links and their own session cookie; every customer query is scoped to the session's customer.
+- Electronic filing (ADR 0024): returns reach the IRS only through `EfileTransmitter` (the
+  stand-in until the MeF and IRIS transmitters exist; tests never call the network). A
+  submission is committed as `sending` before the transmitter is called, then `transmitted`,
+  `failed`, or left `sending` when the answer is unknown. One per form and period can be in
+  flight. The returns carry the full EIN and TINs, decrypted only to build them and never stored
+  or logged; submissions keep a snapshot without them. An accepted production return records its
+  `tax_filings` row (method electronic), which can't be voided; a rejected one is fixed and sent
+  again. Forms 1099 have filing records too (`form_1099`, purchases permissions, never covering
+  payroll). The ATS harness only sends to a transmitter in the test environment.
 - Database errors map to HTTP in `common/pg-error.filter.ts`; add friendly messages for new unique
   indexes there.
 
@@ -230,5 +243,5 @@ A single package: `pnpm --filter @acct/api test`, `pnpm --filter @acct/db test`,
 - [x] Phase 8: Payroll core (setup, employees, tax engine with golden tests, pay runs, pay stubs, direct deposit, liabilities + EFTPS, payroll reports; tax data owner-approved, awaiting professional review)
 - [ ] Phase 9: Payroll and 1099 tax forms (part 1 done: prior payroll, W-2/W-3 figures, quarterly and FUTA summaries, state reports, filings; official PDFs, EFW2, 1099/IRIS and state layouts wait on documents)
 - [x] Phase 10: Advanced, in six parts (10a inventory done: items and assemblies, FIFO/average costing with backdated recosting, no negative stock, adjustments, builds, valuation and stock status reports, QuickBooks cut-over; 10b time tracking done: timesheets, approvals, paychecks and invoices from approved time, progress invoicing; 10c multi-currency done: foreign-currency customers, vendors, documents and payments, rates by hand or from the ECB, realized and unrealized gains and losses; 10d accountant tools done: reclassify, write off invoices, fix undeposited funds, client change review, month-end close, Adjusted Trial Balance; 10e online payments done: Stripe Connect Standard accounts (stand-in until the platform's keys exist), pay links and the pay page, payments into Undeposited Funds, payouts as deposits net of fees, refunds and chargebacks; 10f portals done: employee and contractor portals with password and MFA (pay stubs, W-2 figures, own time, W-4 and direct deposit requests approved by payroll, contractor payments and 1099 totals), customer portal by emailed link (invoices, statement, paying online, accepting estimates); follow-ups are open questions 62, 64, 66–69 and 71–73)
-- [ ] Phase 11: E-file and partners
+- [ ] Phase 11: E-file and partners, in three parts (11a electronic filing done: Forms 941 and 940 through MeF and Forms 1099 through IRIS behind `EfileTransmitter`, with a stand-in for the IRS until the platform's approvals exist, rejections fixed and sent again, accepted returns recorded as filings, the ATS harness; 11b EFTPS batch payments and a payments partner; 11c a licensed tax engine or embedded provider; follow-ups are open questions 74–76)
 - [ ] Phase 12: Hardening and launch
