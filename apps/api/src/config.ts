@@ -131,7 +131,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
       throw new Error("PAYMENTS_PROVIDER must be 'stripe' or 'none' in production");
     }
     if (config.EFILE_TRANSMITTER === 'stand-in') {
-      throw new Error("EFILE_TRANSMITTER must be 'none' in production until a real transmitter exists");
+      throw new Error(
+        "EFILE_TRANSMITTER must be 'none' in production until a real transmitter exists",
+      );
     }
     if (config.QBO_ENVIRONMENT === 'mock') {
       throw new Error("QBO_ENVIRONMENT must be 'production', 'sandbox' or 'none' in production");
