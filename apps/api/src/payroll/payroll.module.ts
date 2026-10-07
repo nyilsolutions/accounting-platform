@@ -31,6 +31,6 @@ import { TaxFormsService } from './tax-forms.service';
     { provide: EFTPS_PROVIDER, useClass: ManualEftpsProvider },
     { provide: PAYMENT_RAIL, useClass: NachaFileRail },
   ],
-  exports: [PayrollSetupService, EmployeesService, PayRunsService, PAYMENT_RAIL],
+  exports: [PayrollSetupService, EmployeesService, PayRunsService, TaxFormsService, PAYMENT_RAIL],
 })
 export class PayrollModule {}

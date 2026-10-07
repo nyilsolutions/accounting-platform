@@ -555,7 +555,7 @@ export class EstimatesService {
     });
   }
 
-  private async load(tx: Tx, companyId: string, id: string): Promise<EstimateDto> {
+  async load(tx: Tx, companyId: string, id: string): Promise<EstimateDto> {
     const e = await tx
       .selectFrom('estimates as e')
       .innerJoin('customers as c', 'c.id', 'e.customer_id')

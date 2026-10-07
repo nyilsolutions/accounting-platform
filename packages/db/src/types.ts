@@ -1371,6 +1371,61 @@ export interface PaymentEventsTable {
   received_at: Generated<Date>;
 }
 
+export interface PortalLinksTable {
+  id: Generated<string>;
+  company_id: string;
+  kind: 'employee' | 'contractor';
+  employee_id: string | null;
+  vendor_id: string | null;
+  email: string;
+  token_hash: string | null;
+  expires_at: Date;
+  invited_by: string | null;
+  created_at: Generated<Date>;
+  user_id: string | null;
+  accepted_at: Date | null;
+  revoked_at: Date | null;
+}
+
+export interface EmployeeChangeRequestsTable {
+  id: Generated<string>;
+  company_id: string;
+  employee_id: string;
+  kind: 'w4' | 'bank_accounts';
+  summary: ColumnType<unknown, string, string>;
+  payload: ColumnType<unknown, string | null, string | null>;
+  secret_enc: string | null;
+  status: Generated<'pending' | 'approved' | 'rejected' | 'withdrawn'>;
+  requested_by: string | null;
+  requested_at: Generated<Date>;
+  decided_by: string | null;
+  decided_at: Date | null;
+  decision_note: string | null;
+}
+
+export interface CustomerPortalTokensTable {
+  id: Generated<string>;
+  company_id: string;
+  customer_id: string;
+  token_hash: string;
+  expires_at: Date;
+  used_at: Date | null;
+  created_at: Generated<Date>;
+}
+
+export interface CustomerPortalSessionsTable {
+  id: Generated<string>;
+  company_id: string;
+  customer_id: string;
+  token_hash: string;
+  expires_at: Date;
+  last_seen_at: Generated<Date>;
+  revoked_at: Date | null;
+  ip: string | null;
+  user_agent: string | null;
+  created_at: Generated<Date>;
+}
+
 export interface Database {
   users: UsersTable;
   mfa_recovery_codes: MfaRecoveryCodesTable;
@@ -1467,6 +1522,10 @@ export interface Database {
   online_payments: OnlinePaymentsTable;
   processor_payouts: ProcessorPayoutsTable;
   payment_events: PaymentEventsTable;
+  portal_links: PortalLinksTable;
+  employee_change_requests: EmployeeChangeRequestsTable;
+  customer_portal_tokens: CustomerPortalTokensTable;
+  customer_portal_sessions: CustomerPortalSessionsTable;
 }
 
 export type User = Selectable<UsersTable>;
