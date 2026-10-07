@@ -72,7 +72,7 @@ export class UndepositedService {
         join accounts a on a.id = dl.account_id
         join accounts b on b.id = d.deposit_account_id
         left join customers c on c.id = dl.customer_id
-        where dl.company_id = ${companyId} and dl.source_txn_id is null
+        where dl.company_id = ${companyId} and dl.source_txn_id is null and dl.amount > 0
           and a.account_type in ('income', 'other_income')
         order by d.txn_date, d.id, dl.line_no`.execute(tx);
       const balance = await sql<{ net: string | null }>`

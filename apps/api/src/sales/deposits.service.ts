@@ -201,6 +201,11 @@ export class DepositsService {
     if (errors.length) throw new BadRequestException(validationError(errors));
     const lines = resolved.filter((l): l is NonNullable<typeof l> => l !== null);
     const total = lines.reduce((s, l) => s + l.amount, 0n as Money);
+    if (total <= 0n) {
+      throw new BadRequestException(
+        validationError([{ path: 'lines', message: 'The deposit total must be more than zero' }]),
+      );
+    }
 
     const journal: PostingLine[] = [
       {
@@ -213,10 +218,11 @@ export class DepositsService {
         classId: null,
         locationId: null,
       },
+      // Negative lines (fees, refunds, cash back) take money out of the deposit: a debit.
       ...lines.map((l) => ({
         accountId: l.accountId,
-        debit: 0n,
-        credit: l.amount,
+        debit: l.amount < 0n ? -l.amount : 0n,
+        credit: l.amount > 0n ? l.amount : 0n,
         description: l.description,
         customerId: l.customerId,
         vendorId: null,
