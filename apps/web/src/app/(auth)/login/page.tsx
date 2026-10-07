@@ -6,7 +6,7 @@ import { Suspense, useState, type FormEvent } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import type { MeDto } from '@acct/shared';
 import { AuthCard } from '@/components/auth/auth-card';
-import { Alert, Button, TextInput } from '@/components/ui';
+import { Alert, Button, PasswordInput, TextInput } from '@/components/ui';
 import { api, errorMessage } from '@/lib/api';
 import { authRedirect, safeNext } from '@/lib/auth-gate';
 import { keys } from '@/lib/queries';
@@ -51,13 +51,7 @@ function LoginForm() {
         required
         autoFocus
       />
-      <TextInput
-        label="Password"
-        name="password"
-        type="password"
-        autoComplete="current-password"
-        required
-      />
+      <PasswordInput label="Password" name="password" autoComplete="current-password" required />
       <Button type="submit" className="w-full" loading={pending}>
         Sign in
       </Button>

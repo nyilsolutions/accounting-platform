@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
@@ -19,6 +20,13 @@ export function UserMenu({ dark }: { dark?: boolean }) {
   return (
     <div className="flex items-center gap-3 text-sm">
       <span className={dark ? 'text-gray-200' : 'text-gray-700'}>{me.data?.user.fullName}</span>
+      <Link
+        href="/settings/security"
+        className={dark ? 'text-gray-300 hover:text-white' : 'text-gray-600 hover:text-gray-900'}
+        data-testid="security-settings"
+      >
+        Security
+      </Link>
       <button
         onClick={signOut}
         className={dark ? 'text-gray-300 hover:text-white' : 'text-gray-600 hover:text-gray-900'}

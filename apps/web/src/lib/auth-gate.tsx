@@ -2,7 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import { useEffect, type ReactNode } from 'react';
-import type { MeDto } from '@acct/shared';
+import { safeRedirectPath, type MeDto } from '@acct/shared';
 import { Spinner } from '@/components/ui';
 import { useMe } from './queries';
 
@@ -35,7 +35,7 @@ export function RequireAuth({ children }: { children: ReactNode }) {
   return <>{children}</>;
 }
 
-/** Only allows internal paths as post-login redirects (prevents open redirects). */
+/** Only allows paths on this site as post-login redirects (see `safeRedirectPath`). */
 export function safeNext(next: string | null): string {
-  return next && next.startsWith('/') && !next.startsWith('//') ? next : '/companies';
+  return safeRedirectPath(next);
 }

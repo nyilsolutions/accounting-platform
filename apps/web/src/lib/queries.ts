@@ -49,6 +49,7 @@ import { api, ApiError } from './api';
 
 export const keys = {
   me: ['me'] as const,
+  sessions: ['auth', 'sessions'] as const,
   companies: ['companies'] as const,
   company: (id: string) => ['company', id] as const,
   access: (id: string) => ['company', id, 'access'] as const,

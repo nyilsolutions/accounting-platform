@@ -2,6 +2,7 @@
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useState, type ReactNode } from 'react';
+import { StepUpPrompt } from '@/components/auth/step-up-prompt';
 import { ApiError } from '@/lib/api';
 
 export function Providers({ children }: { children: ReactNode }) {
@@ -16,5 +17,10 @@ export function Providers({ children }: { children: ReactNode }) {
         },
       }),
   );
-  return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+  return (
+    <QueryClientProvider client={client}>
+      {children}
+      <StepUpPrompt />
+    </QueryClientProvider>
+  );
 }
