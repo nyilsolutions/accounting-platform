@@ -277,6 +277,7 @@ export class ReportsService {
       q.to,
       side,
       wanted && wanted !== 'none' ? wanted : undefined,
+      { openOnly: true },
     );
     if (wanted === 'none') items = items.filter((i) => i.partyId === null);
     const dto = (columns: string[], rows: ReportDto['rows'], textColumns?: string[]) =>

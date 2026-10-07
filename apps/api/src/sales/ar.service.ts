@@ -157,7 +157,9 @@ export class ArService {
   ): Promise<CustomerBalanceDto[]> {
     return withTenant(this.db, { userId: auth.userId, companyId: ctx.companyId }, async (tx) => {
       const today = todayIso();
-      const items = await arOpenItems(tx, ctx.companyId, '2199-12-31', customerId);
+      const items = await arOpenItems(tx, ctx.companyId, '2199-12-31', customerId, {
+        openOnly: true,
+      });
       const by = balancesOf(items, today);
       if (customerId && !by.has(customerId))
         by.set(customerId, {

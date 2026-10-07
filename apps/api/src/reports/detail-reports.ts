@@ -306,6 +306,7 @@ export async function collectionsReport(scope: ReportScope, q: ReportQuery): Pro
       q.to,
       'ar',
       q.customerId && q.customerId !== 'none' ? q.customerId : undefined,
+      { openOnly: true },
     )
   ).filter((i) => i.txnType === 'invoice' && i.open > 0n && daysPastDue(i, q.to) > 0);
   const ids = [...new Set(items.map((i) => i.partyId).filter((x): x is string => !!x))];

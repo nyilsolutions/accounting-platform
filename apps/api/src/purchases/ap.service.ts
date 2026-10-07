@@ -136,7 +136,9 @@ export class ApService {
   /** Open balance, overdue amount and unused credits per vendor. */
   balances(auth: AuthContext, ctx: CompanyContext, vendorId?: string): Promise<VendorBalanceDto[]> {
     return withTenant(this.db, { userId: auth.userId, companyId: ctx.companyId }, async (tx) => {
-      const items = await openItems(tx, ctx.companyId, '2199-12-31', 'ap', vendorId);
+      const items = await openItems(tx, ctx.companyId, '2199-12-31', 'ap', vendorId, {
+        openOnly: true,
+      });
       const by = balancesOf(items, todayIso());
       if (vendorId && !by.has(vendorId))
         by.set(vendorId, {
