@@ -37,7 +37,7 @@ export class LocalAesGcmEncryptor implements FieldEncryptor {
   encrypt(plaintext: string, aad = ''): string {
     const key = this.keys.get(this.currentVersion)!;
     const iv = randomBytes(12);
-    const cipher = createCipheriv('aes-256-gcm', key, iv);
+    const cipher = createCipheriv('aes-256-gcm', key, iv, { authTagLength: 16 });
     cipher.setAAD(Buffer.from(aad));
     const ct = Buffer.concat([cipher.update(plaintext, 'utf8'), cipher.final()]);
     const tag = cipher.getAuthTag();
@@ -53,9 +53,14 @@ export class LocalAesGcmEncryptor implements FieldEncryptor {
     }
     const key = this.keys.get(Number(version.slice(1)));
     if (!key) throw new Error(`Unknown field encryption key ${version}`);
-    const decipher = createDecipheriv('aes-256-gcm', key, Buffer.from(iv, 'base64url'));
+    const authTag = Buffer.from(tag, 'base64url');
+    // A full 128-bit tag only: a truncated one would make forgeries easier (ASVS 6.2.1).
+    if (authTag.length !== 16) throw new Error('Malformed encrypted field');
+    const decipher = createDecipheriv('aes-256-gcm', key, Buffer.from(iv, 'base64url'), {
+      authTagLength: 16,
+    });
     decipher.setAAD(Buffer.from(aad));
-    decipher.setAuthTag(Buffer.from(tag, 'base64url'));
+    decipher.setAuthTag(authTag);
     return Buffer.concat([
       decipher.update(Buffer.from(ct, 'base64url')),
       decipher.final(),

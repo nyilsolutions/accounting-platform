@@ -24,6 +24,7 @@ import { UuidPipe } from '../common/uuid.pipe';
 import { ZodPipe } from '../common/zod.pipe';
 import { CompanyAccessGuard } from '../companies/company-access.guard';
 import { MembersService } from './members.service';
+import { RequireRecentMfa } from '../auth/recent-mfa.guard';
 
 @Controller('companies/:companyId')
 @UseGuards(CompanyAccessGuard)
@@ -39,6 +40,7 @@ export class MembersController {
     return this.members.listMembers(auth, ctx);
   }
 
+  @RequireRecentMfa()
   @Patch('members/:membershipId')
   @RequirePermission('users.manage')
   changeRole(
@@ -51,6 +53,7 @@ export class MembersController {
     return this.members.changeRole(auth, ctx, membershipId, body.role, meta);
   }
 
+  @RequireRecentMfa()
   @Delete('members/:membershipId')
   @HttpCode(204)
   @RequirePermission('users.manage')
@@ -72,6 +75,7 @@ export class MembersController {
     return this.members.listInvitations(auth, ctx);
   }
 
+  @RequireRecentMfa()
   @Post('invitations')
   @RequirePermission('users.manage')
   invite(

@@ -1,6 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import { base32Encode } from './base32';
-import { generateTotp, generateTotpSecret, hotp, otpauthUrl, totpStep, verifyTotp } from './totp';
+import {
+  generateTotp,
+  generateTotpSecret,
+  hotp,
+  isReplayedTotp,
+  otpauthUrl,
+  totpStep,
+  verifyTotp,
+} from './totp';
 
 // RFC 6238 Appendix B test vectors (SHA-1, seed "12345678901234567890"), truncated to 6 digits.
 const RFC_SECRET = Buffer.from('12345678901234567890');
@@ -53,5 +61,17 @@ describe('TOTP', () => {
   it('builds an otpauth URL', () => {
     const url = otpauthUrl({ secret: 'ABC', accountName: 'a@b.com', issuer: 'Acct' });
     expect(url).toMatch(/^otpauth:\/\/totp\/Acct%3Aa%40b\.com\?secret=ABC&issuer=Acct/);
+  });
+
+  it('tells a replayed code from a wrong one', () => {
+    const secret = generateTotpSecret();
+    const now = 1_800_000_000_000;
+    const code = generateTotp(secret, now);
+    const step = verifyTotp(secret, code, { nowMs: now })!;
+    expect(verifyTotp(secret, code, { nowMs: now, lastUsedStep: step })).toBeNull();
+    expect(isReplayedTotp(secret, code, step, { nowMs: now })).toBe(true);
+    expect(isReplayedTotp(secret, code, null, { nowMs: now })).toBe(false);
+    const wrong = code === '000000' ? '111111' : '000000';
+    expect(isReplayedTotp(secret, wrong, step, { nowMs: now })).toBe(false);
   });
 });

@@ -28,6 +28,8 @@ export async function startApp(overrides: Record<string, string> = {}): Promise<
     // Jobs run in the test's process as soon as they are sent; schedules don't fire.
     JOB_QUEUE: 'inline',
     JOB_WORKER: 'off',
+    // Suites sign in once; the step-up tests age the session themselves (ADR 0029).
+    STEP_UP_MINUTES: '30',
     ...overrides,
   });
   process.env.RATE_LIMIT_AUTH_PER_MINUTE = config.RATE_LIMIT_AUTH_PER_MINUTE.toString();
@@ -92,7 +94,10 @@ export function nextCode(secret: string, stepsAhead = 1): string {
 }
 
 export function inviteTokenFrom(mailer: CaptureMailer, email: string): string {
-  const msg = [...mailer.sent].reverse().find((m) => m.to === email);
+  // The latest invitation to them (security notices may have arrived since).
+  const msg = [...mailer.sent]
+    .reverse()
+    .find((m) => m.to === email && /\/invite\/[\w-]+/.test(m.text));
   const match = msg?.text.match(/\/invite\/([\w-]+)/);
   if (!match) throw new Error(`No invitation email for ${email}`);
   return match[1]!;

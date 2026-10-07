@@ -17,6 +17,11 @@ export interface UsersTable {
   mfa_last_used_step: ColumnType<string | null, number | string | null, number | string | null>;
   failed_login_count: Generated<number>;
   locked_until: Timestamp | null;
+  /** Failed MFA codes since the last successful one (separate from password failures). */
+  mfa_failed_count: Generated<number>;
+  /** The password hash was made with PASSWORD_PEPPER (ADR 0029). */
+  password_peppered: Generated<boolean>;
+  password_changed_at: Timestamp | null;
   created_at: Generated<Date>;
   updated_at: Generated<Date>;
 }

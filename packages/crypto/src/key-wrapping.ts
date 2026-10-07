@@ -108,7 +108,7 @@ export class LocalKeyWrapper implements KeyWrapper {
 
   async wrap(plaintext: Buffer, version: number): Promise<string> {
     const iv = randomBytes(12);
-    const cipher = createCipheriv('aes-256-gcm', this.key, iv);
+    const cipher = createCipheriv('aes-256-gcm', this.key, iv, { authTagLength: 16 });
     cipher.setAAD(Buffer.from(JSON.stringify(context(version))));
     const ct = Buffer.concat([cipher.update(plaintext), cipher.final()]);
     return [iv, cipher.getAuthTag(), ct].map((b) => b.toString('base64url')).join('.');
@@ -117,9 +117,13 @@ export class LocalKeyWrapper implements KeyWrapper {
   async unwrap(wrapped: string, version: number): Promise<Buffer> {
     const [iv, tag, ct] = wrapped.split('.');
     if (!iv || !tag || !ct) throw new Error('Malformed wrapped key');
-    const decipher = createDecipheriv('aes-256-gcm', this.key, Buffer.from(iv, 'base64url'));
+    const authTag = Buffer.from(tag, 'base64url');
+    if (authTag.length !== 16) throw new Error('Malformed wrapped key');
+    const decipher = createDecipheriv('aes-256-gcm', this.key, Buffer.from(iv, 'base64url'), {
+      authTagLength: 16,
+    });
     decipher.setAAD(Buffer.from(JSON.stringify(context(version))));
-    decipher.setAuthTag(Buffer.from(tag, 'base64url'));
+    decipher.setAuthTag(authTag);
     return Buffer.concat([decipher.update(Buffer.from(ct, 'base64url')), decipher.final()]);
   }
 }

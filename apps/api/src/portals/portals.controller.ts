@@ -56,6 +56,7 @@ import { CustomerPortalService } from './customer-portal.service';
 import { PortalAdminService } from './portal-admin.service';
 import { CurrentPortal, WorkerPortalGuard, type PortalContext } from './portal-common';
 import { WorkerPortalService } from './worker-portal.service';
+import { RequireRecentMfa } from '../auth/recent-mfa.guard';
 
 type Parsed<T extends { parse: (v: unknown) => unknown }> = ReturnType<T['parse']>;
 
@@ -117,6 +118,7 @@ export class PortalAdminController {
     return this.admin.requests(a, c, q.status);
   }
 
+  @RequireRecentMfa()
   @Post('portal/change-requests/:id/approve')
   @HttpCode(200)
   @RequirePermission('payroll.manage')
@@ -235,6 +237,7 @@ export class WorkerPortalController {
     return this.portal.requestW4(a, p, body, meta);
   }
 
+  @RequireRecentMfa()
   @Post('requests/bank-accounts')
   requestBank(
     @CurrentAuth() a: AuthContext,

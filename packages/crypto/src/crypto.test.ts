@@ -33,6 +33,13 @@ describe('field encryption', () => {
     expect(rotated.encrypt('y').startsWith('v2:')).toBe(true);
   });
 
+  it('refuses a truncated authentication tag', () => {
+    const enc = new LocalAesGcmEncryptor({ 1: key1 }, 1);
+    const parts = enc.encrypt('secret', 'ctx').split(':');
+    parts[2] = Buffer.from(parts[2]!, 'base64url').subarray(0, 4).toString('base64url');
+    expect(() => enc.decrypt(parts.join(':'), 'ctx')).toThrow('Malformed');
+  });
+
   it('rejects keys of the wrong length', () => {
     expect(() => new LocalAesGcmEncryptor({ 1: 'c2hvcnQ=' }, 1)).toThrow();
   });
@@ -46,6 +53,14 @@ describe('passwords', () => {
     expect(await verifyPassword(h, 'wrong')).toBe(false);
     expect(await verifyPassword('not-a-hash', 'x')).toBe(false);
   });
+
+  it('with a pepper, verifies only with the same pepper', async () => {
+    const pepper = randomBytes(32);
+    const h = await hashPassword('correct horse battery staple', pepper);
+    expect(await verifyPassword(h, 'correct horse battery staple', pepper)).toBe(true);
+    expect(await verifyPassword(h, 'correct horse battery staple')).toBe(false);
+    expect(await verifyPassword(h, 'correct horse battery staple', randomBytes(32))).toBe(false);
+  });
 });
 
 describe('tokens', () => {
@@ -58,7 +73,9 @@ describe('tokens', () => {
   it('generates 10 well-formed recovery codes', () => {
     const codes = generateRecoveryCodes();
     expect(codes).toHaveLength(10);
-    for (const c of codes) expect(c).toMatch(/^[A-Z2-9]{4}-[A-Z2-9]{4}-[A-Z2-9]{2}$/);
+    // 24 characters of 5 bits each: 120 bits.
+    for (const c of codes) expect(c).toMatch(/^([A-Z2-9]{4}-){5}[A-Z2-9]{4}$/);
+    expect(new Set(codes).size).toBe(10);
     expect(normalizeRecoveryCode(' k7qm-2xpa-9d ')).toBe('K7QM2XPA9D');
   });
 });

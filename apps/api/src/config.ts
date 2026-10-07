@@ -33,7 +33,7 @@ const envSchema = z.object({
     .int()
     .min(5)
     .max(24 * 60)
-    .default(60),
+    .default(30),
   SESSION_ABSOLUTE_HOURS: z.coerce
     .number()
     .int()
@@ -45,6 +45,18 @@ const envSchema = z.object({
   /** Requests per minute per client address, across the API (sign-in has its own, lower limit). */
   RATE_LIMIT_PER_MINUTE: z.coerce.number().int().min(1).default(600),
   LOGIN_MAX_FAILED_ATTEMPTS: z.coerce.number().int().min(3).default(10),
+  /** Minutes an MFA code counts as recent for sensitive actions (step-up, ADR 0029). */
+  STEP_UP_MINUTES: z.coerce.number().int().min(1).max(30).default(5),
+  /**
+   * 32 bytes, base64: a secret mixed into password hashes, kept outside the database (ASVS
+   * 2.4.5). Required in production; existing hashes are re-made with it at the next sign-in.
+   */
+  PASSWORD_PEPPER: z.string().min(1).optional(),
+  /**
+   * New passwords are checked against known breaches: 'hibp' asks Have I Been Pwned with a
+   * 5-character hash prefix only (k-anonymity), 'off' skips it (development and tests).
+   */
+  PASSWORD_BREACH_CHECK: z.enum(['hibp', 'off']).default('off'),
   LOGIN_LOCKOUT_MINUTES: z.coerce.number().int().min(1).default(15),
   INVITATION_TTL_DAYS: z.coerce.number().int().min(1).max(30).default(7),
   // Development transports only; production requires a real provider (added with Phase 2 email).
@@ -177,6 +189,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
   if (config.FIELD_KEY_PROVIDER === 'local-wrap' && !config.FIELD_KEY_WRAPPING_KEY) {
     throw new Error("FIELD_KEY_WRAPPING_KEY is required when FIELD_KEY_PROVIDER is 'local-wrap'");
   }
+  if (config.PASSWORD_PEPPER && Buffer.from(config.PASSWORD_PEPPER, 'base64').length !== 32) {
+    throw new Error('PASSWORD_PEPPER must be 32 bytes, base64');
+  }
   if (config.FIELD_KEY_PROVIDER !== 'env' && !config.SIGNING_KEY) {
     throw new Error('SIGNING_KEY is required unless FIELD_KEY_PROVIDER is env');
   }
@@ -187,6 +202,14 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     if (!config.COOKIE_SECURE) throw new Error('COOKIE_SECURE must be true in production');
     if (config.FIELD_KEY_PROVIDER !== 'aws-kms') {
       throw new Error("FIELD_KEY_PROVIDER must be 'aws-kms' in production");
+    }
+    // ASVS 3.3.2: at most 30 minutes idle and 12 hours in all.
+    if (config.SESSION_IDLE_MINUTES > 30 || config.SESSION_ABSOLUTE_HOURS > 12) {
+      throw new Error('Sessions may last at most 30 minutes idle and 12 hours in production');
+    }
+    if (!config.PASSWORD_PEPPER) throw new Error('PASSWORD_PEPPER is required in production');
+    if (config.PASSWORD_BREACH_CHECK !== 'hibp') {
+      throw new Error("PASSWORD_BREACH_CHECK must be 'hibp' in production");
     }
     if (['console', 'capture', 'file'].includes(config.MAIL_TRANSPORT)) {
       throw new Error('A real mail transport must be configured in production');

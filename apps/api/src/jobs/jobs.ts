@@ -1,3 +1,5 @@
+import type { SecurityEvent } from '../auth/security-notices.service';
+
 /**
  * The background jobs (ADR 0027). Each job's data carries ids only: never a secret, an SSN, a
  * bank number or tenant figures, because the queue's tables are outside RLS and outlive the work.
@@ -15,6 +17,8 @@ export interface JobPayloads {
   'payroll.partners': Record<string, never>;
   /** Email the memorized reports whose schedule is due. */
   'reports.scheduled': Record<string, never>;
+  /** Tell a user about a change to their sign-in (ADR 0029). */
+  'security.notice': { userId: string; event: SecurityEvent; at: string };
 }
 
 export type JobName = keyof JobPayloads;
@@ -72,6 +76,7 @@ export const JOBS: Record<JobName, JobDefinition> = {
     concurrency: 1,
     policy: 'standard',
   },
+  'security.notice': { retryLimit: 5, expireInSeconds: 120, concurrency: 2, policy: 'standard' },
 };
 
 export const JOB_NAMES = Object.keys(JOBS) as JobName[];
