@@ -489,7 +489,7 @@ Add new questions here instead of guessing.
     a staging database once 12d creates one. Also confirm the reading of "50 concurrent users":
     the test simulates 50 people each acting every 2 to 8 seconds, and requires no errors and
     p95 under 2 s. With no pauses at all (everyone clicking the instant a page arrives) one
-    instance on the development machine serves about 16 requests a second and some requests
+    instance on the development machine serves 14 to 16 requests a second and some requests
     take over 10 s. Should the target be that harder case, or a number of users per instance
     that 12d scales out to?
 88. **Very long lists:** the customers and vendors lists, and the pickers built on them, load

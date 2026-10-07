@@ -117,7 +117,7 @@ Full scale, on the development container (4 vCPUs, 16 GB, Postgres 16 on the sam
   sizes chosen in 12d (question 87).
 - **What "50 users" means** here is a modelling choice: people with a few seconds between
   actions, which is busier than real bookkeeping. With no pauses at all, one instance on this
-  machine serves about 16 requests a second (question 87).
+  machine serves 14 to 16 requests a second (question 87).
 - **Single-company load:** the load test is 50 users in one company. Many companies on one
   database share its cache and connections. 12d sizes the database for the expected number of
   companies.
