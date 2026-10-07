@@ -13,8 +13,8 @@ Phase 12 makes the platform ready to run for customers. The owner decided (2026-
 | Part | What                                                                                                   | Status  |
 | ---- | ------------------------------------------------------------------------------------------------------ | ------- |
 | 12a  | Background jobs (a queue and worker), structured redacted logs, tracing, health checks                 | Done    |
-| 12b  | Performance: 100,000-transaction data, query and index work, load tests against the targets            | This PR |
-| 12c  | Security: AWS KMS field encryption, an ASVS review and fixes, CI scanning, data export, SOC 2 policies | Planned |
+| 12b  | Performance: 100,000-transaction data, query and index work, load tests against the targets            | Done    |
+| 12c  | Security: AWS KMS field encryption, an ASVS review and fixes, CI scanning, data export, SOC 2 policies | This PR |
 | 12d  | Launch: containers, Terraform for AWS, backups and a restore drill, alerting, the launch checklist     | Planned |
 
 ## 12a: Jobs and observability (ADR 0027)
@@ -159,3 +159,72 @@ PERF_SCALE=full PERF_DB_NAME=acct_perf pnpm --filter @acct/api perf # keep the d
 
 - **Sizes on AWS,** and whether "50 users" should mean the no-pause case (question 87).
 - **Very long lists** that load every record (question 88).
+
+## 12c: Security (ADR 0029)
+
+The owner decided (2026-10-07): envelope encryption with one KMS-wrapped data key per version;
+OWASP ASVS Level 2; a full data export (CSV and JSON with the files, owners only, sensitive
+numbers masked unless the owner re-authenticates, an emailed link, 7 days); SOC 2 policies
+with placeholders.
+
+### Delivered
+
+- **Keys in AWS KMS:** field data keys live in `field_keys`, wrapped by a KMS key, and are
+  unwrapped once at start-up (`FIELD_KEY_PROVIDER=aws-kms`, required in production).
+  `keys:status`, `keys:rotate` and `keys:reencrypt` rotate them without downtime; the old
+  environment key is imported as version 1. Download links and OAuth state are signed with
+  their own `SIGNING_KEY`.
+- **ASVS Level 2 review** (`docs/security/asvs-l2.md`, threat model in
+  `docs/security/threat-model.md`). Three reviews, each finding verified, each fix tested:
+  - **sign-in:** separate MFA lockout, codes used once, a pepper, breached passwords refused,
+    stronger recovery codes, change password, security emails;
+  - **sessions:** 30 minutes idle, see and end sessions (Settings > Security), Clear-Site-Data;
+  - **step-up:** a fresh MFA code for revealing SSNs and EINs, direct deposit, members,
+    payments, approvals and the full export (the web asks for it and retries);
+  - **access:** agent keys tied to their creator's role, portal lists by permission, customer
+    portal links of 10 minutes that end when the customer is inactive or their email changes;
+  - **input and files:** zip bombs, safe download extensions, compressed and unread body
+    types (415), formula-safe CSV, linear OFX and IIF parsing, checked QuickBooks download
+    links, NUL characters;
+  - **headers and configuration:** no-store, a nonce CSP and HSTS on pages, JSON as
+    attachments, TLS to every service required in production;
+  - **errors and logs:** generic messages, last-resort handlers, security events;
+  - **business logic:** one liability payment at a time, a closing date password attempt
+    limit, a checkout limit per pay link;
+  - **retention:** purges clear extracted text and search, decided requests drop bank numbers,
+    expired sessions and links are deleted.
+- **Scanning in CI:** CodeQL for TypeScript and C#, dependency audits (npm and NuGet), gitleaks,
+  Dependabot; actions pinned to commits with read-only tokens.
+- **Export all data** (Settings): owners get every table as CSV and JSON plus the attached
+  files in one ZIP, built by a job, emailed as a link to the page, kept 7 days.
+- **Policies** (`docs/policies/`): the SOC 2 set, with a fill-in list of placeholders.
+
+### Running it
+
+```bash
+# A keyring wrapped by a local key (development); production uses aws-kms and FIELD_KMS_KEY_ID.
+FIELD_KEY_PROVIDER=local-wrap FIELD_KEY_WRAPPING_KEY=... SIGNING_KEY=... \
+  ADMIN_DATABASE_URL=postgres://... pnpm --filter @acct/api keys:rotate
+pnpm --filter @acct/api keys:status      # values per key version
+pnpm --filter @acct/api keys:reencrypt   # after restarting the API and workers
+```
+
+### Tests
+
+| Suite                   | Count | Highlights                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| ----------------------- | ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `packages/db`           | 121   | +2. The keyring table is read-only to the app                                                                                                                                                                                                                                                                                                                                                                                               |
+| `packages/shared`       | 165   | +7. Safe redirects, password strength, safe download extensions, linear OFX parsing                                                                                                                                                                                                                                                                                                                                                         |
+| `packages/crypto`       | 21    | +8. Key wrapping (KMS context, local stand-in), GCM tag length, pepper, recovery codes, TOTP replay                                                                                                                                                                                                                                                                                                                                         |
+| `apps/api`              | 669   | +42. **Keys:** rotate, import, re-encrypt every registered column, refuse the public key. **Sign-in:** MFA lockout, replay, step-up, password change, sessions, breach check. **Files and input:** 415, gzip, NUL, zip bombs, extensions, SSRF, ReDoS. **Logic:** concurrent liability payments pay once, closing password limit, checkout limit, cleanup. **Export:** owners only, masked or full with step-up, the ZIP's contents, expiry |
+| `apps/web` (Playwright) | 24    | +3. Security page and step-up, the CSP on every page with no violations, exporting all data                                                                                                                                                                                                                                                                                                                                                 |
+
+### Not in this part
+
+- **12d infrastructure:** secrets in Secrets Manager, the KMS key policy, log shipping and
+  alarms (question 84), the load balancer's TLS policy and forwarded IPs (question 96).
+- **Open questions 89 to 99:** passkeys, registration and existing accounts, storage quotas,
+  an SBOM, deleting accounts and companies, signing the Desktop agent, parsers in their own
+  process, very large exports, pay link expiry, email-in replays.
+- **The policies' placeholders** need the company's details and an approver
+  (`docs/policies/README.md`).

@@ -7,25 +7,33 @@ This maps implemented controls to the frameworks the product must meet:
 - IRS Publication 1345 (once an e-file provider)
 - SOC 2 Type II
 
-| Area                  | Control                                                                          | Where                                                      |
-| --------------------- | -------------------------------------------------------------------------------- | ---------------------------------------------------------- |
-| Access control        | Mandatory MFA (TOTP) for all users; recovery codes                               | ADR 0005, `apps/api/src/auth`                              |
-| Access control        | Role-based permissions; least privilege roles                                    | ADR 0006, `packages/shared/src/permissions.ts`             |
-| Access control        | Tenant isolation enforced by the database (RLS)                                  | ADR 0003, `packages/db/migrations/0001_foundation.sql`     |
-| Authentication        | argon2id, lockout, per-IP rate limits, generic errors, timing equalization       | `apps/api/src/auth/auth.service.ts`                        |
-| Sessions              | HttpOnly/SameSite/`__Host-` cookies, idle + absolute timeout, rotation after MFA | `session.service.ts`                                       |
-| Web                   | CSRF header + Origin check; helmet headers; X-Frame-Options DENY                 | `common/security.middleware.ts`, `apps/web/next.config.ts` |
-| Encryption at rest    | AES-256-GCM field encryption with AAD and key versions                           | ADR 0004, `packages/crypto`                                |
-| Encryption in transit | TLS termination at the load balancer; `Secure` cookies required in production    | config validation                                          |
-| Audit                 | Append-only audit log for all changes and sensitive reads; IP and request id     | `apps/api/src/audit`                                       |
-| Logging               | No request bodies logged; sensitive keys redacted in audit records               | `audit.service.ts`                                         |
-| Change management     | CI gates (lint, types, tests, e2e); migrations immutable once applied            | `.github/workflows/ci.yml`, migrator                       |
+The ASVS Level 2 review is in [asvs-l2.md](asvs-l2.md), the threat model in
+[threat-model.md](threat-model.md), and the written policies in [../policies/](../policies/README.md).
 
-## To do before production
+| Area                  | Control                                                                                          | Where                                                    |
+| --------------------- | ------------------------------------------------------------------------------------------------ | -------------------------------------------------------- |
+| Access control        | Mandatory MFA (TOTP) for all users; recovery codes (120-bit, renewable)                          | ADR 0005, `apps/api/src/auth`                            |
+| Access control        | Role-based permissions; least privilege roles                                                    | ADR 0006, `packages/shared/src/permissions.ts`           |
+| Access control        | Fresh MFA code (5 minutes) for sensitive actions                                                 | ADR 0029, `auth/recent-mfa.guard.ts`                     |
+| Access control        | Tenant isolation enforced by the database (RLS)                                                  | ADR 0003, `packages/db/migrations/0001_foundation.sql`   |
+| Authentication        | argon2id with a pepper, breached-password check, separate password and MFA lockouts, rate limits | ADR 0029, `auth.service.ts`, `breach-check.ts`           |
+| Authentication        | Emails on password, MFA, recovery code, new device and lockout events                            | `auth/security-notices.service.ts`                       |
+| Sessions              | `__Host-` HttpOnly cookies, 30-minute idle and 12-hour limits, list and revoke, Clear-Site-Data  | `session.service.ts`, Settings > Security                |
+| Web                   | CSRF header + Origin check; nonce CSP; HSTS; no-store; X-Frame-Options DENY                      | `common/security.middleware.ts`, `apps/web/src/proxy.ts` |
+| Encryption at rest    | AES-256-GCM field and file encryption with AAD; data keys wrapped by AWS KMS; rotation           | ADR 0004, ADR 0029, `security/`, `packages/crypto`       |
+| Encryption in transit | TLS everywhere; production refuses plain connections to Postgres and endpoints                   | `config.ts`                                              |
+| Files                 | Type from bytes, virus scan, zip bomb caps, safe extensions, served as attachments               | ADR 0012, `documents/`                                   |
+| Audit                 | Append-only audit log for all changes and sensitive reads; IP and request id                     | `apps/api/src/audit`                                     |
+| Logging               | Redacted JSON logs and traces; security events (denials, unknown sign-ins, rejected input)       | ADR 0027, `observability/`                               |
+| Retention             | Document purge, credential cleanup, change-request secrets dropped, exports deleted after 7 days | ADR 0029, migration 0033                                 |
+| Data portability      | Owners export all company data (CSV, JSON, files)                                                | ADR 0029, `data-export/`                                 |
+| Change management     | CI gates (lint, types, tests, e2e); migrations immutable once applied                            | `.github/workflows/ci.yml`, migrator                     |
+| Supply chain          | CodeQL, dependency audit, gitleaks, Dependabot; actions pinned to commits                        | `.github/workflows/security.yml`                         |
 
-- KMS-backed keys, secrets manager, key rotation runbook
-- Content-Security-Policy with nonces
-- Centralized logging with PII redaction tests, alerting on auth anomalies
+## To do before production (12d)
+
+- Secrets in AWS Secrets Manager; the KMS key policy; a key rotation runbook drill
+- Log shipping, retention and alarms on security events (question 84)
 - Backups with point-in-time recovery and a tested restore; disaster-recovery drill
-- Dependency and secret scanning in CI; penetration test
-- Written information security program (GLBA), incident response plan, vendor management
+- A penetration test after launch hardening
+- Fill in the policies' placeholders and approve them (`docs/policies/README.md`)

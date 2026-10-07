@@ -496,3 +496,42 @@ Add new questions here instead of guessing.
     every record at once. At 5,000 customers that is about 120 ms and 2.3 MB per load (ADR 0028),
     within budget. Should lists page and pickers search on the server before launch, or only
     when a company reaches, say, 20,000 customers?
+89. **Passkeys:** every user signs in with a password and an authenticator app code (ASVS
+    Level 2 doesn't ask for more). Should passkeys (WebAuthn) be offered at launch, as a second
+    factor or instead of passwords, and required for owners and payroll admins?
+90. **Registration and existing accounts:** sign-in never says whether an email has an account,
+    but registering with one that does answers "already registered". Hiding that means always
+    answering "check your email" and emailing the existing account instead. Worth the extra
+    step at sign-up?
+91. **Storage quotas:** files are limited per upload (25 MB) but not per company, and email-in
+    has no daily limit. What quota fits each plan (say 10 GB), and what should happen at it:
+    refuse uploads, or warn the owner?
+92. **SBOM:** should each release publish a software bill of materials (CycloneDX) for the API,
+    web and Desktop agent? Some customers' vendor reviews ask for one.
+93. **Deleting accounts and companies:** owners can now export everything (ADR 0029), but
+    deleting a company or a user's account is a support request. Payroll and tax records must
+    be kept for years (IRS: at least 4 years for employment taxes). Should owners be able to
+    close a company themselves (read-only, then deleted after the retention period), and what
+    should the privacy notice say about receipt reading by an AI provider?
+94. **Signing the Desktop agent:** the QuickBooks Desktop migration agent is unsigned, so
+    Windows warns when it runs. A code-signing certificate (an EV certificate avoids the
+    SmartScreen warning) needs the company's legal details. Who should hold it?
+95. **Parsers in their own process:** PDFs, ZIPs, email messages, bank statements and QuickBooks
+    files are parsed in the API and worker processes, after type detection, size limits and the
+    virus scan. Should parsing move to a separate, locked-down task (no network, no database)
+    in 12d, or is the current isolation enough for launch?
+96. **Client IPs behind the load balancer:** rate limits, lockout emails and the audit log use
+    the client's IP, which behind the AWS load balancer comes from `X-Forwarded-For`.
+    `TRUST_PROXY` must be set to exactly the number of proxies in 12d, or an attacker can set
+    their own IP. Is the ALB the only proxy (CloudFront in front would make it two)?
+97. **Very large exports:** a data export is built in memory and then stored. A company with
+    gigabytes of attached files would need it streamed to S3 in parts, or split into several
+    archives. Is a limit acceptable for launch (say 2 GB of files), with larger exports by
+    request?
+98. **Pay links that never expire:** a link to pay an invoice works until the invoice is paid,
+    voided or the link is replaced. Should links expire (say 90 days after sending), with the
+    customer asking for a new one?
+99. **Email-in replays:** inbound email is signed by the mail provider, but the signature has
+    no timestamp, so a captured message could be sent again (it would only add a duplicate
+    receipt). The provider chosen in 12d should sign a timestamp; is a duplicate receipt
+    acceptable until then?

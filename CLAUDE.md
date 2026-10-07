@@ -21,6 +21,7 @@ pnpm --filter @acct/api worker  # a separate job worker (production runs the API
 pnpm lint && pnpm typecheck && pnpm test   # all unit/integration tests (need Postgres)
 pnpm e2e                        # Playwright; needs `pnpm build` first, ports 3000/4000 free
 pnpm --filter @acct/api perf     # performance suite (needs `nest build`); PERF_SCALE=full for 100k transactions
+pnpm --filter @acct/api keys:status|keys:rotate|keys:reencrypt   # field keys (ADMIN_DATABASE_URL, ADR 0029)
 pnpm format                     # prettier
 ```
 
@@ -75,7 +76,11 @@ A single package: `pnpm --filter @acct/api test`, `pnpm --filter @acct/db test`,
   efile (Forms 941/940 through MeF and Forms 1099 through IRIS behind `EfileTransmitter`, a
   stand-in in `efile/transmitters/`; submissions and acknowledgements in `efile.service.ts`, the
   returns and pre-send checks in `efile-returns.ts`, the ATS harness in `efile/ats/` with
-  scenarios in `/efile-ats/<year>/`).
+  scenarios in `/efile-ats/<year>/`), security (field keys wrapped by KMS in `field-keys.ts`,
+  every AAD in `aad.ts`, the encrypted-column registry and rotation in `rotation.ts`, the
+  `keys:*` CLI), data-export (the owner's full archive: rules in `archive.ts`, the job in
+  `data-export.service.ts`). Sign-in hardening lives in `auth/` (`recent-mfa.guard.ts` for
+  step-up, `security-notices.service.ts`, `breach-check.ts`, `credential-cleanup.service.ts`).
   The A/R and A/P subledgers share one engine: `ledger/subledger.ts`.
 - `apps/desktop-agent`: QuickBooks Desktop migration agent (C#/.NET 8; `Core` is portable and
   tested on Linux with `dotnet test`, `Windows` is the WinForms wizard and QBXMLRP2 session).
@@ -277,6 +282,30 @@ A single package: `pnpm --filter @acct/api test`, `pnpm --filter @acct/db test`,
   whole list. Check a new report or list against the 100,000-transaction company
   (`PERF_SCALE=full PERF_DB_NAME=acct_perf pnpm --filter @acct/api perf` keeps the data for
   reruns) and add it to `perf/perf.perf.ts`. App connections run with `jit=off`.
+- Security (ADR 0029, checklist in `docs/security/asvs-l2.md`): the standard is OWASP ASVS
+  Level 2.
+  - **Encrypted columns:** a new one gets its AAD builder in `security/aad.ts` and an entry in
+    `ENCRYPTED_COLUMNS` (a test checks the registry against the schema), so key rotation
+    rewrites it. Name it `*_enc`; if the company owns the value, add it to `SENSITIVE_COLUMNS`
+    in `data-export/archive.ts` so exports decrypt and mask it.
+  - **Sensitive actions** (revealing or changing SSNs, EINs or bank numbers, members and roles,
+    money movement set-up, exports with full numbers) use `@RequireRecentMfa()`.
+  - **Data export:** new tables with a `company_id` are exported automatically. Credentials and
+    staging go in `EXCLUDED_TABLES`; columns named `*_hash`, `*_enc`, `*token` or `*secret` are
+    never exported.
+  - **Outputs:** CSV cells go through `safeCell`. Downloads use `withSafeExtension` and
+    `contentDisposition`.
+  - **Inputs:** request bodies are JSON, raw files (`application/octet-stream`) or MIME
+    (`message/rfc822`); anything else is a 415. Parsers of untrusted text must run in linear
+    time: no lazy `[\s\S]*?` scans to a closing tag.
+  - **Outbound fetches** to URLs that come from a provider check the host, refuse redirects
+    and cap the size.
+  - **Logging:** log refused or suspicious requests with `securityEvent` (ids and field paths
+    only).
+  - **Production config:** settings that would be unsafe in production are refused in
+    `loadConfig` (TLS, https, KMS, pepper, JSON logs).
+  - **Web:** the CSP (`apps/web/src/proxy.ts`) allows scripts only with the page's nonce. Add a
+    new external script or frame origin there deliberately.
 
 ## Phase status
 
@@ -292,4 +321,4 @@ A single package: `pnpm --filter @acct/api test`, `pnpm --filter @acct/db test`,
 - [ ] Phase 9: Payroll and 1099 tax forms (part 1 done: prior payroll, W-2/W-3 figures, quarterly and FUTA summaries, state reports, filings; official PDFs, EFW2, 1099/IRIS and state layouts wait on documents)
 - [x] Phase 10: Advanced, in six parts (10a inventory done: items and assemblies, FIFO/average costing with backdated recosting, no negative stock, adjustments, builds, valuation and stock status reports, QuickBooks cut-over; 10b time tracking done: timesheets, approvals, paychecks and invoices from approved time, progress invoicing; 10c multi-currency done: foreign-currency customers, vendors, documents and payments, rates by hand or from the ECB, realized and unrealized gains and losses; 10d accountant tools done: reclassify, write off invoices, fix undeposited funds, client change review, month-end close, Adjusted Trial Balance; 10e online payments done: Stripe Connect Standard accounts (stand-in until the platform's keys exist), pay links and the pay page, payments into Undeposited Funds, payouts as deposits net of fees, refunds and chargebacks; 10f portals done: employee and contractor portals with password and MFA (pay stubs, W-2 figures, own time, W-4 and direct deposit requests approved by payroll, contractor payments and 1099 totals), customer portal by emailed link (invoices, statement, paying online, accepting estimates); follow-ups are open questions 62, 64, 66–69 and 71–73)
 - [ ] Phase 11: E-file and partners, in three parts (11a electronic filing done: Forms 941 and 940 through MeF and Forms 1099 through IRIS behind `EfileTransmitter`, with a stand-in for the IRS until the platform's approvals exist, rejections fixed and sent again, accepted returns recorded as filings, the ATS harness; 11b partners done: EFTPS through the platform as batch provider (enrollment, scheduled payments booked when scheduled and voided when cancelled or returned) and direct deposit through a payments partner (per company, returns flag the paycheck and account), both with stand-ins; 11c tax engine plug-in done: any state can be set up, its state and local taxes come from a licensed engine behind `StateTaxEngine` (paychecks refused with the reason until one is contracted; no stand-in), jurisdictions through liabilities, W-2 boxes 14–20 and state quarterly; the embedded provider designed in ADR 0026; follow-ups are open questions 74–83)
-- [ ] Phase 12: Hardening and launch, in four parts (12a jobs and observability done: a pg-boss queue in Postgres with a separate worker for receipt reading, the pollers, scheduled reports, a daily document purge and a nightly bank download; redacted JSON logs with request, user, job and trace ids; OpenTelemetry tracing with scrubbed spans; live and ready health checks; 12b performance done: a 100,000-transaction generator, a perf suite for reads, posting, 50-user load and shutdown (smoke in CI, full nightly), SQL paging and filtering for registers, subledger reports and P&L columns, jit off, draining requests on shutdown; 12c security, 12d launch on AWS; follow-ups are open questions 84–88)
+- [ ] Phase 12: Hardening and launch, in four parts (12a jobs and observability done: a pg-boss queue in Postgres with a separate worker for receipt reading, the pollers, scheduled reports, a daily document purge and a nightly bank download; redacted JSON logs with request, user, job and trace ids; OpenTelemetry tracing with scrubbed spans; live and ready health checks; 12b performance done: a 100,000-transaction generator, a perf suite for reads, posting, 50-user load and shutdown (smoke in CI, full nightly), SQL paging and filtering for registers, subledger reports and P&L columns, jit off, draining requests on shutdown; 12c security done: AWS KMS envelope keys with rotation, an OWASP ASVS Level 2 review and fixes (sign-in, sessions, step-up, access, files, headers, CSP, errors, business logic, retention), CodeQL, dependency and secret scanning in CI, the owner's full data export, SOC 2 policies with placeholders; 12d launch on AWS; follow-ups are open questions 84–99)
