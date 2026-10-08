@@ -30,11 +30,19 @@ The ASVS Level 2 review is in [asvs-l2.md](asvs-l2.md), the threat model in
 | Change management     | CI gates (lint, types, tests, e2e); migrations immutable once applied                            | `.github/workflows/ci.yml`, migrator                     |
 | Supply chain          | CodeQL, dependency audit, gitleaks, Dependabot; actions pinned to commits                        | `.github/workflows/security.yml`                         |
 
-## To do before production (12d)
+## Infrastructure (12d, ADR 0030)
 
-- Secrets in AWS Secrets Manager; the KMS key policy; a key rotation runbook drill
-- S3 access through the task's IAM role instead of `S3_ACCESS_KEY_ID`/`S3_SECRET_ACCESS_KEY`
-- Log shipping, retention and alarms on security events (question 84)
-- Backups with point-in-time recovery and a tested restore; disaster-recovery drill
-- A penetration test after launch hardening
-- Fill in the policies' placeholders and approve them (`docs/policies/README.md`)
+- Secrets in AWS Secrets Manager, generated write-only; task roles instead of keys; KMS key
+  policies per key (`infra/terraform/modules/platform`).
+- Logs in CloudWatch with alarms on errors and security events; CloudTrail, GuardDuty and
+  Access Analyzer (`docs/runbooks/`).
+- Point-in-time recovery replicated to a second region, locked copies in a backup account,
+  and a scripted, verified restore drill (`infra/drill/restore-drill.sh`).
+
+## Before launch
+
+The launch checklist (`docs/launch-checklist.md`), including:
+
+- a penetration test of staging;
+- the first restore drill;
+- the policies' placeholders filled in and approved (`docs/policies/README.md`).

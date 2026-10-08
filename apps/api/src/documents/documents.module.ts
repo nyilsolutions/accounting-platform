@@ -1,3 +1,4 @@
+import { fromNodeProviderChain } from '@aws-sdk/credential-providers';
 import { Module } from '@nestjs/common';
 import type { FieldEncryptor } from '@acct/crypto';
 import { APP_CONFIG, type AppConfig } from '../config';
@@ -26,7 +27,23 @@ import {
   OBJECT_STORE,
   S3ObjectStore,
   type ObjectStore,
+  type S3Credentials,
 } from './storage/object-store';
+
+/**
+ * Static keys when set (an S3-compatible store in development); otherwise the AWS default chain,
+ * which on ECS is the task role: temporary credentials, cached and refreshed before they expire.
+ */
+function s3Credentials(config: AppConfig): S3Credentials {
+  if (config.S3_ACCESS_KEY_ID && config.S3_SECRET_ACCESS_KEY) {
+    const keys = {
+      accessKeyId: config.S3_ACCESS_KEY_ID,
+      secretAccessKey: config.S3_SECRET_ACCESS_KEY,
+    };
+    return async () => keys;
+  }
+  return fromNodeProviderChain();
+}
 
 export function createObjectStore(config: AppConfig, encryptor: FieldEncryptor): ObjectStore {
   if (config.DOCUMENT_STORAGE === 's3') {
@@ -34,8 +51,7 @@ export function createObjectStore(config: AppConfig, encryptor: FieldEncryptor):
       bucket: config.S3_BUCKET!,
       region: config.S3_REGION,
       endpoint: config.S3_ENDPOINT,
-      accessKeyId: config.S3_ACCESS_KEY_ID!,
-      secretAccessKey: config.S3_SECRET_ACCESS_KEY!,
+      credentials: s3Credentials(config),
       forcePathStyle: config.S3_FORCE_PATH_STYLE,
       sse: config.S3_SSE,
       kmsKeyId: config.S3_KMS_KEY_ID,

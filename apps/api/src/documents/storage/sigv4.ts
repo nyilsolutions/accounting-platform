@@ -7,6 +7,8 @@ import { createHash, createHmac } from 'node:crypto';
 export interface SigV4Credentials {
   accessKeyId: string;
   secretAccessKey: string;
+  /** Temporary credentials (an IAM role, e.g. an ECS task role) also carry a session token. */
+  sessionToken?: string;
   region: string;
   service?: string;
 }
@@ -79,6 +81,9 @@ export function signRequest(opts: {
     host: opts.url.host,
     'x-amz-date': stamp,
     'x-amz-content-sha256': opts.payloadHash,
+    ...(opts.credentials.sessionToken
+      ? { 'x-amz-security-token': opts.credentials.sessionToken }
+      : {}),
   };
   const names = Object.keys(headers).sort();
   const signedHeaders = names.join(';');
@@ -116,6 +121,8 @@ export function presignUrl(opts: {
   );
   url.searchParams.set('X-Amz-Date', stamp);
   url.searchParams.set('X-Amz-Expires', String(opts.expiresIn));
+  if (opts.credentials.sessionToken)
+    url.searchParams.set('X-Amz-Security-Token', opts.credentials.sessionToken);
   url.searchParams.set('X-Amz-SignedHeaders', 'host');
   const canonicalRequest = [
     opts.method,

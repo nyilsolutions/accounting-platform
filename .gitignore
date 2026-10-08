@@ -19,3 +19,10 @@ next-env.d.ts
 apps/desktop-agent/**/bin/
 apps/desktop-agent/**/obj/
 agent-publish/
+
+# Terraform (infra/terraform): local state, plugins and each environment's own settings
+.terraform/
+*.tfstate
+*.tfstate.*
+terraform.tfvars
+backend.hcl

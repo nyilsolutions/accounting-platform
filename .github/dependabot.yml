@@ -17,6 +17,11 @@ updates:
     groups:
       actions:
         patterns: ['*']
+  # The Node base image in the Dockerfile (pinned by digest).
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: weekly
   - package-ecosystem: nuget
     directory: /apps/desktop-agent
     schedule:

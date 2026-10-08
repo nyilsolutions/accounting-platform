@@ -1,3 +1,4 @@
+import { join } from 'node:path';
 import type { NextConfig } from 'next';
 
 const apiUrl = process.env.API_URL ?? 'http://localhost:4000';
@@ -10,6 +11,12 @@ const commonHeaders = [
 
 const nextConfig: NextConfig = {
   poweredByHeader: false,
+  // The container image (Dockerfile) runs the standalone server; local runs use `next start`.
+  // API_URL is read here at build time (rewrites are fixed by the build), so the image is built
+  // with the API's address inside the cluster (ADR 0030).
+  ...(process.env.NEXT_OUTPUT === 'standalone'
+    ? { output: 'standalone' as const, outputFileTracingRoot: join(__dirname, '..', '..') }
+    : {}),
   transpilePackages: ['@acct/shared'],
   // The browser only talks to this origin; /api is proxied to the API so the session cookie is
   // first-party and never exposed to cross-site requests.

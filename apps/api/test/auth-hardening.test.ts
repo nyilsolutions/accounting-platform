@@ -411,9 +411,28 @@ describe('configuration', () => {
       SIGNING_KEY: PEPPER,
       PASSWORD_PEPPER: PEPPER,
       PASSWORD_BREACH_CHECK: 'hibp',
+      MAIL_TRANSPORT: 'ses',
+      MAIL_FROM: 'Books <no-reply@mail.example.com>',
+      DOCUMENT_STORAGE: 's3',
+      S3_BUCKET: 'docs',
+      S3_SSE: 'aws:kms',
+      S3_KMS_KEY_ID: 'arn:aws:kms:s3',
+      VIRUS_SCANNER: 'clamd',
+      BANK_FEED_PROVIDER: 'none',
+      PAYMENTS_PROVIDER: 'none',
+      EFTPS_BATCH_PROVIDER: 'none',
+      DEPOSIT_PARTNER: 'none',
+      EFILE_TRANSMITTER: 'none',
+      QBO_ENVIRONMENT: 'none',
     };
-    // Valid so far: the next check is the mail transport, which has no production choice yet.
-    expect(() => loadConfig(prod)).toThrow('real mail transport');
+    // A complete production configuration (what the ECS task definitions set, ADR 0030)...
+    expect(() => loadConfig(prod)).not.toThrow();
+    // ...and each unsafe change to it is refused.
+    expect(() => loadConfig({ ...prod, MAIL_TRANSPORT: 'file' })).toThrow(
+      "MAIL_TRANSPORT must be 'ses'",
+    );
+    expect(() => loadConfig({ ...prod, MAIL_FROM: undefined })).toThrow('MAIL_FROM is required');
+    expect(() => loadConfig({ ...prod, S3_ACCESS_KEY_ID: 'AKID' })).toThrow('or neither');
     for (const sslmode of ['', '?sslmode=require', '?sslmode=disable'])
       expect(() =>
         loadConfig({ ...prod, DATABASE_URL: `postgres://db.internal/acct${sslmode}` }),
@@ -428,9 +447,7 @@ describe('configuration', () => {
       'ECB_RATES_URL must be https',
     );
     expect(() => loadConfig({ ...prod, CLAMD_HOST: '10.0.0.5' })).toThrow('CLAMD_HOST');
-    expect(() => loadConfig({ ...prod, DOCUMENT_STORAGE: 's3', S3_SSE: 'AES256' })).toThrow(
-      "S3_SSE must be 'aws:kms'",
-    );
+    expect(() => loadConfig({ ...prod, S3_SSE: 'AES256' })).toThrow("S3_SSE must be 'aws:kms'");
     expect(() => loadConfig({ ...prod, LOG_FORMAT: 'pretty' })).toThrow(
       "LOG_FORMAT must be 'json'",
     );

@@ -2,6 +2,9 @@
   "name": "@acct/api",
   "version": "0.0.0",
   "private": true,
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "build": "nest build",
     "dev": "nest start --watch --exec \"node --env-file-if-exists=../../.env\"",
@@ -23,6 +26,8 @@
     "@acct/db": "workspace:*",
     "@acct/shared": "workspace:*",
     "@anthropic-ai/sdk": "^0.129.0",
+    "@aws-sdk/client-sesv2": "^3.1147.0",
+    "@aws-sdk/credential-providers": "^3.1147.0",
     "@nestjs/common": "^11.2.6",
     "@nestjs/core": "^11.2.6",
     "@nestjs/platform-express": "^11.2.6",
@@ -49,8 +54,10 @@
     "zod": "^4.6.5"
   },
   "devDependencies": {
+    "@aws-crypto/sha256-js": "^5.2.0",
     "@nestjs/cli": "^11.0.24",
     "@nestjs/testing": "^11.2.6",
+    "@smithy/signature-v4": "^5.7.4",
     "@swc/core": "^1.16.2",
     "@types/autocannon": "^7.12.7",
     "@types/cookie-parser": "^1.4.10",

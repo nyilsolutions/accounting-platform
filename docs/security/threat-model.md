@@ -105,7 +105,7 @@ Stripe / Plaid ──signed webhooks──> API          Worker (same code, jobs
 | T      | Tampering with the audit log             | `acct_app` can only insert and read; triggers refuse updates, deletes and truncation                                                    |
 | I      | Old credentials and secrets lying around | Sessions, links and invitations deleted 30 days after they end; decided change requests drop bank numbers; exports deleted after 7 days |
 | E      | A compromised CI action or dependency    | Actions pinned to commits with read-only tokens; lockfile; audit, CodeQL, gitleaks, Dependabot                                          |
-| D      | Losing the database or a region          | Backups with point-in-time recovery and a restore drill (12d)                                                                           |
+| D      | Losing the database or a region          | Point-in-time recovery replicated to a second region, locked copies in a backup account, quarterly restore drills (ADR 0030)            |
 
 ## Residual risks
 
@@ -116,4 +116,5 @@ Accepted for now, each with an open question:
 - No storage quota per company, and email-in has no daily cap (91).
 - The Desktop agent is unsigned (94); there is no SBOM per release (92).
 - A company or person can't yet delete their account themselves (93).
-- Logs aren't shipped or alarmed on until 12d (84).
+- Traces aren't collected yet; logs and alarms are in CloudWatch (84).
+- The recovery region holds data, not a running copy: a region loss takes hours (107).

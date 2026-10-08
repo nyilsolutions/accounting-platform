@@ -476,6 +476,10 @@ Add new questions here instead of guessing.
     OTLP when `OTEL_EXPORTER_OTLP_ENDPOINT` is set (ADR 0027). On AWS, CloudWatch Logs plus the
     AWS Distro for OpenTelemetry collector to X-Ray is the default for 12d. Is another backend
     preferred (Grafana Cloud, Honeycomb, Datadog)? How long should logs be kept?
+    _12d (ADR 0030): logs go to CloudWatch Logs, encrypted, kept `log_retention_days` (365 by
+    default until the policy's [Log Retention] is set), with metric filters and alarms. Traces
+    stay off: `OTEL_EXPORTER_OTLP_ENDPOINT` isn't set. Still open: an AWS Distro for
+    OpenTelemetry collector sidecar sending to X-Ray, or another backend?_
 85. **QuickBooks imports in the background:** imports and QuickBooks Online pulls still run in
     the API process. If it restarts mid-import, the migration shows as stopped and is run again
     (reruns update rather than duplicate). Moving them to the queue means not storing the
@@ -492,6 +496,15 @@ Add new questions here instead of guessing.
     instance on the development machine serves 14 to 16 requests a second and some requests
     take over 10 s. Should the target be that harder case, or a number of users per instance
     that 12d scales out to?
+    _12d (ADR 0030) starts with these sizes, to be checked on staging with the nightly
+    performance workflow:_
+    - _API: 1 vCPU and 4 GB per task, clamd included; 2 to 6 tasks, scaling on CPU at 60%;_
+    - _web: 0.5 vCPU and 1 GB, 2 tasks;_
+    - _worker: 0.5 vCPU and 1 GB, 1 task;_
+    - _database: `db.m7g.large`, Multi-AZ, gp3, 100 GB growing to 1 TB._
+
+    _The reading of "50 users" is still open._
+
 88. **Very long lists:** the customers and vendors lists, and the pickers built on them, load
     every record at once. At 5,000 customers that is about 120 ms and 2.3 MB per load (ADR 0028),
     within budget. Should lists page and pickers search on the server before launch, or only
@@ -508,6 +521,8 @@ Add new questions here instead of guessing.
     refuse uploads, or warn the owner?
 92. **SBOM:** should each release publish a software bill of materials (CycloneDX) for the API,
     web and Desktop agent? Some customers' vendor reviews ask for one.
+    _12d: each deploy's images carry an SBOM and provenance attestation (BuildKit, in ECR).
+    Still open: publishing them to customers, and one for the Desktop agent._
 93. **Deleting accounts and companies:** owners can now export everything (ADR 0029), but
     deleting a company or a user's account is a support request. Payroll and tax records must
     be kept for years (IRS: at least 4 years for employment taxes). Should owners be able to
@@ -524,6 +539,11 @@ Add new questions here instead of guessing.
     the client's IP, which behind the AWS load balancer comes from `X-Forwarded-For`.
     `TRUST_PROXY` must be set to exactly the number of proxies in 12d, or an attacker can set
     their own IP. Is the ALB the only proxy (CloudFront in front would make it two)?
+    _Handled in 12d (ADR 0030). The web app's proxy adds no hop, and the API trusts only
+    addresses inside the VPC (`TRUST_PROXY=loopback, <VPC CIDR>`). Its client IP is therefore
+    the one the load balancer appended, whatever the client sent. This was tested through the
+    web container. If CloudFront is ever put in front, its address ranges must be trusted
+    too._
 97. **Very large exports:** a data export is built in memory and then stored. A company with
     gigabytes of attached files would need it streamed to S3 in parts, or split into several
     archives. Is a limit acceptable for launch (say 2 GB of files), with larger exports by
@@ -535,3 +555,45 @@ Add new questions here instead of guessing.
     no timestamp, so a captured message could be sent again (it would only add a duplicate
     receipt). The provider chosen in 12d should sign a timestamp; is a duplicate receipt
     acceptable until then?
+100.  **Recovery and retention numbers:** the policies leave [RPO], [RTO], [Backup Retention] and
+      [Log Retention] blank. Terraform starts with:
+      - point-in-time recovery for 35 days (the RDS maximum), replicated to us-west-2;
+      - daily snapshots for 35 days and monthly ones for 1 year;
+      - logs for 1 year.
+
+      The
+      replicated transaction logs keep the RPO to minutes, even for losing a region. A
+      restore in the same region takes under an hour; a region rebuild takes hours (question
+      107). What should the policy say? Should monthly snapshots be kept longer, say 7 years
+      like the books? The backup account's vault lock allows up to 7 years.
+
+101.  **AWS accounts:** staging, production and a backup account (whose locked vault production
+      copies into) need one AWS Organization with cross-account backup turned on. Does an
+      organization exist, and who administers it? Should staging copy into the backup account
+      too?
+102.  **Domains:** which names for the app and for sending mail (for example
+      `books.example.com` and `mail.example.com`), and is the zone in Route 53 (Terraform then
+      creates the certificate, DKIM, SPF and DMARC records itself)? DMARC starts at
+      `p=quarantine`; is `p=reject` wanted once reports look clean?
+103.  **Who gets paged:** alarms email the addresses in `alarm_emails`. Should they also page
+      someone (PagerDuty, Opsgenie or SMS through SNS), and who is on call outside business
+      hours, around payroll and tax deadlines?
+104.  **The clamd image:** the API's sidecar uses `clamav/clamav:1.4` from Docker Hub. Pulls
+      from Docker Hub are rate-limited and a third-party image runs beside the API. Should it be
+      mirrored into ECR with a pull-through cache (needs a Docker Hub account), or built from
+      Debian's packages in this repository?
+105.  **Approving production deploys:** the `production` GitHub environment needs required
+      reviewers. Who may approve, and should a second person be required for every release
+      (the change management policy asks for review, not a separate approver)?
+106.  **WAF limits:** each client IP may send 10,000 requests in 5 minutes before WAF blocks it.
+      An office behind one IP shares that. Is that right, and should traffic from outside the
+      United States be blocked or challenged?
+107.  **A standby in the recovery region:** us-west-2 holds the data (database backups and
+      logs, documents, the field key replica) but nothing running, so losing us-east-1 means
+      rebuilding from code. That takes hours (`docs/runbooks/disaster-recovery.md`). Is that RTO
+      acceptable, or should a pilot light run there (network, an RDS cross-region read
+      replica, scaled-to-zero services)?
+108.  **Rotating database passwords:** passwords are generated by Terraform and rotated by
+      bumping `db_passwords_version` and deploying (`docs/runbooks/rotate-secrets.md`). Is a
+      yearly manual rotation enough, or should RDS manage and rotate the master password
+      itself (which needs the release step to read it from the RDS secret)?

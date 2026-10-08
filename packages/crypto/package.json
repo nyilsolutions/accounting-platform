@@ -2,6 +2,9 @@
   "name": "@acct/crypto",
   "version": "0.0.0",
   "private": true,
+  "files": [
+    "dist"
+  ],
   "description": "Server-only security primitives: password hashing, TOTP, field encryption, tokens.",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",

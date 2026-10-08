@@ -94,3 +94,102 @@ jobs:
           name: qb-migration-agent-unsigned
           path: agent-publish/QbMigrationAgent.exe
           retention-days: 14
+
+  # Container images (ADR 0030): built from the Dockerfile the deploy uses, started against
+  # Postgres (release step, API, worker, web), then scanned for known vulnerabilities that have a
+  # fix. The deploy workflow builds them again for the cluster's API address and pushes to ECR.
+  images:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - name: Build the API image (API, worker and release step)
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          target: api
+          tags: acct-api:ci
+          load: true
+          cache-from: type=gha,scope=images
+          cache-to: type=gha,scope=images,mode=max
+      - name: Build the web image
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          target: web
+          tags: acct-web:ci
+          load: true
+          build-args: API_URL=http://127.0.0.1:4000
+          cache-from: type=gha,scope=images
+      - name: Start the images
+        env:
+          ADMIN_URL: postgres://postgres:postgres@localhost:5432/postgres
+          APP_URL: postgres://acct_app:ci_app_password@localhost:5432/postgres
+        run: |
+          docker run --rm --network host -e ADMIN_DATABASE_URL="$ADMIN_URL" \
+            -e APP_DB_PASSWORD=ci_app_password acct-api:ci node dist/release.js
+          common=(--network host --env-file .env.example -e NODE_ENV=development
+            -e DATABASE_URL="$APP_URL" -e JOB_QUEUE=pg-boss -e LOG_FORMAT=json)
+          docker run -d --name api "${common[@]}" -e JOB_WORKER=off -e TRUST_PROXY=1 acct-api:ci
+          docker run -d --name worker "${common[@]}" acct-api:ci node dist/worker.js
+          docker run -d --name web --network host acct-web:ci
+          for i in $(seq 1 60); do
+            curl -sf localhost:4000/health/ready && curl -sf localhost:3000/healthz \
+              && curl -sf localhost:3000/api/health/live && exit 0
+            sleep 2
+          done
+          exit 1
+      - name: Container logs
+        if: always()
+        run: for c in api worker web; do echo "== $c"; docker logs "$c" 2>&1 | tail -50; done
+      - name: Scan the API image
+        uses: anchore/scan-action@27805bf3b4e84b4a5c980df22ed233c00390a439 # v7.4.2
+        with:
+          image: acct-api:ci
+          only-fixed: true
+          severity-cutoff: high
+          output-format: table
+      - name: Scan the web image
+        uses: anchore/scan-action@27805bf3b4e84b4a5c980df22ed233c00390a439 # v7.4.2
+        with:
+          image: acct-web:ci
+          only-fixed: true
+          severity-cutoff: high
+          output-format: table
+
+  # Infrastructure (ADR 0030): formatting, validation, the module's tests against mocked AWS and
+  # the deploy script against a fake AWS CLI (no credentials, nothing created).
+  terraform:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
+        with:
+          terraform_version: 1.16.3
+          terraform_wrapper: false
+      - run: terraform fmt -check -recursive infra/terraform
+      - name: Test the platform module
+        working-directory: infra/terraform/modules/platform
+        run: terraform init -backend=false -input=false && terraform test
+      - name: Test the deploy script (fake AWS CLI)
+        run: bash infra/deploy/test/ecs-deploy.test.sh
+      - name: Validate the environments
+        run: |
+          for env in staging production backup; do
+            (cd "infra/terraform/envs/$env" && terraform init -backend=false -input=false \
+              && terraform validate)
+          done
