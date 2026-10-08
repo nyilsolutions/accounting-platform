@@ -98,7 +98,15 @@ export function errText(e: ApiError | string | null): string | null {
 }
 
 /** Sends a payroll change and refreshes everything payroll shows. */
-export function usePayrollMutation(companyId: string) {
+/**
+ * Runs a payroll API call (`/companies/:id/payroll…`) and refreshes payroll queries. Forms 1099
+ * use the same with `base` '1099' and their own query key.
+ */
+export function usePayrollMutation(
+  companyId: string,
+  base: 'payroll' | '1099' = 'payroll',
+  invalidate: readonly unknown[] = keys.payroll(companyId),
+) {
   const qc = useQueryClient();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<ApiError | string | null>(null);
@@ -110,8 +118,8 @@ export function usePayrollMutation(companyId: string) {
     setBusy(true);
     setError(null);
     try {
-      const result = await api<T>(`/companies/${companyId}/payroll${path}`, { method, body });
-      await qc.invalidateQueries({ queryKey: keys.payroll(companyId) });
+      const result = await api<T>(`/companies/${companyId}/${base}${path}`, { method, body });
+      await qc.invalidateQueries({ queryKey: invalidate });
       return result;
     } catch (err) {
       setError(err instanceof ApiError ? err : errorMessage(err));

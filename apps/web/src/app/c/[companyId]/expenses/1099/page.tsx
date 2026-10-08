@@ -13,6 +13,8 @@ import {
   type Vendor1099MappingDto,
   type Vendor1099SummaryDto,
 } from '@acct/shared';
+import { EfilePanel } from '@/components/efile/efile-panel';
+import { FilingPanel } from '@/components/payroll/tax-forms-ui';
 import { Alert, Badge, Button, Card, Spinner } from '@/components/ui';
 import { api, errorMessage } from '@/lib/api';
 import { vendorHref } from '@/lib/links';
@@ -27,8 +29,9 @@ const SHORT: Record<Form1099Box, string> = {
 };
 
 /**
- * 1099 contractors: which expense accounts are reportable (and in which box), and what each
- * 1099 vendor was paid in the year. Forms and e-file arrive in Phase 9.
+ * 1099 contractors: which expense accounts are reportable (and in which box), what each 1099
+ * vendor was paid in the year, and filing Forms 1099 (electronically through IRIS, ADR 0024, or
+ * marked filed by hand).
  */
 export default function Form1099Page() {
   const { companyId } = useParams<{ companyId: string }>();
@@ -181,6 +184,22 @@ export default function Form1099Page() {
                 </tbody>
               </table>
             </div>
+            <EfilePanel
+              companyId={companyId}
+              form="form_1099"
+              taxYear={year}
+              canManage={canManage}
+              label={`Forms 1099 for ${year}`}
+            />
+            <FilingPanel
+              companyId={companyId}
+              state={s}
+              form="form_1099"
+              taxYear={year}
+              canManage={canManage}
+              label={`Forms 1099 for ${year}`}
+              scope="1099"
+            />
           </>
         )}
       </Card>

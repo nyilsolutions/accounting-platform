@@ -91,6 +91,13 @@ const envSchema = z.object({
   STRIPE_WEBHOOK_SECRET: z.string().optional(),
   /** Pins Stripe's API version; unset uses the platform account's default. */
   STRIPE_API_VERSION: z.string().optional(),
+  /**
+   * Electronic filing (ADR 0024): 'stand-in' (plays the IRS; development, tests and demos) or
+   * 'none'. The IRS MeF and IRIS transmitters are added once the platform's ETIN and TCC exist.
+   */
+  EFILE_TRANSMITTER: z.enum(['stand-in', 'none']).default('stand-in'),
+  /** Asks the transmitter for acknowledgements every 15 minutes. 'off' in tests. */
+  EFILE_ACK_POLLER: z.enum(['on', 'off']).default('on'),
   /** Emails scheduled reports (checks for due schedules every minute). 'off' in tests. */
   REPORT_SCHEDULER: z.enum(['on', 'off']).default('on'),
 });
@@ -122,6 +129,11 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     }
     if (config.PAYMENTS_PROVIDER === 'mock') {
       throw new Error("PAYMENTS_PROVIDER must be 'stripe' or 'none' in production");
+    }
+    if (config.EFILE_TRANSMITTER === 'stand-in') {
+      throw new Error(
+        "EFILE_TRANSMITTER must be 'none' in production until a real transmitter exists",
+      );
     }
     if (config.QBO_ENVIRONMENT === 'mock') {
       throw new Error("QBO_ENVIRONMENT must be 'production', 'sandbox' or 'none' in production");

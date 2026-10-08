@@ -3,6 +3,7 @@
 import { useParams } from 'next/navigation';
 import { useState } from 'react';
 import { formatDate } from '@acct/shared';
+import { EfilePanel } from '@/components/efile/efile-panel';
 import { usd } from '@/components/payroll/pay-run-ui';
 import { Section, Table } from '@/components/payroll/payroll-ui';
 import { PayrollSetupCard } from '@/components/payroll/setup-card';
@@ -240,6 +241,13 @@ function FutaSection({ companyId, year }: { companyId: string; year: number }) {
         ]}
       />
       <Notes notes={d.notes} />
+      <EfilePanel
+        companyId={companyId}
+        form="form_940"
+        taxYear={year}
+        canManage={access.can('payroll.manage')}
+        label={`Form 940 for ${year}`}
+      />
       <FilingPanel
         companyId={companyId}
         state={d}

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import type { FormFilingState } from './payroll';
 import { optExchangeRate } from './currency';
 import { isoDate, optDate, optText, positiveAmount, qtyRate, signedAmount } from './fields';
 import { MAX_AMOUNT, tryParseMoney } from './money';
@@ -457,9 +458,11 @@ export interface Vendor1099RowDto {
   reportableBoxes: Form1099Box[];
 }
 
-export interface Vendor1099SummaryDto {
+/** The 1099 figures for a year, and (on the 1099 page) whether Forms 1099 were filed. */
+export interface Vendor1099SummaryDto extends FormFilingState {
   year: number;
   thresholds: Partial<Record<Form1099Box, string>>;
   source: string;
   vendors: Vendor1099RowDto[];
 }
+export type Vendor1099Figures = Omit<Vendor1099SummaryDto, keyof FormFilingState>;

@@ -1426,6 +1426,29 @@ export interface CustomerPortalSessionsTable {
   created_at: Generated<Date>;
 }
 
+/** Migration 0026: returns sent for electronic filing and their acknowledgements (ADR 0024). */
+export interface EfileSubmissionsTable {
+  id: Generated<string>;
+  company_id: string;
+  channel: string;
+  form: string;
+  tax_year: number;
+  quarter: number | null;
+  transmitter: string;
+  environment: string;
+  status: Generated<string>;
+  submission_id: string | null;
+  signer: ColumnType<unknown, string, never>;
+  snapshot: ColumnType<unknown, string, never>;
+  errors: ColumnType<unknown, string | undefined, string>;
+  failure_message: string | null;
+  resends_id: string | null;
+  filing_id: string | null;
+  created_by: string | null;
+  transmitted_at: Generated<Date>;
+  acknowledged_at: Date | null;
+}
+
 export interface Database {
   users: UsersTable;
   mfa_recovery_codes: MfaRecoveryCodesTable;
@@ -1526,6 +1549,7 @@ export interface Database {
   employee_change_requests: EmployeeChangeRequestsTable;
   customer_portal_tokens: CustomerPortalTokensTable;
   customer_portal_sessions: CustomerPortalSessionsTable;
+  efile_submissions: EfileSubmissionsTable;
 }
 
 export type User = Selectable<UsersTable>;

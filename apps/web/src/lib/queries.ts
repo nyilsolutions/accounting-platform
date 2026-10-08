@@ -2,6 +2,9 @@
 
 import { useQuery } from '@tanstack/react-query';
 import type {
+  EfileForm,
+  EfileReturnStatusDto,
+  EfileSubmissionDto,
   AccountDto,
   CompanyAccessDto,
   CompanyDto,
@@ -385,6 +388,29 @@ export function useFutaAnnual(id: string, year: number) {
   return useQuery({
     queryKey: [...keys.payroll(id), 'forms', 'futa', year],
     queryFn: payrollGet<FutaAnnualDto>(id, `/forms/futa-annual?year=${year}`),
+  });
+}
+
+/** A return's e-file state (ADR 0024): payroll's Forms 941/940, or Forms 1099. */
+export function useEfileReturn(id: string, form: EfileForm, year: number, quarter?: number) {
+  const is1099 = form === 'form_1099';
+  return useQuery({
+    queryKey: is1099
+      ? ['company', id, 'sales', '1099-efile', year]
+      : [...keys.payroll(id), 'efile', form, year, quarter ?? null],
+    queryFn: () =>
+      api<EfileReturnStatusDto>(
+        is1099
+          ? `/companies/${id}/1099/efile?year=${year}`
+          : `/companies/${id}/payroll/efile/return?form=${form}&year=${year}${quarter ? `&quarter=${quarter}` : ''}`,
+      ),
+  });
+}
+
+export function usePayrollEfileSubmissions(id: string) {
+  return useQuery({
+    queryKey: [...keys.payroll(id), 'efile', 'submissions'],
+    queryFn: payrollGet<EfileSubmissionDto[]>(id, '/efile/submissions'),
   });
 }
 

@@ -1,0 +1,44 @@
+{
+  "id": "sample-941-q1",
+  "source": "Sample written for the harness (not an IRS scenario)",
+  "form": "form_941",
+  "taxYear": 2026,
+  "quarter": 1,
+  "filer": {
+    "name": "Sample Landscaping Co.",
+    "ein": "001234567",
+    "address": {
+      "line1": "100 Sample Way",
+      "line2": null,
+      "city": "Austin",
+      "state": "TX",
+      "postalCode": "78701"
+    },
+    "phone": "512-555-0100"
+  },
+  "signer": { "name": "Pat Sample", "title": "Owner", "phone": "512-555-0100" },
+  "figures": {
+    "taxYear": 2026,
+    "quarter": 1,
+    "depositSchedule": "monthly",
+    "employeesPaid": 2,
+    "wages": "10000.00",
+    "federalIncomeTax": "1000.00",
+    "socialSecurityWages": "10000.00",
+    "socialSecurityTips": "0.00",
+    "medicareWagesAndTips": "10000.00",
+    "additionalMedicareWages": "0.00",
+    "socialSecurityTax": "1240.00",
+    "medicareTax": "290.00",
+    "additionalMedicareTax": "0.00",
+    "totalTaxes": "2530.00",
+    "taxAtRates": "1530.00",
+    "roundingDifference": "0.00",
+    "monthlyLiability": ["843.34", "843.33", "843.33"],
+    "dailyLiability": [],
+    "deposits": "2530.00",
+    "priorDeposits": "0.00",
+    "balanceDue": "0.00",
+    "notes": []
+  }
+}

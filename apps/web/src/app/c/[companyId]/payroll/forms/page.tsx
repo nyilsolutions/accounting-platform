@@ -3,6 +3,7 @@
 import { useParams } from 'next/navigation';
 import { useState } from 'react';
 import { formatDate, type PayrollState } from '@acct/shared';
+import { EfilePanel } from '@/components/efile/efile-panel';
 import { usd } from '@/components/payroll/pay-run-ui';
 import { Section, Table } from '@/components/payroll/payroll-ui';
 import { PayrollSetupCard } from '@/components/payroll/setup-card';
@@ -126,6 +127,14 @@ function FederalQuarter({
               ...q.data.notes,
               'Form 941 itself is filled in once its 2026 form and instructions are in the tax files; file it from these figures meanwhile.',
             ]}
+          />
+          <EfilePanel
+            companyId={companyId}
+            form="form_941"
+            taxYear={year}
+            quarter={quarter}
+            canManage={access.can('payroll.manage')}
+            label={`Form 941 for Q${quarter} ${year}`}
           />
           <FilingPanel
             companyId={companyId}

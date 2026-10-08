@@ -7,9 +7,11 @@ import {
   type Form1099Box,
   type Money,
   type ReportRow,
+  type Vendor1099Figures,
   type Vendor1099SummaryDto,
 } from '@acct/shared';
 import { loadTaxData } from '../common/tax-data';
+import { formFilingState } from '../payroll/tax-filings';
 import { recognitions } from '../reports/cash-basis';
 
 interface Form1099Data {
@@ -153,7 +155,7 @@ export async function vendor1099Summary(
   tx: Tx,
   companyId: string,
   year: number,
-): Promise<Vendor1099SummaryDto> {
+): Promise<Vendor1099Figures> {
   const vendors = await tx
     .selectFrom('vendors')
     .select([
@@ -207,6 +209,16 @@ export async function vendor1099Summary(
   };
 }
 
+/** The year's 1099 figures with whether Forms 1099 were filed and what changed since. */
+export async function summary1099WithFiling(
+  tx: Tx,
+  companyId: string,
+  year: number,
+): Promise<Vendor1099SummaryDto> {
+  const dto = await vendor1099Summary(tx, companyId, year);
+  return { ...dto, ...(await formFilingState(tx, companyId, 'form_1099', year, null, null, dto)) };
+}
+
 const SHORT: Record<Form1099Box, string> = {
   nec_1: 'NEC 1',
   misc_1: 'MISC 1 Rents',
@@ -216,7 +228,7 @@ const SHORT: Record<Form1099Box, string> = {
 };
 
 /** Report layout: vendors that meet a threshold, then those below every threshold. */
-export function vendor1099Rows(s: Vendor1099SummaryDto): { columns: string[]; rows: ReportRow[] } {
+export function vendor1099Rows(s: Vendor1099Figures): { columns: string[]; rows: ReportRow[] } {
   const columns = [...FORM_1099_BOXES.map((b) => SHORT[b]), 'Total'];
   const rows: ReportRow[] = [];
   const grand = new Map<string, Money>();
