@@ -524,6 +524,7 @@ export interface DocumentsTable extends Audited {
   deleted_at: Timestamp | null;
   deleted_by: string | null;
   search_vector: ColumnType<string | null, never, never>;
+  original_created_at: Timestamp | null;
 }
 
 export interface DocumentVersionsTable {
@@ -576,6 +577,123 @@ export interface VendorAliasesTable {
   updated_at: Generated<Date>;
 }
 
+// ---- Phase 6: QuickBooks migration ----------------------------------------------------------
+
+export interface MigrationsTable extends Audited {
+  id: Generated<string>;
+  company_id: string;
+  source: string;
+  source_key: string;
+  name: string;
+  status: Generated<string>;
+  as_of: DateCol | null;
+  lease_until: Timestamp | null;
+  last_run_at: Timestamp | null;
+  last_error: string | null;
+  qbo_connection_id: string | null;
+  completed_at: Timestamp | null;
+  completed_by: string | null;
+  accepted_differences: boolean | null;
+  acceptance_note: string | null;
+  completion_report: Json;
+}
+
+export interface MigrationRawTable {
+  company_id: string;
+  migration_id: string;
+  source_entity: string;
+  source_id: string;
+  data: Json;
+  deleted: Generated<boolean>;
+  received_at: Generated<Date>;
+}
+
+export interface MigrationRecordsTable {
+  id: Generated<string>;
+  company_id: string;
+  migration_id: string;
+  entity_type: string;
+  source_id: string;
+  source_type: string;
+  txn_date: DateCol | null;
+  number: string | null;
+  label: string | null;
+  payload: Json;
+  payload_hash: string;
+  deleted: Generated<boolean>;
+  status: Generated<string>;
+  message: string | null;
+  warnings: ColumnType<string[], string[] | undefined, string[]>;
+  target_id: string | null;
+  imported_hash: string | null;
+  created_at: Generated<Date>;
+  updated_at: Generated<Date>;
+}
+
+export interface MigrationMapTable {
+  company_id: string;
+  source_key: string;
+  entity_type: string;
+  source_id: string;
+  target_id: string;
+  payload_hash: string;
+  migration_id: string;
+  created_at: Generated<Date>;
+  updated_at: Generated<Date>;
+}
+
+export interface MigrationReportsTable {
+  id: Generated<string>;
+  company_id: string;
+  migration_id: string;
+  kind: string;
+  as_of: DateCol;
+  origin: string;
+  rows: Json;
+  created_at: Generated<Date>;
+}
+
+export interface MigrationAttachmentsTable {
+  id: Generated<string>;
+  company_id: string;
+  migration_id: string;
+  document_id: string;
+  source_path: string;
+  status: string;
+  suggestions: ColumnType<unknown, string | undefined, string>;
+  matched_by: string | null;
+  created_at: Generated<Date>;
+  updated_at: Generated<Date>;
+}
+
+export interface MigrationAgentKeysTable {
+  id: Generated<string>;
+  company_id: string;
+  migration_id: string;
+  key_hash: string;
+  key_prefix: string;
+  expires_at: Timestamp;
+  last_used_at: Timestamp | null;
+  revoked_at: Timestamp | null;
+  created_by: string;
+  created_at: Generated<Date>;
+}
+
+export interface QboConnectionsTable extends Audited {
+  id: Generated<string>;
+  company_id: string;
+  environment: string;
+  realm_id: string;
+  company_name: string | null;
+  access_token_enc: string;
+  refresh_token_enc: string;
+  access_expires_at: Timestamp;
+  refresh_expires_at: Timestamp | null;
+  status: Generated<string>;
+  error_message: string | null;
+  synced_through: Timestamp | null;
+}
+
 export interface Database {
   users: UsersTable;
   mfa_recovery_codes: MfaRecoveryCodesTable;
@@ -618,6 +736,14 @@ export interface Database {
   document_links: DocumentLinksTable;
   document_extractions: DocumentExtractionsTable;
   vendor_aliases: VendorAliasesTable;
+  migrations: MigrationsTable;
+  migration_raw: MigrationRawTable;
+  migration_records: MigrationRecordsTable;
+  migration_map: MigrationMapTable;
+  migration_reports: MigrationReportsTable;
+  migration_attachments: MigrationAttachmentsTable;
+  migration_agent_keys: MigrationAgentKeysTable;
+  qbo_connections: QboConnectionsTable;
 }
 
 export type User = Selectable<UsersTable>;

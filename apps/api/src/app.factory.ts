@@ -10,13 +10,18 @@ import { csrfMiddleware, requestIdMiddleware } from './common/security.middlewar
 import type { AppConfig } from './config';
 
 const SMALL_BODY_BYTES = 256 * 1024;
-/** Statement imports (JSON) and file uploads (raw bytes) are the only large requests. */
+/**
+ * Statement imports and QuickBooks files (JSON), file uploads (raw bytes) and the Desktop agent's
+ * batches are the only large requests.
+ */
 const LARGE_BODY_ROUTE =
-  /^\/(companies\/[^/]+\/(banking\/accounts\/[^/]+\/import|documents|documents\/[^/]+\/versions)|inbound\/email)$/;
+  /^\/(companies\/[^/]+\/(banking\/accounts\/[^/]+\/import|documents|documents\/[^/]+\/versions|migrations\/[^/]+\/(iif|csv))|inbound\/email|agent\/v1\/(batches|reports|attachments))$/;
 
 function bodySizeLimit(req: Request, res: Response, next: NextFunction): void {
   const length = Number(req.get('content-length') ?? 0);
-  if (length > SMALL_BODY_BYTES && !LARGE_BODY_ROUTE.test(req.path)) {
+  // A body without a length (chunked) is only accepted where large bodies are.
+  const chunked = !req.get('content-length') && !!req.get('transfer-encoding');
+  if ((length > SMALL_BODY_BYTES || chunked) && !LARGE_BODY_ROUTE.test(req.path)) {
     res.status(413).json({ statusCode: 413, message: 'Request body too large' });
     return;
   }
@@ -37,8 +42,9 @@ export async function createApp(config: AppConfig): Promise<INestApplication> {
   app.disable('x-powered-by');
   app.use(helmet());
   app.use(bodySizeLimit);
-  // Bank statement files are sent as JSON text; bodySizeLimit keeps every other route small.
-  app.useBodyParser('json', { limit: '6mb' });
+  // Bank statements and QuickBooks CSV files are sent as JSON text; bodySizeLimit keeps every
+  // other route small.
+  app.useBodyParser('json', { limit: '25mb' });
   // Uploads are sent as the raw file; email-in as raw MIME.
   app.useBodyParser('raw', {
     type: ['application/octet-stream', 'message/rfc822'],

@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <!-- Builds (not runs) on Linux and macOS too, for CI. -->
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <!-- The QuickBooks SDK's request processor (QBXMLRP2) is a 32-bit COM server. -->
+    <PlatformTarget>x86</PlatformTarget>
+    <RuntimeIdentifier>win-x86</RuntimeIdentifier>
+    <SelfContained>true</SelfContained>
+    <AssemblyName>QbMigrationAgent</AssemblyName>
+    <RootNamespace>QbMigrationAgent.Windows</RootNamespace>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\QbMigrationAgent.Core\QbMigrationAgent.Core.csproj" />
+  </ItemGroup>
+</Project>

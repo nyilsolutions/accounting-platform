@@ -1,0 +1,3019 @@
+{
+  "batches": [
+    {
+      "entity": "CompanyRet",
+      "records": [
+        {
+          "CompanyName": "Riverside Garden Supply",
+          "LegalCompanyName": "Riverside Garden Supply LLC",
+          "FirstMonthFiscalYear": "January"
+        }
+      ]
+    },
+    {
+      "entity": "AccountRet",
+      "records": [
+        {
+          "ListID": "80000001-1600000000",
+          "Name": "Checking",
+          "FullName": "Checking",
+          "IsActive": "true",
+          "AccountType": "Bank",
+          "AccountNumber": "1000"
+        },
+        {
+          "ListID": "80000002-1600000000",
+          "Name": "Accounts Receivable",
+          "FullName": "Accounts Receivable",
+          "IsActive": "true",
+          "AccountType": "AccountsReceivable",
+          "SpecialAccountType": "AccountsReceivable"
+        },
+        {
+          "ListID": "80000003-1600000000",
+          "Name": "Undeposited Funds",
+          "FullName": "Undeposited Funds",
+          "IsActive": "true",
+          "AccountType": "OtherCurrentAsset",
+          "SpecialAccountType": "UndepositedFunds"
+        },
+        {
+          "ListID": "80000004-1600000000",
+          "Name": "Inventory Asset",
+          "FullName": "Inventory Asset",
+          "IsActive": "true",
+          "AccountType": "OtherCurrentAsset",
+          "SpecialAccountType": "InventoryAssets"
+        },
+        {
+          "ListID": "80000005-1600000000",
+          "Name": "Accounts Payable",
+          "FullName": "Accounts Payable",
+          "IsActive": "true",
+          "AccountType": "AccountsPayable",
+          "SpecialAccountType": "AccountsPayable"
+        },
+        {
+          "ListID": "80000006-1600000000",
+          "Name": "Sales Tax Payable",
+          "FullName": "Sales Tax Payable",
+          "IsActive": "true",
+          "AccountType": "OtherCurrentLiability",
+          "SpecialAccountType": "SalesTaxPayable"
+        },
+        {
+          "ListID": "80000007-1600000000",
+          "Name": "Payroll Liabilities",
+          "FullName": "Payroll Liabilities",
+          "IsActive": "true",
+          "AccountType": "OtherCurrentLiability",
+          "SpecialAccountType": "PayrollLiabilities"
+        },
+        {
+          "ListID": "80000008-1600000000",
+          "Name": "Opening Balance Equity",
+          "FullName": "Opening Balance Equity",
+          "IsActive": "true",
+          "AccountType": "Equity",
+          "SpecialAccountType": "OpeningBalanceEquity"
+        },
+        {
+          "ListID": "80000009-1600000000",
+          "Name": "Retained Earnings",
+          "FullName": "Retained Earnings",
+          "IsActive": "true",
+          "AccountType": "Equity",
+          "SpecialAccountType": "RetainedEarnings"
+        },
+        {
+          "ListID": "8000000A-1600000000",
+          "Name": "Sales Income",
+          "FullName": "Sales Income",
+          "IsActive": "true",
+          "AccountType": "Income"
+        },
+        {
+          "ListID": "8000000B-1600000000",
+          "Name": "Sales Discounts",
+          "FullName": "Sales Discounts",
+          "IsActive": "true",
+          "AccountType": "Income"
+        },
+        {
+          "ListID": "8000000C-1600000000",
+          "Name": "Cost of Goods Sold",
+          "FullName": "Cost of Goods Sold",
+          "IsActive": "true",
+          "AccountType": "CostOfGoodsSold",
+          "SpecialAccountType": "CostOfGoodsSold"
+        },
+        {
+          "ListID": "8000000D-1600000000",
+          "Name": "Payroll Expenses",
+          "FullName": "Payroll Expenses",
+          "IsActive": "true",
+          "AccountType": "Expense",
+          "SpecialAccountType": "PayrollExpenses"
+        },
+        {
+          "ListID": "8000000E-1600000000",
+          "Name": "Rent Expense",
+          "FullName": "Rent Expense",
+          "IsActive": "true",
+          "AccountType": "Expense"
+        },
+        {
+          "ListID": "8000000F-1600000000",
+          "Name": "Office Supplies",
+          "FullName": "Office Supplies",
+          "IsActive": "true",
+          "AccountType": "Expense"
+        },
+        {
+          "ListID": "80000010-1600000000",
+          "Name": "Estimates",
+          "FullName": "Estimates",
+          "IsActive": "true",
+          "AccountType": "NonPosting"
+        }
+      ]
+    },
+    {
+      "entity": "StandardTermsRet",
+      "records": [
+        {
+          "ListID": "8000012D-1600000000",
+          "Name": "Net 15",
+          "IsActive": "true",
+          "StdDueDays": "15"
+        }
+      ]
+    },
+    {
+      "entity": "PaymentMethodRet",
+      "records": [
+        {
+          "ListID": "800001F5-1600000000",
+          "Name": "Check",
+          "IsActive": "true"
+        }
+      ]
+    },
+    {
+      "entity": "CustomerRet",
+      "records": [
+        {
+          "ListID": "80000065-1600000000",
+          "Name": "Baker Farms",
+          "FullName": "Baker Farms",
+          "IsActive": "true",
+          "CompanyName": "Baker Farms Inc.",
+          "BillAddress": {
+            "Addr1": "Baker Farms Inc.",
+            "Addr2": "12 Orchard Rd",
+            "City": "Fresno",
+            "State": "CA",
+            "PostalCode": "93701"
+          },
+          "Phone": "559-555-0101",
+          "Email": "ap@bakerfarms.example",
+          "TermsRef": {
+            "ListID": "8000012D-1600000000",
+            "FullName": "Net 15"
+          },
+          "SalesTaxCodeRef": {
+            "FullName": "Tax"
+          }
+        },
+        {
+          "ListID": "80000066-1600000000",
+          "Name": "Greenhouse",
+          "FullName": "Baker Farms:Greenhouse",
+          "IsActive": "true",
+          "ParentRef": {
+            "ListID": "80000065-1600000000",
+            "FullName": "Baker Farms"
+          },
+          "Sublevel": "1"
+        },
+        {
+          "ListID": "80000067-1600000000",
+          "Name": "Cole Landscaping",
+          "FullName": "Cole Landscaping",
+          "IsActive": "true",
+          "SalesTaxCodeRef": {
+            "FullName": "Tax"
+          }
+        }
+      ]
+    },
+    {
+      "entity": "VendorRet",
+      "records": [
+        {
+          "ListID": "800000C9-1600000000",
+          "Name": "Valley Wholesale",
+          "IsActive": "true",
+          "CompanyName": "Valley Wholesale Nursery",
+          "IsVendorEligibleFor1099": "false",
+          "VendorAddress": {
+            "Addr1": "Valley Wholesale Nursery",
+            "Addr2": "900 Farm Rd",
+            "City": "Modesto",
+            "State": "CA",
+            "PostalCode": "95350"
+          },
+          "AccountNumber": "RGS-17"
+        },
+        {
+          "ListID": "800000CA-1600000000",
+          "Name": "Main St Properties",
+          "IsActive": "true",
+          "IsVendorEligibleFor1099": "true"
+        }
+      ]
+    },
+    {
+      "entity": "EmployeeRet",
+      "records": [
+        {
+          "ListID": "80000191-1600000000",
+          "Name": "Dana Ortiz",
+          "IsActive": "true"
+        }
+      ]
+    },
+    {
+      "entity": "ItemInventoryRet",
+      "records": [
+        {
+          "ListID": "80000259-1600000000",
+          "Name": "Rose Bush",
+          "FullName": "Rose Bush",
+          "IsActive": "true",
+          "SalesDesc": "Rose bush, 2 gal",
+          "SalesPrice": "30.00",
+          "IncomeAccountRef": {
+            "ListID": "8000000A-1600000000",
+            "FullName": "Sales Income"
+          },
+          "PurchaseDesc": "Rose bush",
+          "PurchaseCost": "12.00",
+          "COGSAccountRef": {
+            "ListID": "8000000C-1600000000",
+            "FullName": "Cost of Goods Sold"
+          },
+          "AssetAccountRef": {
+            "ListID": "80000004-1600000000",
+            "FullName": "Inventory Asset"
+          },
+          "QuantityOnHand": "138",
+          "SalesTaxCodeRef": {
+            "FullName": "Tax"
+          }
+        }
+      ]
+    },
+    {
+      "entity": "ItemServiceRet",
+      "records": [
+        {
+          "ListID": "8000025A-1600000000",
+          "Name": "Delivery",
+          "FullName": "Delivery",
+          "IsActive": "true",
+          "SalesOrPurchase": {
+            "Desc": "Local delivery",
+            "Price": "25.00",
+            "AccountRef": {
+              "ListID": "8000000A-1600000000",
+              "FullName": "Sales Income"
+            }
+          },
+          "SalesTaxCodeRef": {
+            "FullName": "Non"
+          }
+        }
+      ]
+    },
+    {
+      "entity": "ItemDiscountRet",
+      "records": [
+        {
+          "ListID": "8000025B-1600000000",
+          "Name": "10% Off",
+          "FullName": "10% Off",
+          "IsActive": "true",
+          "ItemDesc": "Discount",
+          "DiscountRate": "10.0",
+          "AccountRef": {
+            "ListID": "8000000B-1600000000",
+            "FullName": "Sales Discounts"
+          }
+        }
+      ]
+    },
+    {
+      "entity": "ItemSalesTaxRet",
+      "records": [
+        {
+          "ListID": "8000025C-1600000000",
+          "Name": "State Tax",
+          "FullName": "State Tax",
+          "IsActive": "true",
+          "TaxRate": "8.0"
+        }
+      ]
+    },
+    {
+      "entity": "ItemSubtotalRet",
+      "records": [
+        {
+          "ListID": "8000025D-1600000000",
+          "Name": "Subtotal",
+          "FullName": "Subtotal",
+          "IsActive": "true"
+        }
+      ]
+    },
+    {
+      "entity": "JournalEntryRet",
+      "records": [
+        {
+          "TxnID": "1-1700000000",
+          "TxnDate": "2024-01-01",
+          "RefNumber": "OB",
+          "IsAdjustment": "false",
+          "JournalDebitLine": [
+            {
+              "TxnLineID": "a",
+              "AccountRef": {
+                "ListID": "80000001-1600000000",
+                "FullName": "Checking"
+              },
+              "Amount": "8000.00"
+            },
+            {
+              "TxnLineID": "b",
+              "AccountRef": {
+                "ListID": "80000004-1600000000",
+                "FullName": "Inventory Asset"
+              },
+              "Amount": "1200.00",
+              "Memo": "100 rose bushes"
+            }
+          ],
+          "JournalCreditLine": {
+            "TxnLineID": "c",
+            "AccountRef": {
+              "ListID": "80000008-1600000000",
+              "FullName": "Opening Balance Equity"
+            },
+            "Amount": "9200.00"
+          }
+        }
+      ]
+    },
+    {
+      "entity": "BillRet",
+      "records": [
+        {
+          "TxnID": "2-1700000000",
+          "TxnDate": "2024-02-01",
+          "DueDate": "2024-03-02",
+          "RefNumber": "VW-501",
+          "VendorRef": {
+            "ListID": "800000C9-1600000000",
+            "FullName": "Valley Wholesale"
+          },
+          "APAccountRef": {
+            "ListID": "80000005-1600000000",
+            "FullName": "Accounts Payable"
+          },
+          "AmountDue": "600.00",
+          "IsPaid": "true",
+          "ItemLineRet": {
+            "TxnLineID": "a",
+            "ItemRef": {
+              "ListID": "80000259-1600000000",
+              "FullName": "Rose Bush"
+            },
+            "Desc": "Rose bush",
+            "Quantity": "50",
+            "Cost": "12.00",
+            "Amount": "600.00"
+          }
+        },
+        {
+          "TxnID": "C-1700000000",
+          "TxnDate": "2025-01-20",
+          "DueDate": "2025-02-19",
+          "RefNumber": "VW-560",
+          "VendorRef": {
+            "ListID": "800000C9-1600000000",
+            "FullName": "Valley Wholesale"
+          },
+          "APAccountRef": {
+            "ListID": "80000005-1600000000",
+            "FullName": "Accounts Payable"
+          },
+          "AmountDue": "80.00",
+          "IsPaid": "false",
+          "ExpenseLineRet": {
+            "TxnLineID": "1",
+            "AccountRef": {
+              "ListID": "8000000F-1600000000",
+              "FullName": "Office Supplies"
+            },
+            "Amount": "80.00",
+            "Memo": "Pots and labels"
+          }
+        }
+      ]
+    },
+    {
+      "entity": "BillPaymentCheckRet",
+      "records": [
+        {
+          "TxnID": "3-1700000000",
+          "TxnDate": "2024-02-20",
+          "RefNumber": "1001",
+          "PayeeEntityRef": {
+            "ListID": "800000C9-1600000000",
+            "FullName": "Valley Wholesale"
+          },
+          "APAccountRef": {
+            "ListID": "80000005-1600000000",
+            "FullName": "Accounts Payable"
+          },
+          "BankAccountRef": {
+            "ListID": "80000001-1600000000",
+            "FullName": "Checking"
+          },
+          "Amount": "600.00",
+          "IsToBePrinted": "false",
+          "AppliedToTxnRet": {
+            "TxnID": "2-1700000000",
+            "TxnType": "Bill",
+            "RefNumber": "VW-501",
+            "Amount": "600.00"
+          }
+        }
+      ]
+    },
+    {
+      "entity": "InvoiceRet",
+      "records": [
+        {
+          "TxnID": "4-1700000000",
+          "TxnDate": "2024-03-10",
+          "DueDate": "2024-03-25",
+          "RefNumber": "5001",
+          "CustomerRef": {
+            "ListID": "80000066-1600000000",
+            "FullName": "Baker Farms:Greenhouse"
+          },
+          "ARAccountRef": {
+            "ListID": "80000002-1600000000",
+            "FullName": "Accounts Receivable"
+          },
+          "TermsRef": {
+            "ListID": "8000012D-1600000000",
+            "FullName": "Net 15"
+          },
+          "BillAddress": {
+            "Addr1": "Baker Farms Inc.",
+            "Addr2": "12 Orchard Rd",
+            "City": "Fresno"
+          },
+          "Subtotal": "295.00",
+          "ItemSalesTaxRef": {
+            "ListID": "8000025C-1600000000",
+            "FullName": "State Tax"
+          },
+          "SalesTaxPercentage": "8.0",
+          "SalesTaxTotal": "21.60",
+          "AppliedAmount": "-291.60",
+          "BalanceRemaining": "25.00",
+          "InvoiceLineRet": [
+            {
+              "TxnLineID": "1",
+              "ItemRef": {
+                "ListID": "80000259-1600000000",
+                "FullName": "Rose Bush"
+              },
+              "Desc": "Rose bush, 2 gal",
+              "Quantity": "10",
+              "Rate": "30.00",
+              "Amount": "300.00",
+              "SalesTaxCodeRef": {
+                "FullName": "Tax"
+              }
+            },
+            {
+              "TxnLineID": "2",
+              "ItemRef": {
+                "ListID": "8000025A-1600000000",
+                "FullName": "Delivery"
+              },
+              "Desc": "Local delivery",
+              "Amount": "25.00",
+              "SalesTaxCodeRef": {
+                "FullName": "Non"
+              }
+            },
+            {
+              "TxnLineID": "3",
+              "ItemRef": {
+                "ListID": "8000025D-1600000000",
+                "FullName": "Subtotal"
+              },
+              "Amount": "325.00"
+            },
+            {
+              "TxnLineID": "4",
+              "ItemRef": {
+                "ListID": "8000025B-1600000000",
+                "FullName": "10% Off"
+              },
+              "Desc": "Discount",
+              "RatePercent": "10.0",
+              "Amount": "-30.00"
+            }
+          ]
+        },
+        {
+          "TxnID": "B-1700000000",
+          "TxnDate": "2025-01-10",
+          "DueDate": "2025-01-25",
+          "RefNumber": "5003",
+          "CustomerRef": {
+            "ListID": "80000067-1600000000",
+            "FullName": "Cole Landscaping"
+          },
+          "ARAccountRef": {
+            "ListID": "80000002-1600000000",
+            "FullName": "Accounts Receivable"
+          },
+          "Subtotal": "85.00",
+          "SalesTaxTotal": "4.80",
+          "BalanceRemaining": "89.80",
+          "InvoiceLineRet": [
+            {
+              "TxnLineID": "1",
+              "ItemRef": {
+                "ListID": "8000025A-1600000000",
+                "FullName": "Delivery"
+              },
+              "Amount": "25.00"
+            },
+            {
+              "TxnLineID": "2",
+              "ItemRef": {
+                "ListID": "80000259-1600000000",
+                "FullName": "Rose Bush"
+              },
+              "Quantity": "2",
+              "Rate": "30.00",
+              "Amount": "60.00",
+              "SalesTaxCodeRef": {
+                "FullName": "Tax"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "entity": "CreditMemoRet",
+      "records": [
+        {
+          "TxnID": "5-1700000000",
+          "TxnDate": "2024-03-15",
+          "RefNumber": "5002",
+          "CustomerRef": {
+            "ListID": "80000066-1600000000",
+            "FullName": "Baker Farms:Greenhouse"
+          },
+          "ARAccountRef": {
+            "ListID": "80000002-1600000000",
+            "FullName": "Accounts Receivable"
+          },
+          "Subtotal": "25.00",
+          "SalesTaxTotal": "0.00",
+          "TotalAmount": "25.00",
+          "CreditRemaining": "0.00",
+          "CreditMemoLineRet": {
+            "TxnLineID": "1",
+            "ItemRef": {
+              "ListID": "8000025A-1600000000",
+              "FullName": "Delivery"
+            },
+            "Desc": "Delivery refunded",
+            "Amount": "25.00"
+          }
+        }
+      ]
+    },
+    {
+      "entity": "ReceivePaymentRet",
+      "records": [
+        {
+          "TxnID": "6-1700000000",
+          "TxnDate": "2024-03-30",
+          "RefNumber": "882",
+          "CustomerRef": {
+            "ListID": "80000066-1600000000",
+            "FullName": "Baker Farms:Greenhouse"
+          },
+          "ARAccountRef": {
+            "ListID": "80000002-1600000000",
+            "FullName": "Accounts Receivable"
+          },
+          "TotalAmount": "257.60",
+          "PaymentMethodRef": {
+            "ListID": "800001F5-1600000000",
+            "FullName": "Check"
+          },
+          "DepositToAccountRef": {
+            "ListID": "80000003-1600000000",
+            "FullName": "Undeposited Funds"
+          },
+          "UnusedPayment": "0.00",
+          "UnusedCredits": "0.00",
+          "AppliedToTxnRet": {
+            "TxnID": "4-1700000000",
+            "TxnType": "Invoice",
+            "RefNumber": "5001",
+            "BalanceRemaining": "25.00",
+            "Amount": "257.60",
+            "DiscountAmount": "9.00",
+            "DiscountAccountRef": {
+              "ListID": "8000000B-1600000000",
+              "FullName": "Sales Discounts"
+            },
+            "LinkedTxn": {
+              "TxnID": "5-1700000000",
+              "TxnType": "CreditMemo",
+              "RefNumber": "5002",
+              "LinkType": "AMTTYPE",
+              "Amount": "-25.00"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "entity": "DepositRet",
+      "records": [
+        {
+          "TxnID": "7-1700000000",
+          "TxnDate": "2024-03-31",
+          "DepositToAccountRef": {
+            "ListID": "80000001-1600000000",
+            "FullName": "Checking"
+          },
+          "DepositTotal": "257.60",
+          "DepositLineRet": {
+            "TxnType": "ReceivePayment",
+            "TxnID": "6-1700000000",
+            "TxnLineID": "6-1700000000",
+            "EntityRef": {
+              "ListID": "80000066-1600000000",
+              "FullName": "Baker Farms:Greenhouse"
+            },
+            "AccountRef": {
+              "ListID": "80000003-1600000000",
+              "FullName": "Undeposited Funds"
+            },
+            "Amount": "257.60"
+          }
+        }
+      ]
+    },
+    {
+      "entity": "CheckRet",
+      "records": [
+        {
+          "TxnID": "8-1700000000",
+          "TxnDate": "2024-04-01",
+          "RefNumber": "1002",
+          "AccountRef": {
+            "ListID": "80000001-1600000000",
+            "FullName": "Checking"
+          },
+          "PayeeEntityRef": {
+            "ListID": "800000CA-1600000000",
+            "FullName": "Main St Properties"
+          },
+          "Amount": "1500.00",
+          "IsToBePrinted": "false",
+          "ExpenseLineRet": {
+            "TxnLineID": "1",
+            "AccountRef": {
+              "ListID": "8000000E-1600000000",
+              "FullName": "Rent Expense"
+            },
+            "Amount": "1500.00",
+            "Memo": "April rent"
+          }
+        },
+        {
+          "TxnID": "9-1700000000",
+          "TxnDate": "2024-04-05",
+          "RefNumber": "1003",
+          "AccountRef": {
+            "ListID": "80000001-1600000000",
+            "FullName": "Checking"
+          },
+          "PayeeEntityRef": {
+            "ListID": "80000191-1600000000",
+            "FullName": "Dana Ortiz"
+          },
+          "Amount": "45.20",
+          "ExpenseLineRet": {
+            "TxnLineID": "1",
+            "AccountRef": {
+              "ListID": "8000000F-1600000000",
+              "FullName": "Office Supplies"
+            },
+            "Amount": "45.20",
+            "Memo": "Printer paper"
+          }
+        }
+      ]
+    },
+    {
+      "entity": "EstimateRet",
+      "records": [
+        {
+          "TxnID": "D-1700000000",
+          "TxnDate": "2025-01-22",
+          "RefNumber": "E-9",
+          "CustomerRef": {
+            "ListID": "80000067-1600000000",
+            "FullName": "Cole Landscaping"
+          },
+          "IsActive": "true",
+          "DueDate": "2025-02-22",
+          "EstimateLineRet": {
+            "TxnLineID": "1",
+            "ItemRef": {
+              "ListID": "80000259-1600000000",
+              "FullName": "Rose Bush"
+            },
+            "Quantity": "20",
+            "Rate": "30.00",
+            "Amount": "600.00"
+          }
+        }
+      ]
+    }
+  ],
+  "reports": [
+    {
+      "kind": "trial_balance",
+      "asOf": "2024-12-31",
+      "report": {
+        "ReportTitle": "Trial Balance",
+        "ReportBasis": "Accrual",
+        "NumRows": "12",
+        "NumColumns": "3",
+        "ColDesc": [
+          {
+            "colID": "1",
+            "ColTitle": {
+              "titleRow": "1",
+              "value": ""
+            },
+            "ColType": "Label"
+          },
+          {
+            "colID": "2",
+            "ColTitle": {
+              "titleRow": "1",
+              "value": "Debit"
+            },
+            "ColType": "Amount"
+          },
+          {
+            "colID": "3",
+            "ColTitle": {
+              "titleRow": "1",
+              "value": "Credit"
+            },
+            "ColType": "Amount"
+          }
+        ],
+        "ReportData": {
+          "DataRow": [
+            {
+              "rowNumber": "1",
+              "RowData": {
+                "rowType": "account",
+                "value": "Checking"
+              },
+              "ColData": [
+                {
+                  "colID": "1",
+                  "value": "Checking"
+                },
+                {
+                  "colID": "2",
+                  "value": "4512.40"
+                },
+                {
+                  "colID": "3",
+                  "value": ""
+                }
+              ]
+            },
+            {
+              "rowNumber": "2",
+              "RowData": {
+                "rowType": "account",
+                "value": "Accounts Receivable"
+              },
+              "ColData": [
+                {
+                  "colID": "1",
+                  "value": "Accounts Receivable"
+                },
+                {
+                  "colID": "2",
+                  "value": "25.00"
+                },
+                {
+                  "colID": "3",
+                  "value": ""
+                }
+              ]
+            },
+            {
+              "rowNumber": "4",
+              "RowData": {
+                "rowType": "account",
+                "value": "Inventory Asset"
+              },
+              "ColData": [
+                {
+                  "colID": "1",
+                  "value": "Inventory Asset"
+                },
+                {
+                  "colID": "2",
+                  "value": "1680.00"
+                },
+                {
+                  "colID": "3",
+                  "value": ""
+                }
+              ]
+            },
+            {
+              "rowNumber": "6",
+              "RowData": {
+                "rowType": "account",
+                "value": "Sales Tax Payable"
+              },
+              "ColData": [
+                {
+                  "colID": "1",
+                  "value": "Sales Tax Payable"
+                },
+                {
+                  "colID": "2",
+                  "value": ""
+                },
+                {
+                  "colID": "3",
+                  "value": "21.60"
+                }
+              ]
+            },
+            {
+              "rowNumber": "7",
+              "RowData": {
+                "rowType": "account",
+                "value": "Payroll Liabilities"
+              },
+              "ColData": [
+                {
+                  "colID": "1",
+                  "value": "Payroll Liabilities"
+                },
+                {
+                  "colID": "2",
+                  "value": ""
+                },
+                {
+                  "colID": "3",
+                  "value": "400.00"
+                }
+              ]
+            },
+            {
+              "rowNumber": "8",
+              "RowData": {
+                "rowType": "account",
+                "value": "Opening Balance Equity"
+              },
+              "ColData": [
+                {
+                  "colID": "1",
+                  "value": "Opening Balance Equity"
+                },
+                {
+                  "colID": "2",
+                  "value": ""
+                },
+                {
+                  "colID": "3",
+                  "value": "9200.00"
+                }
+              ]
+            },
+            {
+              "rowNumber": "9",
+              "RowData": {
+                "rowType": "account",
+                "value": "Sales Income"
+              },
+              "ColData": [
+                {
+                  "colID": "1",
+                  "value": "Sales Income"
+                },
+                {
+                  "colID": "2",
+                  "value": ""
+                },
+                {
+                  "colID": "3",
+                  "value": "300.00"
+                }
+              ]
+            },
+            {
+              "rowNumber": "10",
+              "RowData": {
+                "rowType": "account",
+                "value": "Sales Discounts"
+              },
+              "ColData": [
+                {
+                  "colID": "1",
+                  "value": "Sales Discounts"
+                },
+                {
+                  "colID": "2",
+                  "value": "39.00"
+                },
+                {
+                  "colID": "3",
+                  "value": ""
+                }
+              ]
+            },
+            {
+              "rowNumber": "11",
+              "RowData": {
+                "rowType": "account",
+                "value": "Cost of Goods Sold"
+              },
+              "ColData": [
+                {
+                  "colID": "1",
+                  "value": "Cost of Goods Sold"
+                },
+                {
+                  "colID": "2",
+                  "value": "120.00"
+                },
+                {
+                  "colID": "3",
+                  "value": ""
+                }
+              ]
+            },
+            {
+              "rowNumber": "12",
+              "RowData": {
+                "rowType": "account",
+                "value": "Payroll Expenses"
+              },
+              "ColData": [
+                {
+                  "colID": "1",
+                  "value": "Payroll Expenses"
+                },
+                {
+                  "colID": "2",
+                  "value": "2000.00"
+                },
+                {
+                  "colID": "3",
+                  "value": ""
+                }
+              ]
+            },
+            {
+              "rowNumber": "13",
+              "RowData": {
+                "rowType": "account",
+                "value": "Rent Expense"
+              },
+              "ColData": [
+                {
+                  "colID": "1",
+                  "value": "Rent Expense"
+                },
+                {
+                  "colID": "2",
+                  "value": "1500.00"
+                },
+                {
+                  "colID": "3",
+                  "value": ""
+                }
+              ]
+            },
+            {
+              "rowNumber": "14",
+              "RowData": {
+                "rowType": "account",
+                "value": "Office Supplies"
+              },
+              "ColData": [
+                {
+                  "colID": "1",
+                  "value": "Office Supplies"
+                },
+                {
+                  "colID": "2",
+                  "value": "45.20"
+                },
+                {
+                  "colID": "3",
+                  "value": ""
+                }
+              ]
+            }
+          ],
+          "TotalRow": {
+            "RowData": {
+              "rowType": "total",
+              "value": "TOTAL"
+            },
+            "ColData": [
+              {
+                "colID": "1",
+                "value": "TOTAL"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "kind": "trial_balance",
+      "asOf": "2025-01-20",
+      "report": {
+        "ReportTitle": "Trial Balance",
+        "ReportBasis": "Accrual",
+        "NumRows": "11",
+        "NumColumns": "3",
+        "ColDesc": [
+          {
+            "colID": "1",
+            "ColTitle": {
+              "titleRow": "1",
+              "value": ""
+            },
+            "ColType": "Label"
+          },
+          {
+            "colID": "2",
+            "ColTitle": {
+              "titleRow": "1",
+              "value": "Debit"
+            },
+            "ColType": "Amount"
+          },
+          {
+            "colID": "3",
+            "ColTitle": {
+              "titleRow": "1",
+              "value": "Credit"
+            },
+            "ColType": "Amount"
+          }
+        ],
+        "ReportData": {
+          "DataRow": [
+            {
+              "rowNumber": "1",
+              "RowData": {
+                "rowType": "account",
+                "value": "Checking"
+              },
+              "ColData": [
+                {
+                  "colID": "1",
+                  "value": "Checking"
+                },
+                {
+                  "colID": "2",
+                  "value": "4512.40"
+                },
+                {
+                  "colID": "3",
+                  "value": ""
+                }
+              ]
+            },
+            {
+              "rowNumber": "2",
+              "RowData": {
+                "rowType": "account",
+                "value": "Accounts Receivable"
+              },
+              "ColData": [
+                {
+                  "colID": "1",
+                  "value": "Accounts Receivable"
+                },
+                {
+                  "colID": "2",
+                  "value": "114.80"
+                },
+                {
+                  "colID": "3",
+                  "value": ""
+                }
+              ]
+            },
+            {
+              "rowNumber": "4",
+              "RowData": {
+                "rowType": "account",
+                "value": "Inventory Asset"
+              },
+              "ColData": [
+                {
+                  "colID": "1",
+                  "value": "Inventory Asset"
+                },
+                {
+                  "colID": "2",
+                  "value": "1656.00"
+                },
+                {
+                  "colID": "3",
+                  "value": ""
+                }
+              ]
+            },
+            {
+              "rowNumber": "5",
+              "RowData": {
+                "rowType": "account",
+                "value": "Accounts Payable"
+              },
+              "ColData": [
+                {
+                  "colID": "1",
+                  "value": "Accounts Payable"
+                },
+                {
+                  "colID": "2",
+                  "value": ""
+                },
+                {
+                  "colID": "3",
+                  "value": "80.00"
+                }
+              ]
+            },
+            {
+              "rowNumber": "6",
+              "RowData": {
+                "rowType": "account",
+                "value": "Sales Tax Payable"
+              },
+              "ColData": [
+                {
+                  "colID": "1",
+                  "value": "Sales Tax Payable"
+                },
+                {
+                  "colID": "2",
+                  "value": ""
+                },
+                {
+                  "colID": "3",
+                  "value": "26.40"
+                }
+              ]
+            },
+            {
+              "rowNumber": "7",
+              "RowData": {
+                "rowType": "account",
+                "value": "Payroll Liabilities"
+              },
+              "ColData": [
+                {
+                  "colID": "1",
+                  "value": "Payroll Liabilities"
+                },
+                {
+                  "colID": "2",
+                  "value": ""
+                },
+                {
+                  "colID": "3",
+                  "value": "400.00"
+                }
+              ]
+            },
+            {
+              "rowNumber": "8",
+              "RowData": {
+                "rowType": "account",
+                "value": "Opening Balance Equity"
+              },
+              "ColData": [
+                {
+                  "colID": "1",
+                  "value": "Opening Balance Equity"
+                },
+                {
+                  "colID": "2",
+                  "value": ""
+                },
+                {
+                  "colID": "3",
+                  "value": "9200.00"
+                }
+              ]
+            },
+            {
+              "rowNumber": "9",
+              "RowData": {
+                "rowType": "account",
+                "value": "Retained Earnings"
+              },
+              "ColData": [
+                {
+                  "colID": "1",
+                  "value": "Retained Earnings"
+                },
+                {
+                  "colID": "2",
+                  "value": "3404.20"
+                },
+                {
+                  "colID": "3",
+                  "value": ""
+                }
+              ]
+            },
+            {
+              "rowNumber": "10",
+              "RowData": {
+                "rowType": "account",
+                "value": "Sales Income"
+              },
+              "ColData": [
+                {
+                  "colID": "1",
+                  "value": "Sales Income"
+                },
+                {
+                  "colID": "2",
+                  "value": ""
+                },
+                {
+                  "colID": "3",
+                  "value": "85.00"
+                }
+              ]
+            },
+            {
+              "rowNumber": "11",
+              "RowData": {
+                "rowType": "account",
+                "value": "Cost of Goods Sold"
+              },
+              "ColData": [
+                {
+                  "colID": "1",
+                  "value": "Cost of Goods Sold"
+                },
+                {
+                  "colID": "2",
+                  "value": "24.00"
+                },
+                {
+                  "colID": "3",
+                  "value": ""
+                }
+              ]
+            },
+            {
+              "rowNumber": "12",
+              "RowData": {
+                "rowType": "account",
+                "value": "Office Supplies"
+              },
+              "ColData": [
+                {
+                  "colID": "1",
+                  "value": "Office Supplies"
+                },
+                {
+                  "colID": "2",
+                  "value": "80.00"
+                },
+                {
+                  "colID": "3",
+                  "value": ""
+                }
+              ]
+            }
+          ],
+          "TotalRow": {
+            "RowData": {
+              "rowType": "total",
+              "value": "TOTAL"
+            },
+            "ColData": [
+              {
+                "colID": "1",
+                "value": "TOTAL"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "kind": "ar_aging",
+      "asOf": "2025-01-20",
+      "report": {
+        "ReportTitle": "A/R Aging Summary",
+        "ColDesc": [
+          {
+            "colID": "1",
+            "ColTitle": {
+              "value": ""
+            },
+            "ColType": "Label"
+          },
+          {
+            "colID": "2",
+            "ColTitle": {
+              "value": "Current"
+            },
+            "ColType": "Amount"
+          },
+          {
+            "colID": "7",
+            "ColTitle": {
+              "value": "TOTAL"
+            },
+            "ColType": "Amount"
+          }
+        ],
+        "ReportData": {
+          "DataRow": [
+            {
+              "rowNumber": "1",
+              "RowData": {
+                "rowType": "name",
+                "value": "Baker Farms:Greenhouse"
+              },
+              "ColData": [
+                {
+                  "colID": "1",
+                  "value": "Greenhouse"
+                },
+                {
+                  "colID": "2",
+                  "value": "25.00"
+                },
+                {
+                  "colID": "7",
+                  "value": "25.00"
+                }
+              ]
+            },
+            {
+              "rowNumber": "2",
+              "RowData": {
+                "rowType": "name",
+                "value": "Cole Landscaping"
+              },
+              "ColData": [
+                {
+                  "colID": "1",
+                  "value": "Cole Landscaping"
+                },
+                {
+                  "colID": "2",
+                  "value": "89.80"
+                },
+                {
+                  "colID": "7",
+                  "value": "89.80"
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "kind": "ap_aging",
+      "asOf": "2025-01-20",
+      "report": {
+        "ReportTitle": "A/P Aging Summary",
+        "ColDesc": [
+          {
+            "colID": "1",
+            "ColTitle": {
+              "value": ""
+            },
+            "ColType": "Label"
+          },
+          {
+            "colID": "2",
+            "ColTitle": {
+              "value": "Current"
+            },
+            "ColType": "Amount"
+          },
+          {
+            "colID": "7",
+            "ColTitle": {
+              "value": "TOTAL"
+            },
+            "ColType": "Amount"
+          }
+        ],
+        "ReportData": {
+          "DataRow": [
+            {
+              "rowNumber": "1",
+              "RowData": {
+                "rowType": "name",
+                "value": "Valley Wholesale"
+              },
+              "ColData": [
+                {
+                  "colID": "1",
+                  "value": "Valley Wholesale"
+                },
+                {
+                  "colID": "2",
+                  "value": "80.00"
+                },
+                {
+                  "colID": "7",
+                  "value": "80.00"
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "kind": "journal",
+      "asOf": "2025-01-20",
+      "from": "2024-01-01",
+      "report": {
+        "ReportTitle": "Journal",
+        "ColDesc": [
+          {
+            "colID": "1",
+            "ColTitle": {
+              "value": "Trans #"
+            },
+            "ColType": "TxnID"
+          },
+          {
+            "colID": "2",
+            "ColTitle": {
+              "value": "Type"
+            },
+            "ColType": "TxnType"
+          },
+          {
+            "colID": "3",
+            "ColTitle": {
+              "value": "Date"
+            },
+            "ColType": "Date"
+          },
+          {
+            "colID": "4",
+            "ColTitle": {
+              "value": "Num"
+            },
+            "ColType": "RefNumber"
+          },
+          {
+            "colID": "5",
+            "ColTitle": {
+              "value": "Name"
+            },
+            "ColType": "Name"
+          },
+          {
+            "colID": "6",
+            "ColTitle": {
+              "value": "Memo"
+            },
+            "ColType": "Memo"
+          },
+          {
+            "colID": "7",
+            "ColTitle": {
+              "value": "Account"
+            },
+            "ColType": "Account"
+          },
+          {
+            "colID": "8",
+            "ColTitle": {
+              "value": "Debit"
+            },
+            "ColType": "Debit"
+          },
+          {
+            "colID": "9",
+            "ColTitle": {
+              "value": "Credit"
+            },
+            "ColType": "Credit"
+          }
+        ],
+        "ReportData": {
+          "DataRow": [
+            {
+              "rowNumber": "1",
+              "ColData": [
+                {
+                  "colID": "1",
+                  "value": "1-1700000000"
+                },
+                {
+                  "colID": "2",
+                  "value": "General Journal"
+                },
+                {
+                  "colID": "3",
+                  "value": "1/1/2024"
+                },
+                {
+                  "colID": "4",
+                  "value": "OB"
+                },
+                {
+                  "colID": "5",
+                  "value": ""
+                },
+                {
+                  "colID": "6",
+                  "value": ""
+                },
+                {
+                  "colID": "7",
+                  "value": "Checking"
+                },
+                {
+                  "colID": "8",
+                  "value": "8000.00"
+                },
+                {
+                  "colID": "9",
+                  "value": ""
+                }
+              ]
+            },
+            {
+              "rowNumber": "2",
+              "ColData": [
+                {
+                  "colID": "1",
+                  "value": ""
+                },
+                {
+                  "colID": "2",
+                  "value": ""
+                },
+                {
+                  "colID": "3",
+                  "value": ""
+                },
+                {
+                  "colID": "4",
+                  "value": ""
+                },
+                {
+                  "colID": "5",
+                  "value": ""
+                },
+                {
+                  "colID": "6",
+                  "value": ""
+                },
+                {
+                  "colID": "7",
+                  "value": "Inventory Asset"
+                },
+                {
+                  "colID": "8",
+                  "value": "1200.00"
+                },
+                {
+                  "colID": "9",
+                  "value": ""
+                }
+              ]
+            },
+            {
+              "rowNumber": "3",
+              "ColData": [
+                {
+                  "colID": "1",
+                  "value": ""
+                },
+                {
+                  "colID": "2",
+                  "value": ""
+                },
+                {
+                  "colID": "3",
+                  "value": ""
+                },
+                {
+                  "colID": "4",
+                  "value": ""
+                },
+                {
+                  "colID": "5",
+                  "value": ""
+                },
+                {
+                  "colID": "6",
+                  "value": ""
+                },
+                {
+                  "colID": "7",
+                  "value": "Opening Balance Equity"
+                },
+                {
+                  "colID": "8",
+                  "value": ""
+                },
+                {
+                  "colID": "9",
+                  "value": "9200.00"
+                }
+              ]
+            },
+            {
+              "rowNumber": "4",
+              "ColData": [
+                {
+                  "colID": "1",
+                  "value": "2-1700000000"
+                },
+                {
+                  "colID": "2",
+                  "value": "Bill"
+                },
+                {
+                  "colID": "3",
+                  "value": "2/1/2024"
+                },
+                {
+                  "colID": "4",
+                  "value": "VW-501"
+                },
+                {
+                  "colID": "5",
+                  "value": "Valley Wholesale"
+                },
+                {
+                  "colID": "6",
+                  "value": ""
+                },
+                {
+                  "colID": "7",
+                  "value": "Inventory Asset"
+                },
+                {
+                  "colID": "8",
+                  "value": "600.00"
+                },
+                {
+                  "colID": "9",
+                  "value": ""
+                }
+              ]
+            },
+            {
+              "rowNumber": "5",
+              "ColData": [
+                {
+                  "colID": "1",
+                  "value": ""
+                },
+                {
+                  "colID": "2",
+                  "value": ""
+                },
+                {
+                  "colID": "3",
+                  "value": ""
+                },
+                {
+                  "colID": "4",
+                  "value": ""
+                },
+                {
+                  "colID": "5",
+                  "value": "Valley Wholesale"
+                },
+                {
+                  "colID": "6",
+                  "value": ""
+                },
+                {
+                  "colID": "7",
+                  "value": "Accounts Payable"
+                },
+                {
+                  "colID": "8",
+                  "value": ""
+                },
+                {
+                  "colID": "9",
+                  "value": "600.00"
+                }
+              ]
+            },
+            {
+              "rowNumber": "6",
+              "ColData": [
+                {
+                  "colID": "1",
+                  "value": "3-1700000000"
+                },
+                {
+                  "colID": "2",
+                  "value": "Bill Pmt -Check"
+                },
+                {
+                  "colID": "3",
+                  "value": "2/20/2024"
+                },
+                {
+                  "colID": "4",
+                  "value": "1001"
+                },
+                {
+                  "colID": "5",
+                  "value": "Valley Wholesale"
+                },
+                {
+                  "colID": "6",
+                  "value": ""
+                },
+                {
+                  "colID": "7",
+                  "value": "Accounts Payable"
+                },
+                {
+                  "colID": "8",
+                  "value": "600.00"
+                },
+                {
+                  "colID": "9",
+                  "value": ""
+                }
+              ]
+            },
+            {
+              "rowNumber": "7",
+              "ColData": [
+                {
+                  "colID": "1",
+                  "value": ""
+                },
+                {
+                  "colID": "2",
+                  "value": ""
+                },
+                {
+                  "colID": "3",
+                  "value": ""
+                },
+                {
+                  "colID": "4",
+                  "value": ""
+                },
+                {
+                  "colID": "5",
+                  "value": "Valley Wholesale"
+                },
+                {
+                  "colID": "6",
+                  "value": ""
+                },
+                {
+                  "colID": "7",
+                  "value": "Checking"
+                },
+                {
+                  "colID": "8",
+                  "value": ""
+                },
+                {
+                  "colID": "9",
+                  "value": "600.00"
+                }
+              ]
+            },
+            {
+              "rowNumber": "8",
+              "ColData": [
+                {
+                  "colID": "1",
+                  "value": "4-1700000000"
+                },
+                {
+                  "colID": "2",
+                  "value": "Invoice"
+                },
+                {
+                  "colID": "3",
+                  "value": "3/10/2024"
+                },
+                {
+                  "colID": "4",
+                  "value": "5001"
+                },
+                {
+                  "colID": "5",
+                  "value": "Baker Farms:Greenhouse"
+                },
+                {
+                  "colID": "6",
+                  "value": ""
+                },
+                {
+                  "colID": "7",
+                  "value": "Accounts Receivable"
+                },
+                {
+                  "colID": "8",
+                  "value": "316.60"
+                },
+                {
+                  "colID": "9",
+                  "value": ""
+                }
+              ]
+            },
+            {
+              "rowNumber": "9",
+              "ColData": [
+                {
+                  "colID": "1",
+                  "value": ""
+                },
+                {
+                  "colID": "2",
+                  "value": ""
+                },
+                {
+                  "colID": "3",
+                  "value": ""
+                },
+                {
+                  "colID": "4",
+                  "value": ""
+                },
+                {
+                  "colID": "5",
+                  "value": "Baker Farms:Greenhouse"
+                },
+                {
+                  "colID": "6",
+                  "value": ""
+                },
+                {
+                  "colID": "7",
+                  "value": "Sales Income"
+                },
+                {
+                  "colID": "8",
+                  "value": ""
+                },
+                {
+                  "colID": "9",
+                  "value": "300.00"
+                }
+              ]
+            },
+            {
+              "rowNumber": "10",
+              "ColData": [
+                {
+                  "colID": "1",
+                  "value": ""
+                },
+                {
+                  "colID": "2",
+                  "value": ""
+                },
+                {
+                  "colID": "3",
+                  "value": ""
+                },
+                {
+                  "colID": "4",
+                  "value": ""
+                },
+                {
+                  "colID": "5",
+                  "value": "Baker Farms:Greenhouse"
+                },
+                {
+                  "colID": "6",
+                  "value": ""
+                },
+                {
+                  "colID": "7",
+                  "value": "Sales Income"
+                },
+                {
+                  "colID": "8",
+                  "value": ""
+                },
+                {
+                  "colID": "9",
+                  "value": "25.00"
+                }
+              ]
+            },
+            {
+              "rowNumber": "11",
+              "ColData": [
+                {
+                  "colID": "1",
+                  "value": ""
+                },
+                {
+                  "colID": "2",
+                  "value": ""
+                },
+                {
+                  "colID": "3",
+                  "value": ""
+                },
+                {
+                  "colID": "4",
+                  "value": ""
+                },
+                {
+                  "colID": "5",
+                  "value": "Baker Farms:Greenhouse"
+                },
+                {
+                  "colID": "6",
+                  "value": ""
+                },
+                {
+                  "colID": "7",
+                  "value": "Sales Discounts"
+                },
+                {
+                  "colID": "8",
+                  "value": "30.00"
+                },
+                {
+                  "colID": "9",
+                  "value": ""
+                }
+              ]
+            },
+            {
+              "rowNumber": "12",
+              "ColData": [
+                {
+                  "colID": "1",
+                  "value": ""
+                },
+                {
+                  "colID": "2",
+                  "value": ""
+                },
+                {
+                  "colID": "3",
+                  "value": ""
+                },
+                {
+                  "colID": "4",
+                  "value": ""
+                },
+                {
+                  "colID": "5",
+                  "value": "Baker Farms:Greenhouse"
+                },
+                {
+                  "colID": "6",
+                  "value": ""
+                },
+                {
+                  "colID": "7",
+                  "value": "Sales Tax Payable"
+                },
+                {
+                  "colID": "8",
+                  "value": ""
+                },
+                {
+                  "colID": "9",
+                  "value": "21.60"
+                }
+              ]
+            },
+            {
+              "rowNumber": "13",
+              "ColData": [
+                {
+                  "colID": "1",
+                  "value": ""
+                },
+                {
+                  "colID": "2",
+                  "value": ""
+                },
+                {
+                  "colID": "3",
+                  "value": ""
+                },
+                {
+                  "colID": "4",
+                  "value": ""
+                },
+                {
+                  "colID": "5",
+                  "value": "Baker Farms:Greenhouse"
+                },
+                {
+                  "colID": "6",
+                  "value": ""
+                },
+                {
+                  "colID": "7",
+                  "value": "Cost of Goods Sold"
+                },
+                {
+                  "colID": "8",
+                  "value": "120.00"
+                },
+                {
+                  "colID": "9",
+                  "value": ""
+                }
+              ]
+            },
+            {
+              "rowNumber": "14",
+              "ColData": [
+                {
+                  "colID": "1",
+                  "value": ""
+                },
+                {
+                  "colID": "2",
+                  "value": ""
+                },
+                {
+                  "colID": "3",
+                  "value": ""
+                },
+                {
+                  "colID": "4",
+                  "value": ""
+                },
+                {
+                  "colID": "5",
+                  "value": "Baker Farms:Greenhouse"
+                },
+                {
+                  "colID": "6",
+                  "value": ""
+                },
+                {
+                  "colID": "7",
+                  "value": "Inventory Asset"
+                },
+                {
+                  "colID": "8",
+                  "value": ""
+                },
+                {
+                  "colID": "9",
+                  "value": "120.00"
+                }
+              ]
+            },
+            {
+              "rowNumber": "15",
+              "ColData": [
+                {
+                  "colID": "1",
+                  "value": "5-1700000000"
+                },
+                {
+                  "colID": "2",
+                  "value": "Credit Memo"
+                },
+                {
+                  "colID": "3",
+                  "value": "3/15/2024"
+                },
+                {
+                  "colID": "4",
+                  "value": "5002"
+                },
+                {
+                  "colID": "5",
+                  "value": "Baker Farms:Greenhouse"
+                },
+                {
+                  "colID": "6",
+                  "value": ""
+                },
+                {
+                  "colID": "7",
+                  "value": "Sales Income"
+                },
+                {
+                  "colID": "8",
+                  "value": "25.00"
+                },
+                {
+                  "colID": "9",
+                  "value": ""
+                }
+              ]
+            },
+            {
+              "rowNumber": "16",
+              "ColData": [
+                {
+                  "colID": "1",
+                  "value": ""
+                },
+                {
+                  "colID": "2",
+                  "value": ""
+                },
+                {
+                  "colID": "3",
+                  "value": ""
+                },
+                {
+                  "colID": "4",
+                  "value": ""
+                },
+                {
+                  "colID": "5",
+                  "value": "Baker Farms:Greenhouse"
+                },
+                {
+                  "colID": "6",
+                  "value": ""
+                },
+                {
+                  "colID": "7",
+                  "value": "Accounts Receivable"
+                },
+                {
+                  "colID": "8",
+                  "value": ""
+                },
+                {
+                  "colID": "9",
+                  "value": "25.00"
+                }
+              ]
+            },
+            {
+              "rowNumber": "17",
+              "ColData": [
+                {
+                  "colID": "1",
+                  "value": "6-1700000000"
+                },
+                {
+                  "colID": "2",
+                  "value": "Payment"
+                },
+                {
+                  "colID": "3",
+                  "value": "3/30/2024"
+                },
+                {
+                  "colID": "4",
+                  "value": "882"
+                },
+                {
+                  "colID": "5",
+                  "value": "Baker Farms:Greenhouse"
+                },
+                {
+                  "colID": "6",
+                  "value": ""
+                },
+                {
+                  "colID": "7",
+                  "value": "Undeposited Funds"
+                },
+                {
+                  "colID": "8",
+                  "value": "257.60"
+                },
+                {
+                  "colID": "9",
+                  "value": ""
+                }
+              ]
+            },
+            {
+              "rowNumber": "18",
+              "ColData": [
+                {
+                  "colID": "1",
+                  "value": ""
+                },
+                {
+                  "colID": "2",
+                  "value": ""
+                },
+                {
+                  "colID": "3",
+                  "value": ""
+                },
+                {
+                  "colID": "4",
+                  "value": ""
+                },
+                {
+                  "colID": "5",
+                  "value": "Baker Farms:Greenhouse"
+                },
+                {
+                  "colID": "6",
+                  "value": ""
+                },
+                {
+                  "colID": "7",
+                  "value": "Sales Discounts"
+                },
+                {
+                  "colID": "8",
+                  "value": "9.00"
+                },
+                {
+                  "colID": "9",
+                  "value": ""
+                }
+              ]
+            },
+            {
+              "rowNumber": "19",
+              "ColData": [
+                {
+                  "colID": "1",
+                  "value": ""
+                },
+                {
+                  "colID": "2",
+                  "value": ""
+                },
+                {
+                  "colID": "3",
+                  "value": ""
+                },
+                {
+                  "colID": "4",
+                  "value": ""
+                },
+                {
+                  "colID": "5",
+                  "value": "Baker Farms:Greenhouse"
+                },
+                {
+                  "colID": "6",
+                  "value": ""
+                },
+                {
+                  "colID": "7",
+                  "value": "Accounts Receivable"
+                },
+                {
+                  "colID": "8",
+                  "value": ""
+                },
+                {
+                  "colID": "9",
+                  "value": "266.60"
+                }
+              ]
+            },
+            {
+              "rowNumber": "20",
+              "ColData": [
+                {
+                  "colID": "1",
+                  "value": "7-1700000000"
+                },
+                {
+                  "colID": "2",
+                  "value": "Deposit"
+                },
+                {
+                  "colID": "3",
+                  "value": "3/31/2024"
+                },
+                {
+                  "colID": "4",
+                  "value": ""
+                },
+                {
+                  "colID": "5",
+                  "value": ""
+                },
+                {
+                  "colID": "6",
+                  "value": ""
+                },
+                {
+                  "colID": "7",
+                  "value": "Checking"
+                },
+                {
+                  "colID": "8",
+                  "value": "257.60"
+                },
+                {
+                  "colID": "9",
+                  "value": ""
+                }
+              ]
+            },
+            {
+              "rowNumber": "21",
+              "ColData": [
+                {
+                  "colID": "1",
+                  "value": ""
+                },
+                {
+                  "colID": "2",
+                  "value": ""
+                },
+                {
+                  "colID": "3",
+                  "value": ""
+                },
+                {
+                  "colID": "4",
+                  "value": ""
+                },
+                {
+                  "colID": "5",
+                  "value": ""
+                },
+                {
+                  "colID": "6",
+                  "value": ""
+                },
+                {
+                  "colID": "7",
+                  "value": "Undeposited Funds"
+                },
+                {
+                  "colID": "8",
+                  "value": ""
+                },
+                {
+                  "colID": "9",
+                  "value": "257.60"
+                }
+              ]
+            },
+            {
+              "rowNumber": "22",
+              "ColData": [
+                {
+                  "colID": "1",
+                  "value": "8-1700000000"
+                },
+                {
+                  "colID": "2",
+                  "value": "Check"
+                },
+                {
+                  "colID": "3",
+                  "value": "4/1/2024"
+                },
+                {
+                  "colID": "4",
+                  "value": "1002"
+                },
+                {
+                  "colID": "5",
+                  "value": "Main St Properties"
+                },
+                {
+                  "colID": "6",
+                  "value": ""
+                },
+                {
+                  "colID": "7",
+                  "value": "Rent Expense"
+                },
+                {
+                  "colID": "8",
+                  "value": "1500.00"
+                },
+                {
+                  "colID": "9",
+                  "value": ""
+                }
+              ]
+            },
+            {
+              "rowNumber": "23",
+              "ColData": [
+                {
+                  "colID": "1",
+                  "value": ""
+                },
+                {
+                  "colID": "2",
+                  "value": ""
+                },
+                {
+                  "colID": "3",
+                  "value": ""
+                },
+                {
+                  "colID": "4",
+                  "value": ""
+                },
+                {
+                  "colID": "5",
+                  "value": "Main St Properties"
+                },
+                {
+                  "colID": "6",
+                  "value": ""
+                },
+                {
+                  "colID": "7",
+                  "value": "Checking"
+                },
+                {
+                  "colID": "8",
+                  "value": ""
+                },
+                {
+                  "colID": "9",
+                  "value": "1500.00"
+                }
+              ]
+            },
+            {
+              "rowNumber": "24",
+              "ColData": [
+                {
+                  "colID": "1",
+                  "value": "9-1700000000"
+                },
+                {
+                  "colID": "2",
+                  "value": "Check"
+                },
+                {
+                  "colID": "3",
+                  "value": "4/5/2024"
+                },
+                {
+                  "colID": "4",
+                  "value": "1003"
+                },
+                {
+                  "colID": "5",
+                  "value": "Dana Ortiz"
+                },
+                {
+                  "colID": "6",
+                  "value": ""
+                },
+                {
+                  "colID": "7",
+                  "value": "Office Supplies"
+                },
+                {
+                  "colID": "8",
+                  "value": "45.20"
+                },
+                {
+                  "colID": "9",
+                  "value": ""
+                }
+              ]
+            },
+            {
+              "rowNumber": "25",
+              "ColData": [
+                {
+                  "colID": "1",
+                  "value": ""
+                },
+                {
+                  "colID": "2",
+                  "value": ""
+                },
+                {
+                  "colID": "3",
+                  "value": ""
+                },
+                {
+                  "colID": "4",
+                  "value": ""
+                },
+                {
+                  "colID": "5",
+                  "value": "Dana Ortiz"
+                },
+                {
+                  "colID": "6",
+                  "value": ""
+                },
+                {
+                  "colID": "7",
+                  "value": "Checking"
+                },
+                {
+                  "colID": "8",
+                  "value": ""
+                },
+                {
+                  "colID": "9",
+                  "value": "45.20"
+                }
+              ]
+            },
+            {
+              "rowNumber": "26",
+              "ColData": [
+                {
+                  "colID": "1",
+                  "value": "A-1700000000"
+                },
+                {
+                  "colID": "2",
+                  "value": "Paycheck"
+                },
+                {
+                  "colID": "3",
+                  "value": "4/15/2024"
+                },
+                {
+                  "colID": "4",
+                  "value": "1004"
+                },
+                {
+                  "colID": "5",
+                  "value": "Dana Ortiz"
+                },
+                {
+                  "colID": "6",
+                  "value": ""
+                },
+                {
+                  "colID": "7",
+                  "value": "Payroll Expenses"
+                },
+                {
+                  "colID": "8",
+                  "value": "2000.00"
+                },
+                {
+                  "colID": "9",
+                  "value": ""
+                }
+              ]
+            },
+            {
+              "rowNumber": "27",
+              "ColData": [
+                {
+                  "colID": "1",
+                  "value": ""
+                },
+                {
+                  "colID": "2",
+                  "value": ""
+                },
+                {
+                  "colID": "3",
+                  "value": ""
+                },
+                {
+                  "colID": "4",
+                  "value": ""
+                },
+                {
+                  "colID": "5",
+                  "value": "Dana Ortiz"
+                },
+                {
+                  "colID": "6",
+                  "value": ""
+                },
+                {
+                  "colID": "7",
+                  "value": "Checking"
+                },
+                {
+                  "colID": "8",
+                  "value": ""
+                },
+                {
+                  "colID": "9",
+                  "value": "1600.00"
+                }
+              ]
+            },
+            {
+              "rowNumber": "28",
+              "ColData": [
+                {
+                  "colID": "1",
+                  "value": ""
+                },
+                {
+                  "colID": "2",
+                  "value": ""
+                },
+                {
+                  "colID": "3",
+                  "value": ""
+                },
+                {
+                  "colID": "4",
+                  "value": ""
+                },
+                {
+                  "colID": "5",
+                  "value": "Dana Ortiz"
+                },
+                {
+                  "colID": "6",
+                  "value": ""
+                },
+                {
+                  "colID": "7",
+                  "value": "Payroll Liabilities"
+                },
+                {
+                  "colID": "8",
+                  "value": ""
+                },
+                {
+                  "colID": "9",
+                  "value": "400.00"
+                }
+              ]
+            },
+            {
+              "rowNumber": "29",
+              "ColData": [
+                {
+                  "colID": "1",
+                  "value": "B-1700000000"
+                },
+                {
+                  "colID": "2",
+                  "value": "Invoice"
+                },
+                {
+                  "colID": "3",
+                  "value": "1/10/2025"
+                },
+                {
+                  "colID": "4",
+                  "value": "5003"
+                },
+                {
+                  "colID": "5",
+                  "value": "Cole Landscaping"
+                },
+                {
+                  "colID": "6",
+                  "value": ""
+                },
+                {
+                  "colID": "7",
+                  "value": "Accounts Receivable"
+                },
+                {
+                  "colID": "8",
+                  "value": "89.80"
+                },
+                {
+                  "colID": "9",
+                  "value": ""
+                }
+              ]
+            },
+            {
+              "rowNumber": "30",
+              "ColData": [
+                {
+                  "colID": "1",
+                  "value": ""
+                },
+                {
+                  "colID": "2",
+                  "value": ""
+                },
+                {
+                  "colID": "3",
+                  "value": ""
+                },
+                {
+                  "colID": "4",
+                  "value": ""
+                },
+                {
+                  "colID": "5",
+                  "value": "Cole Landscaping"
+                },
+                {
+                  "colID": "6",
+                  "value": ""
+                },
+                {
+                  "colID": "7",
+                  "value": "Sales Income"
+                },
+                {
+                  "colID": "8",
+                  "value": ""
+                },
+                {
+                  "colID": "9",
+                  "value": "85.00"
+                }
+              ]
+            },
+            {
+              "rowNumber": "31",
+              "ColData": [
+                {
+                  "colID": "1",
+                  "value": ""
+                },
+                {
+                  "colID": "2",
+                  "value": ""
+                },
+                {
+                  "colID": "3",
+                  "value": ""
+                },
+                {
+                  "colID": "4",
+                  "value": ""
+                },
+                {
+                  "colID": "5",
+                  "value": "Cole Landscaping"
+                },
+                {
+                  "colID": "6",
+                  "value": ""
+                },
+                {
+                  "colID": "7",
+                  "value": "Sales Tax Payable"
+                },
+                {
+                  "colID": "8",
+                  "value": ""
+                },
+                {
+                  "colID": "9",
+                  "value": "4.80"
+                }
+              ]
+            },
+            {
+              "rowNumber": "32",
+              "ColData": [
+                {
+                  "colID": "1",
+                  "value": ""
+                },
+                {
+                  "colID": "2",
+                  "value": ""
+                },
+                {
+                  "colID": "3",
+                  "value": ""
+                },
+                {
+                  "colID": "4",
+                  "value": ""
+                },
+                {
+                  "colID": "5",
+                  "value": "Cole Landscaping"
+                },
+                {
+                  "colID": "6",
+                  "value": ""
+                },
+                {
+                  "colID": "7",
+                  "value": "Cost of Goods Sold"
+                },
+                {
+                  "colID": "8",
+                  "value": "24.00"
+                },
+                {
+                  "colID": "9",
+                  "value": ""
+                }
+              ]
+            },
+            {
+              "rowNumber": "33",
+              "ColData": [
+                {
+                  "colID": "1",
+                  "value": ""
+                },
+                {
+                  "colID": "2",
+                  "value": ""
+                },
+                {
+                  "colID": "3",
+                  "value": ""
+                },
+                {
+                  "colID": "4",
+                  "value": ""
+                },
+                {
+                  "colID": "5",
+                  "value": "Cole Landscaping"
+                },
+                {
+                  "colID": "6",
+                  "value": ""
+                },
+                {
+                  "colID": "7",
+                  "value": "Inventory Asset"
+                },
+                {
+                  "colID": "8",
+                  "value": ""
+                },
+                {
+                  "colID": "9",
+                  "value": "24.00"
+                }
+              ]
+            },
+            {
+              "rowNumber": "34",
+              "ColData": [
+                {
+                  "colID": "1",
+                  "value": "C-1700000000"
+                },
+                {
+                  "colID": "2",
+                  "value": "Bill"
+                },
+                {
+                  "colID": "3",
+                  "value": "1/20/2025"
+                },
+                {
+                  "colID": "4",
+                  "value": "VW-560"
+                },
+                {
+                  "colID": "5",
+                  "value": "Valley Wholesale"
+                },
+                {
+                  "colID": "6",
+                  "value": ""
+                },
+                {
+                  "colID": "7",
+                  "value": "Office Supplies"
+                },
+                {
+                  "colID": "8",
+                  "value": "80.00"
+                },
+                {
+                  "colID": "9",
+                  "value": ""
+                }
+              ]
+            },
+            {
+              "rowNumber": "35",
+              "ColData": [
+                {
+                  "colID": "1",
+                  "value": ""
+                },
+                {
+                  "colID": "2",
+                  "value": ""
+                },
+                {
+                  "colID": "3",
+                  "value": ""
+                },
+                {
+                  "colID": "4",
+                  "value": ""
+                },
+                {
+                  "colID": "5",
+                  "value": "Valley Wholesale"
+                },
+                {
+                  "colID": "6",
+                  "value": ""
+                },
+                {
+                  "colID": "7",
+                  "value": "Accounts Payable"
+                },
+                {
+                  "colID": "8",
+                  "value": ""
+                },
+                {
+                  "colID": "9",
+                  "value": "80.00"
+                }
+              ]
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "files": [
+    {
+      "path": "Txn/8-1700000000/April lease payment.pdf",
+      "lines": ["Main St Properties", "Rent April 2024", "$1,500.00"]
+    },
+    {
+      "path": "Invoices/Invoice 5003 89.80.pdf",
+      "lines": ["Riverside Garden Supply", "Invoice 5003", "Total $89.80"]
+    },
+    {
+      "path": "Scans/scan0001.pdf",
+      "lines": ["Unreadable scan"]
+    }
+  ]
+}

@@ -28,6 +28,7 @@ import { ReceiptsService } from './documents/receipts.service';
 import { EstimatesService } from './sales/estimates.service';
 import { PaymentsService } from './sales/payments.service';
 import { SalesDocumentsService } from './sales/sales-documents.service';
+import { IMPORTED_COMPANY, seedMigration } from './seed-migration';
 
 const DEMO_EMAIL = 'demo@example.com';
 const DEMO_PASSWORD = 'demo-password-change-me';
@@ -159,6 +160,7 @@ async function main(): Promise<void> {
         .executeTakeFirst(),
     );
     if (!hasDocuments) await seedDocuments(db, config, enc, userId, companyId!);
+    await seedMigration(db, config, userId);
 
     console.log(
       [
@@ -168,6 +170,7 @@ async function main(): Promise<void> {
         `  Password:   ${DEMO_PASSWORD}`,
         `  MFA secret: ${secret}  (add to an authenticator app)`,
         `  Current code: ${generateTotp(secret)}`,
+        `  Also:       "${IMPORTED_COMPANY}", imported from the QuickBooks Online demo company`,
         '',
       ].join('\n'),
     );

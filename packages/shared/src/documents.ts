@@ -273,9 +273,11 @@ export interface DocumentDto {
   id: string;
   name: string;
   folderId: string | null;
-  source: 'upload' | 'camera' | 'email' | 'system';
+  source: 'upload' | 'camera' | 'email' | 'system' | 'import';
   emailFrom: string | null;
   emailSubject: string | null;
+  /** When it was attached in QuickBooks (documents brought over by a migration). */
+  originalCreatedAt: string | null;
   tags: string[];
   note: string | null;
   inboxStatus: 'new' | 'done' | null;

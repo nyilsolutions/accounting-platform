@@ -1,0 +1,4 @@
+Invoice No,Customer,Invoice Date,Due Date,Product/Service,Account,Description,Qty,Rate,Amount
+100,Cafe Uno,01/05/2025,02/04/2025,Bread,,Sourdough loaf,10,3.50,35.00
+100,Cafe Uno,01/05/2025,02/04/2025,,Sales,Delivery fee,,,10.00
+101,Hotel Blue,01/06/2025,01/06/2025,Cake,,Layer cake,1,40,40.00

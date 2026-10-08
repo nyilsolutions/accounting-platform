@@ -1,0 +1,11 @@
+Account,Type,Detail type,Description,Balance
+Checking,Bank,Checking,,4760.00
+Accounts Receivable (A/R),Accounts receivable (A/R),Accounts Receivable (A/R),,340.00
+Undeposited Funds,Other Current Assets,Undeposited Funds,,45.00
+Accounts Payable (A/P),Accounts payable (A/P),Accounts Payable (A/P),,-120.00
+Opening Balance Equity,Equity,Opening Balance Equity,,-5100.00
+Retained Earnings,Equity,Retained Earnings,,
+Sales,Income,Sales of Product Income,Bread and cakes,
+Supplies,Expenses,Supplies & Materials,,
+Utilities,Expenses,Utilities,,
+Utilities:Electric,Expenses,Utilities,,

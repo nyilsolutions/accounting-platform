@@ -1,0 +1,8 @@
+Trans #,Type,Date,Num,Name,Memo,Account,Debit,Credit
+1,Deposit,02/01/2025,,,Walk-in sales,Checking,45.00,
+,,,,Walk-in,Walk-in sales,Sales,,45.00
+2,Check,02/03/2025,2001,Flour Mill,Opening balance,Checking,,200.00
+,,,,Flour Mill,,Accounts Payable (A/P),200.00,
+3,Payment,02/05/2025,,Cafe Uno,,Undeposited Funds,45.00,
+,,,,Cafe Uno,,Accounts Receivable (A/R),,45.00
+,,,,,,TOTAL,290.00,290.00

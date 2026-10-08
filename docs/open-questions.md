@@ -92,3 +92,50 @@ Add new questions here instead of guessing.
     an allow-list?
 30. **Storage and malware scanning in production:** which S3 region, bucket policy and KMS key,
     and will ClamAV run as a sidecar or a managed scanning service?
+
+## QuickBooks migration (Phase 6)
+
+31. **Real samples for regression fixtures:** the importers are tested against synthetic
+    companies:
+    - a QuickBooks Online demo company answered by a mock of Intuit's API;
+    - a Desktop agent export;
+    - IIF and CSV files.
+
+    Please provide:
+    - QBO sandbox credentials (Intuit Developer account);
+    - a Desktop company exported with the agent;
+    - IIF and CSV exports;
+    - an Attach folder.
+
+    With those we will tie the Migration Report out to zero on each and add the scrubbed samples
+    as fixtures. The Desktop report parsing (trial balance, agings, Journal) in particular needs
+    checking against real qbXML output.
+
+32. **Intuit app and production keys:** production QBO access needs an Intuit Developer app, its
+    redirect URI (`…/api/migration/qbo/callback`) and Intuit's app assessment. Who owns the Intuit
+    account?
+33. **Desktop agent distribution:**
+    - Which code-signing certificate (EV or OV)?
+    - Should the agent ship as an MSI installer or a signed single `.exe`?
+    - Which QuickBooks Desktop editions and years must it support? It uses qbXML 13.0,
+      QuickBooks 2014 and later.
+34. **What isn't brought over yet:**
+    - inventory quantities and average cost (Phase 10; inventory items arrive as non-inventory,
+      and their cost of goods sold is kept per transaction);
+    - sales tax agencies and rates (Phase 7; tax amounts go to the sales tax liability account);
+    - payroll items and year-to-date by employee (Phase 8; paychecks arrive as journal entries);
+    - budgets (Phase 7), time activities (Phase 10), memorized transactions, price levels and
+      custom fields.
+
+    Which of these must be in place before your first client migrates?
+
+35. **Vendor TINs:** tax ids are not imported. Social Security numbers, birth dates, pay details,
+    and bank and card numbers aren't either. The agent never uploads them, and the server drops
+    them before anything is stored. Clients re-enter vendor TINs, which 1099s need. Should the
+    import instead carry TINs across, encrypted like the ones entered here?
+36. **Accepting differences:** today owners and admins can complete a migration with differences
+    if they write a note. Should an external accountant's sign-off be required instead, or as
+    well?
+37. **Duplicate numbers:** invoice and sales receipt numbers must be unique here. A QuickBooks
+    duplicate is imported with a suffix (`1001-2`) and a warning. Is that acceptable, or should
+    duplicates be allowed for imported history?
