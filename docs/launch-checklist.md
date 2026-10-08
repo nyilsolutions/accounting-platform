@@ -54,6 +54,8 @@ item in the launch ticket with who did it and when.
 - [ ] Environments `staging` and `production`, each with variables `AWS_DEPLOY_ROLE_ARN`
       (Terraform output `deploy_role_arn`), `AWS_ACCOUNT_ID` and `APP_URL`. Production also
       has `STAGING_ACCOUNT_ID`.
+- [ ] The repository variable `DEPLOY_ENABLED` is `true` (Settings > Secrets and variables >
+      Actions > Variables). Until then the Deploy workflow skips every run.
 - [ ] `production` has required reviewers (not the person who merged), and deployments only
       from `main`.
 - [ ] Branch protection on `main`: pull requests with review, the CI and Security checks

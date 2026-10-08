@@ -7,6 +7,9 @@ Deploys run from GitHub Actions (`Deploy`, ADR 0030) after CI passes on `main`:
 3. A reviewer approves the `production` environment.
 4. The same images are copied to production's ECR and production is deployed.
 
+Deploys run only while the repository variable `DEPLOY_ENABLED` is `true`. Set it to anything
+else to pause them, for example during an incident.
+
 Each environment's deploy (`infra/deploy/ecs-deploy.sh`) registers new task definitions,
 runs the **release step**, rolls the services, and checks `/healthz` and
 `/api/health/ready`.

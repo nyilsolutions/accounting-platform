@@ -7,6 +7,9 @@ name: Deploy
 # Run by hand to redeploy or roll back: give the git SHA of an earlier build as image_tag
 # (docs/runbooks/rollback.md). Images are tagged with the commit they were built from.
 #
+# Deploys stay off until the repository variable DEPLOY_ENABLED is 'true' (launch checklist):
+# until the AWS accounts exist, a green main would otherwise start deploys that can only fail.
+#
 # Each GitHub environment (staging, production) holds variables, not secrets:
 #   AWS_DEPLOY_ROLE_ARN  the environment's deploy role (Terraform output deploy_role_arn)
 #   AWS_ACCOUNT_ID       the environment's account
@@ -38,7 +41,9 @@ env:
 
 jobs:
   build:
-    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    if: >-
+      vars.DEPLOY_ENABLED == 'true' &&
+      (github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success')
     runs-on: ubuntu-latest
     timeout-minutes: 30
     environment: staging
