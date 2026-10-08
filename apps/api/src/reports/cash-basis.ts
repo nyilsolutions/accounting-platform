@@ -126,7 +126,13 @@ export async function recognitions(
   const out: Recognition[] = [];
   if (apps.rows.length === 0) return out;
 
-  const targetIds = [...new Set(apps.rows.map((a) => a.target_id))];
+  // Only documents with an application in the period are recognised; their earlier
+  // applications still count toward the cumulative allocation.
+  const targetIds = [
+    ...new Set(apps.rows.filter((a) => !f.from || a.eff_date >= f.from).map((a) => a.target_id)),
+  ];
+  if (targetIds.length === 0) return out;
+  const wanted = new Set(targetIds);
   const lines = await sql<TargetLine>`
     select l.transaction_id, l.account_id, (l.debit - l.credit) as net, l.class_id, l.location_id,
            l.customer_id, l.vendor_id, a.account_type in ('accounts_receivable', 'accounts_payable') as is_control
@@ -145,6 +151,10 @@ export async function recognitions(
   let i = 0;
   while (i < apps.rows.length) {
     const first = apps.rows[i]!;
+    if (!wanted.has(first.target_id)) {
+      while (i < apps.rows.length && apps.rows[i]!.target_id === first.target_id) i++;
+      continue;
+    }
     const tLines = byTarget.get(first.target_id) ?? [];
     const control = tLines.find((l) => l.is_control);
     const other = tLines.filter((l) => !l.is_control);
@@ -204,16 +214,23 @@ export async function cashRecognition(
   f: CashFilter,
 ): Promise<Map<string, Money>> {
   const out = new Map<string, Money>();
-  const matches = (want: string | undefined, have: string | null) =>
-    !want || (want === 'none' ? have === null : have === want);
   for (const r of await recognitions(tx, companyId, f)) {
-    if (!matches(f.classId, r.classId)) continue;
-    if (!matches(f.locationId, r.locationId)) continue;
-    if (!matches(f.customerId, r.customerId)) continue;
-    if (!matches(f.vendorId, r.vendorId)) continue;
+    if (!recognitionMatches(f, r)) continue;
     out.set(r.accountId, (out.get(r.accountId) ?? 0n) + r.amount);
   }
   return out;
+}
+
+/** Whether a recognition passes a report's class, location, customer and vendor filters. */
+export function recognitionMatches(f: CashFilter, r: Recognition): boolean {
+  const matches = (want: string | undefined, have: string | null) =>
+    !want || (want === 'none' ? have === null : have === want);
+  return (
+    matches(f.classId, r.classId) &&
+    matches(f.locationId, r.locationId) &&
+    matches(f.customerId, r.customerId) &&
+    matches(f.vendorId, r.vendorId)
+  );
 }
 
 /**

@@ -5,6 +5,8 @@ const bool = z.enum(['true', 'false']).transform((v) => v === 'true');
 const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   DATABASE_URL: z.string().min(1),
+  /** Database connections per API or worker process (ADR 0028). */
+  DB_POOL_SIZE: z.coerce.number().int().min(1).max(100).default(10),
   FIELD_ENCRYPTION_KEY: z.string().min(1),
   API_PORT: z.coerce.number().int().default(4000),
   WEB_ORIGIN: z.url().default('http://localhost:3000'),
@@ -22,6 +24,8 @@ const envSchema = z.object({
     .default(12),
   COOKIE_SECURE: bool.default(true),
   RATE_LIMIT_AUTH_PER_MINUTE: z.coerce.number().int().min(1).default(20),
+  /** Requests per minute per client address, across the API (sign-in has its own, lower limit). */
+  RATE_LIMIT_PER_MINUTE: z.coerce.number().int().min(1).default(600),
   LOGIN_MAX_FAILED_ATTEMPTS: z.coerce.number().int().min(3).default(10),
   LOGIN_LOCKOUT_MINUTES: z.coerce.number().int().min(1).default(15),
   INVITATION_TTL_DAYS: z.coerce.number().int().min(1).max(30).default(7),

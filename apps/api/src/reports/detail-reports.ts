@@ -20,6 +20,7 @@ import { daysPastDue, openItems } from '../ledger/subledger';
 import { vendor1099Entries } from '../purchases/vendor-1099';
 import { accountRowsFlat, type ReportAccount } from './report-builder';
 import { dimension, filtersOf, ledgerNet, reportDto, type ReportScope } from './report-scope';
+import { compareNames } from '../common/collate';
 
 export const ROW_LIMIT = 20_000;
 const NONE = '00000000-0000-0000-0000-000000000000';
@@ -306,6 +307,7 @@ export async function collectionsReport(scope: ReportScope, q: ReportQuery): Pro
       q.to,
       'ar',
       q.customerId && q.customerId !== 'none' ? q.customerId : undefined,
+      { openOnly: true },
     )
   ).filter((i) => i.txnType === 'invoice' && i.open > 0n && daysPastDue(i, q.to) > 0);
   const ids = [...new Set(items.map((i) => i.partyId).filter((x): x is string => !!x))];
@@ -328,7 +330,7 @@ export async function collectionsReport(scope: ReportScope, q: ReportQuery): Pro
   const rows: ReportRow[] = [];
   let total = 0n;
   const sorted = [...groups.values()].sort((a, b) =>
-    (a[0]!.partyName ?? '').localeCompare(b[0]!.partyName ?? '', 'en', { sensitivity: 'base' }),
+    compareNames(a[0]!.partyName ?? '', b[0]!.partyName ?? ''),
   );
   for (const g of sorted) {
     const first = g[0]!;
@@ -426,7 +428,7 @@ export async function vendor1099DetailReport(
   const rows: ReportRow[] = [];
   let total = 0n;
   const groups = [...byVendor.values()].sort((a, b) =>
-    a[0]!.vendorName.localeCompare(b[0]!.vendorName, 'en', { sensitivity: 'base' }),
+    compareNames(a[0]!.vendorName, b[0]!.vendorName),
   );
   for (const g of groups) {
     const v = g[0]!;

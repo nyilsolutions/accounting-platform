@@ -12,8 +12,8 @@ Phase 12 makes the platform ready to run for customers. The owner decided (2026-
 
 | Part | What                                                                                                   | Status  |
 | ---- | ------------------------------------------------------------------------------------------------------ | ------- |
-| 12a  | Background jobs (a queue and worker), structured redacted logs, tracing, health checks                 | This PR |
-| 12b  | Performance: 100,000-transaction data, query and index work, load tests against the targets            | Planned |
+| 12a  | Background jobs (a queue and worker), structured redacted logs, tracing, health checks                 | Done    |
+| 12b  | Performance: 100,000-transaction data, query and index work, load tests against the targets            | This PR |
 | 12c  | Security: AWS KMS field encryption, an ASVS review and fixes, CI scanning, data export, SOC 2 policies | Planned |
 | 12d  | Launch: containers, Terraform for AWS, backups and a restore drill, alerting, the launch checklist     | Planned |
 
@@ -72,3 +72,90 @@ OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318 pnpm --filter @acct/api worker
 - **Where logs and traces are shipped** (question 84) and alerting (12d).
 - **QuickBooks imports** stay in the API process (question 85).
 - **Re-scanning stored files** when virus signatures update (question 86).
+
+## 12b: Performance at 100,000 transactions (ADR 0028)
+
+### Delivered
+
+- **A large company on demand:** `perf/generate.ts` builds 5,000 customers, 500 vendors and
+  100,000 transactions over three years through the app's own services, so everything posts
+  and ties as in real use. About 15 minutes; a 2% version takes about a minute.
+- **A performance suite** (`pnpm --filter @acct/api perf`) against the API running as its own
+  process:
+  - 22 report and list pages, each 20 times, p95 under 2 s;
+  - saving an invoice, p95 under 300 ms;
+  - 50 people working at once for 2 minutes, with no errors and p95 under 2 s;
+  - capacity with no pauses, reported;
+  - a shutdown with requests running, none cut off.
+- **Where it runs:** every pull request at 2% scale in CI; the full scale nightly and on demand
+  (the Performance workflow), keeping results for 30 days.
+- **Fixes** (details in ADR 0028):
+  - JIT off on app connections;
+  - receivable and payable reports read only open items;
+  - register pages, P&L columns and cash-basis columns worked out in SQL or in one pass;
+  - no collator built per comparison when sorting names;
+  - saving a customer no longer loads them all;
+  - shutdown waits for running requests before closing the database pool.
+- **Settings:** `DB_POOL_SIZE` (default 10) and `RATE_LIMIT_PER_MINUTE` (default 600).
+
+### Results
+
+Full scale (100,000 transactions, 5,000 customers), 20 runs each, on the development container
+(4 vCPUs, 16 GB, Postgres on the same machine). "Before" is the first run, for the pages that
+failed it.
+
+| Page                                          | Before (p95) | p50 ms | p95 ms |
+| --------------------------------------------- | ------------ | ------ | ------ |
+| Profit and Loss, this year                    |              | 103    | 118    |
+| Profit and Loss by month, 3 years             | 2.7 s        | 887    | 1,106  |
+| Profit and Loss, this year, cash basis        |              | 610    | 708    |
+| Profit and Loss by month, 3 years, cash basis | 26 s         | 1,586  | 1,825  |
+| Balance Sheet                                 |              | 500    | 731    |
+| Trial Balance                                 |              | 515    | 606    |
+| A/R Aging Summary                             | 2.1 s        | 706    | 782    |
+| A/R Aging Detail                              |              | 758    | 875    |
+| A/P Aging Summary                             |              | 280    | 351    |
+| Open invoices                                 | 2.2 s        | 751    | 925    |
+| Customer Balance Summary                      | 2.3 s        | 612    | 711    |
+| Sales by Customer, 3 years                    |              | 184    | 263    |
+| General Ledger, this year                     |              | 836    | 910    |
+| Statement of Cash Flows                       |              | 291    | 405    |
+| Customers list                                |              | 88     | 128    |
+| Customer balances                             |              | 630    | 730    |
+| Sales transactions, first page                |              | 12     | 20     |
+| Open invoices list                            |              | 93     | 119    |
+| Chart of accounts                             |              | 268    | 352    |
+| Checking register, first page                 | 2.9 s        | 339    | 393    |
+| Bank accounts                                 |              | 120    | 182    |
+| Customer open items                           |              | 23     | 27     |
+| **Save an invoice** (budget 300 ms)           |              | 24     | 30     |
+
+- **50 users, 2 minutes:** 1,143 requests, no errors, p50 186 ms, p95 1,031 ms, slowest
+  2.6 s.
+- **Capacity, no pauses:** 50 connections for 60 s get 14 to 16 requests a second, p50 2.1 to
+  2.4 s, with 4 to 19 requests over 10 s across the last two runs. The first run managed 2 a
+  second, with 210 over 10 s. This is not a target (question 87).
+
+### Running it
+
+```bash
+pnpm --filter @acct/api build
+pnpm --filter @acct/api perf                                        # 2% scale, under 2 minutes
+PERF_SCALE=full pnpm --filter @acct/api perf                        # full scale, about 25 minutes
+PERF_SCALE=full PERF_DB_NAME=acct_perf pnpm --filter @acct/api perf # keep the data, reuse it next time
+```
+
+### Tests
+
+| Suite                   | Count | Highlights                                                                                                                                                                                                                                                                                                                       |
+| ----------------------- | ----- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `packages/db`           | 119   | No change                                                                                                                                                                                                                                                                                                                        |
+| `packages/shared`       | 158   | No change                                                                                                                                                                                                                                                                                                                        |
+| `apps/api`              | 627   | +4. **Register pages** match the full register (entries, running balances, totals, offsets past the end, date ranges). **Shutdown** counts a request until its handler answers, even after the client has gone. **Cash basis:** by-month P&L columns equal each month run alone, in the known-figures test and the property test |
+| `apps/api` perf         | 26    | New. 22 pages and posting against their budgets, 50 users, capacity, shutdown. 2% scale on every pull request (72 s); full scale nightly                                                                                                                                                                                         |
+| `apps/web` (Playwright) | 21    | No change                                                                                                                                                                                                                                                                                                                        |
+
+### Not in this part
+
+- **Sizes on AWS,** and whether "50 users" should mean the no-pause case (question 87).
+- **Very long lists** that load every record (question 88).

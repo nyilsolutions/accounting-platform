@@ -46,6 +46,8 @@ jobs:
       - run: pnpm typecheck
       - name: Unit and integration tests (real Postgres, RLS enforced)
         run: pnpm test
+      - name: Performance at smoke scale (the full run is the nightly Performance workflow)
+        run: pnpm --filter @acct/api perf
       - name: Install Playwright browser
         run: pnpm --filter @acct/web exec playwright install --with-deps chromium
       - name: End-to-end tests

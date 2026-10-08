@@ -5,6 +5,7 @@ import cookieParser from 'cookie-parser';
 import type { NextFunction, Request, Response } from 'express';
 import helmet from 'helmet';
 import { AppModule } from './app.module';
+import { inflightRequests } from './common/inflight';
 import { PgErrorFilter } from './common/pg-error.filter';
 import { csrfMiddleware, requestIdMiddleware } from './common/security.middleware';
 import type { AppConfig } from './config';
@@ -61,6 +62,8 @@ export async function createApp(config: AppConfig): Promise<INestApplication> {
     type: ['application/octet-stream', 'message/rfc822'],
     limit: `${config.MAX_UPLOAD_MB + 1}mb`,
   });
+  // First, so shutdown waits for every request that got this far.
+  app.use(inflightRequests.middleware);
   app.use(requestIdMiddleware);
   if (config.NODE_ENV !== 'test') app.use(requestLogger(appLogger(config)));
   app.use(cookieParser());

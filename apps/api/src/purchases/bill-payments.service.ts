@@ -34,6 +34,7 @@ import { controlAccount, documentCurrency, gainLossAccount, gainLossOf } from '.
 import { PostingService, type PostingLine } from '../ledger/posting.service';
 import { appliedHomeTo, appliedTo, relievedHome, validationError } from '../sales/sales-common';
 import { nextCheckNumber, usedCheckNumbers } from './purchases-common';
+import { compareNames } from '../common/collate';
 
 type BillPaymentInput = z.output<typeof billPaymentInputSchema>;
 type PayBillsInput = z.output<typeof payBillsInputSchema>;
@@ -175,9 +176,7 @@ export class BillPaymentsService {
         g.applications.push(a);
         groups.set(t.vendor_id!, g);
       }
-      const ordered = [...groups.entries()].sort(([, a], [, b]) =>
-        a.name.localeCompare(b.name, 'en', { sensitivity: 'base' }),
-      );
+      const ordered = [...groups.entries()].sort(([, a], [, b]) => compareNames(a.name, b.name));
       const results: BillPaymentDto[] = [];
       let checkNo = input.firstCheckNumber ? BigInt(input.firstCheckNumber) : null;
       for (const [vendorId, g] of ordered) {

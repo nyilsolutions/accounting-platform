@@ -74,11 +74,21 @@ export async function openItems(
   asOf: string,
   side: LedgerSide,
   partyId?: string,
+  opts: { openOnly?: boolean } = {},
 ): Promise<LedgerItem[]> {
   const c = SIDES[side];
   const partyCol = sql.ref(`t.${c.party}_id`);
   const partyTable = sql.table(c.party === 'customer' ? 'customers' : 'vendors');
   const byParty = partyId ? sql`and ${partyCol} = ${partyId}` : sql``;
+  // Reports and balances want only what is still open: a busy company has tens of thousands of
+  // settled documents, and leaving them in the database saves sending and parsing them (ADR 0028).
+  const docsOpen = opts.openOnly
+    ? sql`and (t.total <> coalesce(ap.applied, 0)
+               or coalesce(t.home_total, t.total) <> coalesce(ap.applied_home, 0))`
+    : sql``;
+  const paymentsOpen = opts.openOnly
+    ? sql`and (t.total <> coalesce(ap.net_applied, 0) or t.currency is not null)`
+    : sql``;
 
   const docs = await sql<{
     id: string;
@@ -106,7 +116,7 @@ export async function openItems(
     ) ap on true
     left join ${partyTable} p on p.id = ${partyCol}
     where t.company_id = ${companyId} and t.status = 'posted' and t.txn_date <= ${asOf}
-      and t.txn_type in (${c.document}, ${c.credit}) ${byParty}`.execute(tx);
+      and t.txn_type in (${c.document}, ${c.credit}) ${byParty} ${docsOpen}`.execute(tx);
 
   const payments = await sql<{
     id: string;
@@ -143,8 +153,18 @@ export async function openItems(
     ) ap on true
     left join ${partyTable} p on p.id = ${partyCol}
     where t.company_id = ${companyId} and t.status = 'posted' and t.txn_date <= ${asOf}
-      and t.txn_type = ${c.payment} ${byParty}`.execute(tx);
+      and t.txn_type = ${c.payment} ${byParty} ${paymentsOpen}`.execute(tx);
 
+  // The control accounts first: with their ids the planner knows how many lines they hold, and
+  // hashes the transactions instead of looking each line's transaction up (ADR 0028).
+  const control = (
+    await tx
+      .selectFrom('accounts')
+      .select('id')
+      .where('company_id', '=', companyId)
+      .where('account_type', '=', c.controlType)
+      .execute()
+  ).map((a) => a.id);
   const lineParty = sql.ref(`l.${c.party}_id`);
   const other = await sql<{
     id: string;
@@ -160,9 +180,10 @@ export async function openItems(
            p.display_name as party_name, a.currency, sum(l.debit - l.credit) as net
     from journal_lines l
     join transactions t on t.id = l.transaction_id and t.version = l.version
-    join accounts a on a.id = l.account_id and a.account_type = ${c.controlType}
+    join accounts a on a.id = l.account_id
     left join ${partyTable} p on p.id = ${lineParty}
     where l.company_id = ${companyId} and t.status = 'posted' and l.txn_date <= ${asOf}
+      and l.account_id in (${control.length ? sql.join(control) : sql`null`})
       and t.txn_type not in (${c.document}, ${c.credit}, ${c.payment})
       ${partyId ? sql`and ${lineParty} = ${partyId}` : sql``}
     group by t.id, t.txn_type, t.txn_date, t.txn_number, ${lineParty}, p.display_name, a.currency
@@ -227,7 +248,9 @@ export async function openItems(
       foreignOpen: o.currency ? 0n : null,
     });
   }
-  return items.sort((a, b) => a.txnDate.localeCompare(b.txnDate) || a.txnId.localeCompare(b.txnId));
+  // ISO dates and uuids order the same by code unit, without a collator.
+  const cmp = (x: string, y: string) => (x < y ? -1 : x > y ? 1 : 0);
+  return items.sort((a, b) => cmp(a.txnDate, b.txnDate) || cmp(a.txnId, b.txnId));
 }
 
 export interface PartyBalance {
@@ -281,8 +304,16 @@ export const AGING_LABELS: Record<AgingBucket, string> = {
   over90: '91 and over',
 };
 
+/** Days since 1970-01-01 for a YYYY-MM-DD date (Date.parse is slow over thousands of items). */
+function dayNumber(iso: string): number {
+  return (
+    Date.UTC(Number(iso.slice(0, 4)), Number(iso.slice(5, 7)) - 1, Number(iso.slice(8, 10))) /
+    86_400_000
+  );
+}
+
 export function daysBetween(from: string, to: string): number {
-  return Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86_400_000);
+  return dayNumber(to) - dayNumber(from);
 }
 
 /** Days past due as of `asOf` (documents by due date, everything else by transaction date). */

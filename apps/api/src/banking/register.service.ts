@@ -102,6 +102,101 @@ export async function accountEntries(
   }));
 }
 
+/**
+ * One page of a register, newest first, without a search (ADR 0028). The running balance is
+ * worked out over every entry in SQL, but payees, the other account and the bank feed mark are
+ * looked up only for the page: a busy account has tens of thousands of entries.
+ */
+async function registerPage(
+  tx: Tx,
+  companyId: string,
+  account: BankingAccount,
+  q: { from?: string; to?: string; offset: number; limit: number },
+): Promise<{ entries: AccountEntry[]; total: number; ending: Money; cleared: Money }> {
+  const rows = await sql<{
+    id: string;
+    txn_type: string;
+    txn_date: string;
+    txn_number: string | null;
+    memo: string | null;
+    payee: string | null;
+    other_account: string | null;
+    net: string;
+    running: string;
+    cleared: string | null;
+    reconciliation_id: string | null;
+    from_feed: boolean;
+    total: number;
+    ending: string;
+    cleared_total: string;
+  }>`
+    with entries as (
+      select t.id, t.txn_type, t.txn_date, t.txn_number, t.memo, t.created_at, t.version,
+             t.vendor_id, t.customer_id, sum(l.debit - l.credit) as net
+      from transactions t
+      join journal_lines l on l.transaction_id = t.id and l.version = t.version
+      where t.company_id = ${companyId} and t.status = 'posted' and l.account_id = ${account.id}
+      group by t.id
+      having sum(l.debit - l.credit) <> 0
+    ), running as (
+      select e.*, sum(e.net) over (order by e.txn_date, e.created_at, e.id rows unbounded preceding) as running
+      from entries e
+    ), shown as (
+      select * from running r
+      where true
+        ${q.from ? sql`and r.txn_date >= ${q.from}` : sql``}
+        ${q.to ? sql`and r.txn_date <= ${q.to}` : sql``}
+    ), page as (
+      select * from shown
+      order by txn_date desc, created_at desc, id desc
+      offset ${q.offset} limit ${q.limit}
+    ), totals as (
+      select (select count(*)::int from shown) as total,
+             (select coalesce(sum(net), 0) from entries) as ending,
+             (select coalesce(sum(e.net), 0) from entries e
+                join bank_clearings bc on bc.transaction_id = e.id and bc.account_id = ${account.id})
+               as cleared_total
+    )
+    select p.id, p.txn_type, p.txn_date, p.txn_number, p.memo, p.net, p.running,
+           coalesce(v.display_name, c.display_name) as payee,
+           (select case when count(distinct l2.account_id) = 1 then min(a2.name) else '-Split-' end
+              from journal_lines l2 join accounts a2 on a2.id = l2.account_id
+             where l2.transaction_id = p.id and l2.version = p.version
+               and l2.account_id <> ${account.id}) as other_account,
+           bc.status as cleared, bc.reconciliation_id,
+           exists (select 1 from bank_feed_transactions f
+                    where f.transaction_id = p.id and f.account_id = ${account.id}) as from_feed,
+           totals.total, totals.ending, totals.cleared_total
+    from totals
+    left join page p on true
+    left join vendors v on v.id = p.vendor_id
+    left join customers c on c.id = p.customer_id
+    left join bank_clearings bc on bc.transaction_id = p.id and bc.account_id = ${account.id}
+    order by p.txn_date desc, p.created_at desc, p.id desc`.execute(tx);
+  const first = rows.rows[0]!;
+  return {
+    entries: rows.rows
+      .filter((r) => r.id !== null)
+      .map((r) => ({
+        txnId: r.id,
+        txnType: r.txn_type,
+        txnDate: r.txn_date,
+        number: r.txn_number,
+        payee: r.payee,
+        memo: r.memo,
+        otherAccount: r.other_account ?? '',
+        amount: account.sign * parseMoney(r.net),
+        balance: account.sign * parseMoney(r.running),
+        cleared: r.cleared as ClearedStatus,
+        reconciliationId: r.reconciliation_id,
+        fromBankFeed: r.from_feed,
+      })),
+    total: first.total,
+    ending: account.sign * parseMoney(first.ending),
+    cleared: account.sign * parseMoney(first.cleared_total),
+  };
+}
+
 /** Registers (QuickBooks-style running balance) and cleared marks. */
 @Injectable()
 export class RegisterService {
@@ -118,8 +213,21 @@ export class RegisterService {
   ): Promise<RegisterDto> {
     return withTenant(this.db, { userId: auth.userId, companyId: ctx.companyId }, async (tx) => {
       const account = await loadAccount(tx, ctx.companyId, accountId, 'register');
-      const all = await accountEntries(tx, ctx.companyId, account);
       const search = q.search?.toLowerCase();
+      if (!search) {
+        const page = await registerPage(tx, ctx.companyId, account, q);
+        return {
+          accountId: account.id,
+          accountName: account.name,
+          accountType: account.accountType,
+          entries: page.entries.map(entryDto),
+          total: page.total,
+          endingBalance: moneyToString(page.ending),
+          clearedBalance: moneyToString(page.cleared),
+        };
+      }
+      // A search matches payees and the other account, so it reads every entry.
+      const all = await accountEntries(tx, ctx.companyId, account);
       const filtered = all
         .filter((e) => (!q.from || e.txnDate >= q.from) && (!q.to || e.txnDate <= q.to))
         .filter(
@@ -142,19 +250,7 @@ export class RegisterService {
         accountId: account.id,
         accountName: account.name,
         accountType: account.accountType,
-        entries: filtered.slice(q.offset, q.offset + q.limit).map((e) => ({
-          txnId: e.txnId,
-          txnType: e.txnType,
-          txnDate: e.txnDate,
-          number: e.number,
-          payee: e.payee,
-          memo: e.memo,
-          otherAccount: e.otherAccount,
-          amount: moneyToString(e.amount),
-          balance: moneyToString(e.balance),
-          cleared: e.cleared,
-          fromBankFeed: e.fromBankFeed,
-        })),
+        entries: filtered.slice(q.offset, q.offset + q.limit).map(entryDto),
         total: filtered.length,
         endingBalance: moneyToString(endingBalance),
         clearedBalance: moneyToString(clearedBalance),
@@ -299,4 +395,20 @@ export async function setClearedInTx(
       .where('status', '=', 'cleared')
       .execute();
   }
+}
+
+function entryDto(e: AccountEntry): RegisterDto['entries'][number] {
+  return {
+    txnId: e.txnId,
+    txnType: e.txnType,
+    txnDate: e.txnDate,
+    number: e.number,
+    payee: e.payee,
+    memo: e.memo,
+    otherAccount: e.otherAccount,
+    amount: moneyToString(e.amount),
+    balance: moneyToString(e.balance),
+    cleared: e.cleared,
+    fromBankFeed: e.fromBankFeed,
+  };
 }

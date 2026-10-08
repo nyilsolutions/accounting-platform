@@ -9,8 +9,9 @@ export function arOpenItems(
   companyId: string,
   asOf: string,
   customerId?: string,
+  opts: { openOnly?: boolean } = {},
 ): Promise<ArItem[]> {
-  return openItems(tx, companyId, asOf, 'ar', customerId);
+  return openItems(tx, companyId, asOf, 'ar', customerId, opts);
 }
 
 export {

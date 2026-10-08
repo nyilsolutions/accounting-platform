@@ -558,6 +558,45 @@ describe('bank connections (development provider)', () => {
   });
 });
 
+describe('register pages', () => {
+  // A search for "." matches every entry (each amount has one), so it takes the path that reads
+  // every entry; without a search the page is worked out in SQL (ADR 0028). Both must agree.
+  const page = (account: string, query: string) =>
+    get<RegisterDto>(`/banking/accounts/${acct(account)}/register?${query}`);
+
+  it('pages the same entries, balances and totals as the full register', async () => {
+    for (const account of ['Checking', 'Credit Card', 'Savings']) {
+      const full = await page(account, 'search=.&limit=500');
+      const fast = await page(account, 'limit=500');
+      expect(fast).toEqual(full);
+      if (account === 'Checking') expect(full.total).toBeGreaterThanOrEqual(5);
+      for (const [offset, limit] of [
+        [0, 2],
+        [1, 3],
+        [Math.max(0, full.total - 1), 5],
+        [full.total + 3, 5],
+      ] as const) {
+        const p = await page(account, `offset=${offset}&limit=${limit}`);
+        expect(p.entries).toEqual(full.entries.slice(offset, offset + limit));
+        expect(p).toMatchObject({
+          total: full.total,
+          endingBalance: full.endingBalance,
+          clearedBalance: full.clearedBalance,
+        });
+      }
+      const dates = full.entries.map((e) => e.txnDate).sort();
+      if (dates.length === 0) continue;
+      const from = dates[Math.floor(dates.length / 3)]!;
+      const to = dates[Math.floor((2 * dates.length) / 3)]!;
+      const ranged = await page(account, `from=${from}&to=${to}&limit=500`);
+      expect(ranged).toEqual(await page(account, `from=${from}&to=${to}&search=.&limit=500`));
+      expect(ranged.entries).toEqual(
+        full.entries.filter((e) => e.txnDate >= from && e.txnDate <= to),
+      );
+    }
+  });
+});
+
 describe('request limits', () => {
   it('limits request bodies except statement imports', async () => {
     const big = 'x'.repeat(300 * 1024);

@@ -214,15 +214,34 @@ export class CustomersService {
     }
   }
 
+  /**
+   * One customer with its "Parent:Child" name and depth, from its own ancestors (at most five
+   * levels), not the whole list: a company can have thousands of customers (ADR 0028).
+   */
   private async load(tx: Tx, companyId: string, id: string): Promise<CustomerDto> {
-    const rows = await tx
+    const row = await tx
       .selectFrom('customers')
       .selectAll()
+      .where('id', '=', id)
       .where('company_id', '=', companyId)
-      .execute();
-    const node = flattenTree(buildTree(rows, (r) => r.display_name)).find((n) => n.item.id === id);
-    if (!node) throw new NotFoundException('Customer not found');
-    return toCustomerDto(node.item, node.fullName, node.depth);
+      .executeTakeFirst();
+    if (!row) throw new NotFoundException('Customer not found');
+    const names = [row.display_name];
+    const seen = new Set([row.id]);
+    for (let parentId = row.parent_id; parentId && !seen.has(parentId);) {
+      const parent = await tx
+        .selectFrom('customers')
+        .select(['id', 'display_name', 'parent_id'])
+        .where('id', '=', parentId)
+        .where('company_id', '=', companyId)
+        .executeTakeFirst();
+      // A missing parent makes it a top-level customer, as in the list.
+      if (!parent) break;
+      names.unshift(parent.display_name);
+      seen.add(parent.id);
+      parentId = parent.parent_id;
+    }
+    return toCustomerDto(row, names.join(':'), names.length - 1);
   }
 }
 

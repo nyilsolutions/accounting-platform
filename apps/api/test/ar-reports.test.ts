@@ -166,6 +166,27 @@ describe('A/R and cash-basis reports on a known set of transactions', () => {
     });
     expect(value(cashMar, 'Services')).toBe('540.00');
     expect(value(cashMar, 'Net Income')).toBe('600.00');
+
+    // The same months as columns of one report, worked out together (ADR 0028).
+    const cashByMonth = await report(co, 'profit-and-loss', {
+      from: '2026-01-01',
+      to: '2026-03-31',
+      basis: 'cash',
+      columns: 'months',
+    });
+    expect(cashByMonth.columns).toEqual(['Jan 2026', 'Feb 2026', 'Mar 2026', 'Total']);
+    expect(cashByMonth.rows.find((r) => r.label === 'Services')?.amounts).toEqual([
+      '0.00',
+      '560.00',
+      '540.00',
+      '1100.00',
+    ]);
+    expect(cashByMonth.rows.find((r) => r.label === 'Net Income')?.amounts).toEqual([
+      '75.00',
+      '550.00',
+      '600.00',
+      '1225.00',
+    ]);
   });
 
   it('keeps the cash Balance Sheet in balance, with paid-up A/R at zero', async () => {
@@ -365,6 +386,27 @@ describe('A/R invariants (property-based)', () => {
         expect(cents(value(accrual, 'Net Income')) - cents(value(cashPl, 'Net Income'))).toBe(
           outstanding,
         );
+        // Columns are worked out together (ADR 0028); each must equal its month run alone.
+        const months = [
+          ['2026-01-01', '2026-01-31'],
+          ['2026-02-01', '2026-02-28'],
+          ['2026-03-01', '2026-03-31'],
+        ] as const;
+        for (const basis of ['accrual', 'cash']) {
+          const byMonth = await report(co, 'profit-and-loss', {
+            from: '2026-01-01',
+            to: '2026-03-31',
+            basis,
+            columns: 'months',
+          });
+          for (const [i, [from, to]] of months.entries()) {
+            const alone = await report(co, 'profit-and-loss', { from, to, basis });
+            for (const label of ['Services', 'Sales', 'Discounts Given', 'Net Income'])
+              expect(cents(value(byMonth, label, i)), `${basis} ${label} ${from}`).toBe(
+                cents(value(alone, label)),
+              );
+          }
+        }
       }),
       { numRuns: 12 },
     );

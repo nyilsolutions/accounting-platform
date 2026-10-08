@@ -16,6 +16,7 @@ import {
 import { buildTree, flattenTree } from '../common/tree';
 import { accountRowsFlat } from './report-builder';
 import { reportDto, type ReportScope } from './report-scope';
+import { compareNumbered } from '../common/collate';
 
 export const CUSTOM_ROW_LIMIT = 20_000;
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -211,9 +212,7 @@ export async function customReport(
       const k = groupOf(l);
       groups.set(k, [...(groups.get(k) ?? []), l]);
     }
-    const keys = [...groups.keys()].sort((a, b) =>
-      a.localeCompare(b, 'en', { numeric: true, sensitivity: 'base' }),
-    );
+    const keys = [...groups.keys()].sort((a, b) => compareNumbered(a, b));
     for (const k of keys) {
       const title = k.includes('|') ? k.split('|')[1]! : k;
       const ls = groups.get(k)!;

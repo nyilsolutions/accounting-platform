@@ -14,7 +14,11 @@ export type Tx = Transaction<Database>;
 
 export function createDb(connectionString: string, max = 10): Db {
   return new Kysely<Database>({
-    dialect: new PostgresDialect({ pool: new Pool({ connectionString, max }) }),
+    dialect: new PostgresDialect({
+      // No JIT: it compiles every large report query again on each run and cost more than it
+      // saved on every report we measured (ADR 0028).
+      pool: new Pool({ connectionString, max, options: '-c jit=off' }),
+    }),
   });
 }
 

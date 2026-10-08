@@ -1,3 +1,5 @@
+import { compareNumbered } from './collate';
+
 export interface TreeNode<T> {
   item: T;
   depth: number;
@@ -25,9 +27,7 @@ export function buildTree<T extends { id: string; parent_id: string | null }>(
   }
   const build = (parent: string | null, depth: number, prefix: string): TreeNode<T>[] =>
     (byParent.get(parent) ?? [])
-      .sort((a, b) =>
-        sortKey(a).localeCompare(sortKey(b), 'en', { numeric: true, sensitivity: 'base' }),
-      )
+      .sort((a, b) => compareNumbered(sortKey(a), sortKey(b)))
       .map((item) => {
         const fullName = prefix ? `${prefix}:${name(item)}` : name(item);
         return { item, depth, fullName, children: build(item.id, depth + 1, fullName) };

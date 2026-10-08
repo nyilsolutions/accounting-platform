@@ -483,3 +483,16 @@ Add new questions here instead of guessing.
     beforehand. Is the current behavior acceptable for launch?
 86. **Re-scanning stored files:** files are scanned when uploaded. Should a weekly job re-scan
     recent files with updated virus signatures, and how far back (say 90 days)?
+87. **Performance on AWS:** the 12b numbers are from a 4-vCPU development container with
+    Postgres on the same machine (ADR 0028). Which API task and database sizes should 12d start
+    from, and how many companies per database? The nightly performance workflow can run against
+    a staging database once 12d creates one. Also confirm the reading of "50 concurrent users":
+    the test simulates 50 people each acting every 2 to 8 seconds, and requires no errors and
+    p95 under 2 s. With no pauses at all (everyone clicking the instant a page arrives) one
+    instance on the development machine serves 14 to 16 requests a second and some requests
+    take over 10 s. Should the target be that harder case, or a number of users per instance
+    that 12d scales out to?
+88. **Very long lists:** the customers and vendors lists, and the pickers built on them, load
+    every record at once. At 5,000 customers that is about 120 ms and 2.3 MB per load (ADR 0028),
+    within budget. Should lists page and pickers search on the server before launch, or only
+    when a company reaches, say, 20,000 customers?

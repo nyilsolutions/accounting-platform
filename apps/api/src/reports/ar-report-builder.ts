@@ -7,6 +7,7 @@ import {
   daysPastDue,
   type LedgerItem,
 } from '../ledger/subledger';
+import { compareNames } from '../common/collate';
 
 /**
  * Receivables and payables report layouts. Pure functions over a subledger (open items as of the
@@ -37,9 +38,7 @@ function byParty(items: Item[]): Array<{ partyId: string | null; name: string; i
     g.items.push(i);
     groups.set(key, g);
   }
-  return [...groups.values()].sort((a, b) =>
-    a.name.localeCompare(b.name, 'en', { sensitivity: 'base' }),
-  );
+  return [...groups.values()].sort((a, b) => compareNames(a.name, b.name));
 }
 
 const openOnly = (items: Item[]) => items.filter((i) => i.open !== 0n);
@@ -232,9 +231,7 @@ export interface SalesAggregate {
  * (expenses: bills, checks and expenses less vendor and card credits).
  */
 export function amountByParty(groups: SalesAggregate[], party: Party = 'customer'): ReportRow[] {
-  const sorted = [...groups].sort((a, b) =>
-    a.label.localeCompare(b.label, 'en', { sensitivity: 'base' }),
-  );
+  const sorted = [...groups].sort((a, b) => compareNames(a.label, b.label));
   const rows: ReportRow[] = sorted
     .filter((g) => g.amount !== 0n)
     .map((g) => partyRow(party, g.label, g.key, [m(g.amount)]));
@@ -250,9 +247,7 @@ export function amountByParty(groups: SalesAggregate[], party: Party = 'customer
 /** Sales by product/service: quantity, amount, share of sales and average price. */
 export function salesByItem(groups: SalesAggregate[]): ReportRow[] {
   const total = groups.reduce((s, g) => s + g.amount, 0n);
-  const sorted = [...groups].sort((a, b) =>
-    a.label.localeCompare(b.label, 'en', { sensitivity: 'base' }),
-  );
+  const sorted = [...groups].sort((a, b) => compareNames(a.label, b.label));
   const rows: ReportRow[] = sorted
     .filter((g) => g.amount !== 0n || g.quantity !== 0n)
     .map((g) => ({

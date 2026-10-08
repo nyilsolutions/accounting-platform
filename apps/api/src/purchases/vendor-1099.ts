@@ -13,6 +13,7 @@ import {
 import { loadTaxData } from '../common/tax-data';
 import { formFilingState } from '../payroll/tax-filings';
 import { recognitions } from '../reports/cash-basis';
+import { compareNames } from '../common/collate';
 
 interface Form1099Data {
   thresholds: Partial<Record<Form1099Box, string>>;
@@ -205,7 +206,7 @@ export async function vendor1099Summary(
         };
       })
       .filter((v) => v.total !== '0.00')
-      .sort((a, b) => a.vendorName.localeCompare(b.vendorName, 'en', { sensitivity: 'base' })),
+      .sort((a, b) => compareNames(a.vendorName, b.vendorName)),
   };
 }
 
