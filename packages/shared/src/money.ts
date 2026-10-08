@@ -72,6 +72,12 @@ export function formatMoney(
   return opts.parens ? `(${body})` : `-${body}`;
 }
 
+/** "$1,234.50" or "-$1,234.50" (a balance that can be negative, e.g. an overdrawn account). */
+export function formatDollars(value: Money | string): string {
+  const v = typeof value === 'string' ? parseMoney(value) : value;
+  return `${v < 0n ? '-' : ''}$${formatMoney(v < 0n ? -v : v)}`;
+}
+
 export function sumMoney(values: Iterable<Money>): Money {
   let total = 0n;
   for (const v of values) total += v;

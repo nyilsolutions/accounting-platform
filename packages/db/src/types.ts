@@ -385,6 +385,113 @@ export interface Vendor1099AccountsTable {
   box: string;
 }
 
+export interface ReconciliationsTable extends Audited {
+  id: Generated<string>;
+  company_id: string;
+  account_id: string;
+  statement_date: DateCol;
+  beginning_balance: Numeric;
+  ending_balance: Numeric;
+  status: Generated<string>;
+  completed_at: Timestamp | null;
+  completed_by: string | null;
+}
+
+export interface BankClearingsTable {
+  company_id: string;
+  transaction_id: string;
+  account_id: string;
+  status: string;
+  reconciliation_id: string | null;
+  updated_at: Generated<Date>;
+}
+
+export interface BankFeedConnectionsTable extends Audited {
+  id: Generated<string>;
+  company_id: string;
+  provider: string;
+  institution_name: string;
+  item_id: string;
+  access_token_enc: string;
+  sync_cursor: string | null;
+  status: Generated<string>;
+  error_message: string | null;
+  last_synced_at: Timestamp | null;
+}
+
+export interface BankFeedAccountsTable {
+  id: Generated<string>;
+  company_id: string;
+  connection_id: string;
+  external_account_id: string;
+  name: string;
+  mask: string | null;
+  kind: string;
+  account_id: string | null;
+  start_date: DateCol | null;
+  created_at: Generated<Date>;
+}
+
+export interface BankAccountSettingsTable {
+  company_id: string;
+  account_id: string;
+  csv_mapping: Json;
+  bank_balance: Numeric | null;
+  bank_balance_date: DateCol | null;
+  updated_at: Generated<Date>;
+}
+
+export interface BankRulesTable extends Audited {
+  id: Generated<string>;
+  company_id: string;
+  name: string;
+  priority: Generated<number>;
+  direction: Generated<string>;
+  account_ids: ColumnType<string[], string[] | undefined, string[]>;
+  match_all: Generated<boolean>;
+  conditions: Json;
+  action_kind: string;
+  set_account_id: string | null;
+  set_vendor_id: string | null;
+  set_customer_id: string | null;
+  set_class_id: string | null;
+  set_memo: string | null;
+  auto_add: Generated<boolean>;
+  is_active: Generated<boolean>;
+}
+
+export interface BankImportBatchesTable {
+  id: Generated<string>;
+  company_id: string;
+  account_id: string;
+  source: string;
+  file_name: string | null;
+  format: string | null;
+  added_count: Generated<number>;
+  duplicate_count: Generated<number>;
+  created_by: string | null;
+  created_at: Generated<Date>;
+}
+
+export interface BankFeedTransactionsTable {
+  id: Generated<string>;
+  company_id: string;
+  account_id: string;
+  batch_id: string | null;
+  external_id: string;
+  posted_date: DateCol;
+  amount: Numeric;
+  description: string;
+  payee: string | null;
+  check_number: string | null;
+  status: Generated<string>;
+  transaction_id: string | null;
+  rule_id: string | null;
+  updated_by: string | null;
+  created_at: Generated<Date>;
+  updated_at: Generated<Date>;
+}
+
 export interface Database {
   users: UsersTable;
   mfa_recovery_codes: MfaRecoveryCodesTable;
@@ -412,6 +519,14 @@ export interface Database {
   purchase_orders: PurchaseOrdersTable;
   purchase_order_lines: PurchaseOrderLinesTable;
   vendor_1099_accounts: Vendor1099AccountsTable;
+  reconciliations: ReconciliationsTable;
+  bank_clearings: BankClearingsTable;
+  bank_feed_connections: BankFeedConnectionsTable;
+  bank_feed_accounts: BankFeedAccountsTable;
+  bank_account_settings: BankAccountSettingsTable;
+  bank_rules: BankRulesTable;
+  bank_import_batches: BankImportBatchesTable;
+  bank_feed_transactions: BankFeedTransactionsTable;
 }
 
 export type User = Selectable<UsersTable>;

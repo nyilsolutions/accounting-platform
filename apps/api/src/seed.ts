@@ -6,7 +6,7 @@
 import { randomUUID } from 'node:crypto';
 import { generateTotp, generateTotpSecret, hashPassword, LocalAesGcmEncryptor } from '@acct/crypto';
 import { createDb, withTenant, type Db, type Tx } from '@acct/db';
-import { parseMoney } from '@acct/shared';
+import { addDays, parseMoney } from '@acct/shared';
 import { AuditService } from './audit/audit.service';
 import type { AuthContext, CompanyContext } from './common/request';
 import { loadConfig, type AppConfig } from './config';
@@ -17,6 +17,9 @@ import { BillPaymentsService } from './purchases/bill-payments.service';
 import { PurchaseDocumentsService } from './purchases/purchase-documents.service';
 import { PurchaseOrdersService } from './purchases/purchase-orders.service';
 import { DepositsService } from './sales/deposits.service';
+import { BankFeedService } from './banking/bank-feed.service';
+import { BankRulesService } from './banking/bank-rules.service';
+import { TransfersService } from './banking/transfers.service';
 import { EstimatesService } from './sales/estimates.service';
 import { PaymentsService } from './sales/payments.service';
 import { SalesDocumentsService } from './sales/sales-documents.service';
@@ -135,6 +138,14 @@ async function main(): Promise<void> {
         .executeTakeFirst(),
     );
     if (!hasPurchases) await seedPurchases(db, userId, companyId!);
+    const hasBanking = await withTenant(db, { userId, companyId }, (tx) =>
+      tx
+        .selectFrom('bank_feed_transactions')
+        .select('id')
+        .where('company_id', '=', companyId!)
+        .executeTakeFirst(),
+    );
+    if (!hasBanking) await seedBanking(db, userId, companyId!);
 
     console.log(
       [
@@ -577,6 +588,116 @@ async function seedPurchases(db: Db, userId: string, companyId: string): Promise
         },
       ],
     },
+    meta,
+  );
+}
+
+/**
+ * A card payment (transfer), two bank rules and an uploaded May statement for Checking: one line
+ * matches the transfer, one the check paid in Phase 3's demo, one is auto-added by a rule and the
+ * rest wait in For Review.
+ */
+async function seedBanking(db: Db, userId: string, companyId: string): Promise<void> {
+  const audit = new AuditService(db);
+  const posting = new PostingService();
+  const purchases = new PurchaseDocumentsService(db, posting, audit);
+  const deposits = new DepositsService(db, posting, audit);
+  const transfers = new TransfersService(db, posting, audit);
+  const feed = new BankFeedService(db, audit, posting, purchases, deposits, transfers);
+  const rules = new BankRulesService(db, audit);
+  const auth = {
+    userId,
+    sessionId: 'seed',
+    email: DEMO_EMAIL,
+    fullName: 'Demo Owner',
+    mfaEnrolled: true,
+    mfaVerified: true,
+  } as AuthContext;
+  const ctx = { companyId, role: 'owner', permissions: [] } as unknown as CompanyContext;
+  const meta = { ip: null, userAgent: 'seed', requestId: null };
+  const year = new Date().getFullYear();
+  const { accounts, check } = await withTenant(db, { userId, companyId }, async (tx) => ({
+    accounts: await tx
+      .selectFrom('accounts')
+      .select(['id', 'name'])
+      .where('company_id', '=', companyId)
+      .execute(),
+    check: await tx
+      .selectFrom('transactions')
+      .select(['txn_number', 'total', 'txn_date'])
+      .where('company_id', '=', companyId)
+      .where('txn_type', 'in', ['check', 'bill_payment'])
+      .where('txn_number', '=', '1001')
+      .where('status', '=', 'posted')
+      .executeTakeFirst(),
+  }));
+  const acct = (name: string) => accounts.find((a) => a.name === name)!.id;
+
+  await transfers.save(
+    auth,
+    ctx,
+    null,
+    {
+      fromAccountId: acct('Checking'),
+      toAccountId: acct('Credit Card'),
+      txnDate: `${year}-05-05`,
+      amount: '400',
+      memo: 'Credit card payment',
+    },
+    meta,
+  );
+  const rule = (name: string, text: string, account: string, autoAdd: boolean) =>
+    rules.save(
+      auth,
+      ctx,
+      null,
+      {
+        name,
+        priority: 100,
+        direction: 'out',
+        accountIds: [],
+        matchAll: true,
+        conditions: [{ field: 'description', operator: 'contains', value: text }],
+        action: 'categorize',
+        accountId: acct(account),
+        autoAdd,
+        isActive: true,
+      },
+      meta,
+    );
+  await rule('Fuel', 'shell', 'Car and Truck', false);
+  await rule('Bank fees', 'service fee', 'Bank Charges and Fees', true);
+
+  const d = (day: string) => `${year}05${day}`;
+  const txn = (fitId: string, date: string, amount: string, name: string, checkNum?: string) =>
+    `<STMTTRN><TRNTYPE>${amount.startsWith('-') ? 'DEBIT' : 'CREDIT'}<DTPOSTED>${date}<TRNAMT>${amount}` +
+    `<FITID>${fitId}${checkNum ? `<CHECKNUM>${checkNum}` : ''}<NAME>${name}</STMTTRN>`;
+  const lines = [
+    txn('SEED-1', d('06'), '-400.00', 'ONLINE TRANSFER TO CARD'),
+    txn('SEED-2', d('09'), '-58.40', 'SHELL OIL 57442'),
+    txn('SEED-3', d('15'), '-15.00', 'MONTHLY SERVICE FEE'),
+    txn('SEED-4', d('18'), '-129.99', 'HOME DEPOT #4410'),
+    txn('SEED-5', d('21'), '1450.00', 'ACH DEPOSIT HILLSIDE HOA'),
+  ];
+  if (check?.total)
+    lines.push(
+      txn(
+        'SEED-6',
+        addDays(check.txn_date, 7).replace(/-/g, ''),
+        `-${check.total}`,
+        'CHECK 1001',
+        '1001',
+      ),
+    );
+  const ofx = `OFXHEADER:100\nDATA:OFXSGML\nVERSION:102\n\n<OFX><BANKMSGSRSV1><STMTTRNRS><STMTRS><CURDEF>USD
+<BANKACCTFROM><BANKID>121000248<ACCTID>000123451234<ACCTTYPE>CHECKING</BANKACCTFROM>
+<BANKTRANLIST>${lines.join('\n')}</BANKTRANLIST>
+</STMTRS></STMTTRNRS></BANKMSGSRSV1></OFX>`;
+  await feed.importFile(
+    auth,
+    ctx,
+    acct('Checking'),
+    { fileName: 'May statement.qbo', content: ofx },
     meta,
   );
 }

@@ -40,6 +40,7 @@ export const TXN_TYPE_LABELS: Record<string, string> = {
   expense: 'Expense',
   cc_credit: 'Credit Card Credit',
   purchase_order: 'Purchase Order',
+  transfer: 'Transfer',
 };
 
 // ---------------------------------------------------------------------------------------------

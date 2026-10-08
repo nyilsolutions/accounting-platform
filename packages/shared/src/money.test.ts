@@ -2,6 +2,7 @@ import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
 import {
   decimalPlaces,
+  formatDollars,
   formatMoney,
   moneyToString,
   parseMoney,
@@ -55,5 +56,13 @@ describe('money', () => {
         },
       ),
     );
+  });
+});
+
+describe('formatDollars', () => {
+  it('puts the sign before the dollar sign', () => {
+    expect(formatDollars('1234.5')).toBe('$1,234.50');
+    expect(formatDollars('-500')).toBe('-$500.00');
+    expect(formatDollars(0n)).toBe('$0.00');
   });
 });

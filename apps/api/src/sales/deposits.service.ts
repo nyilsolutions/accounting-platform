@@ -109,152 +109,164 @@ export class DepositsService {
     input: DepositInput,
     meta: RequestMeta,
   ): Promise<DepositDto> {
-    return withTenant(this.db, { userId: auth.userId, companyId: ctx.companyId }, async (tx) => {
-      const companyId = ctx.companyId;
-      const before = id ? await this.load(tx, companyId, id) : null;
-      if (before && before.status !== 'posted')
-        throw new ConflictException('A void deposit cannot be edited');
+    return withTenant(this.db, { userId: auth.userId, companyId: ctx.companyId }, (tx) =>
+      this.saveInTx(tx, auth, ctx, id, input, meta),
+    );
+  }
 
-      const bank = await tx
-        .selectFrom('accounts')
-        .select(['account_type', 'is_active'])
-        .where('id', '=', input.depositAccountId)
-        .where('company_id', '=', companyId)
-        .executeTakeFirst();
-      if (!bank?.is_active || bank.account_type !== 'bank') {
-        throw new BadRequestException(
-          validationError([{ path: 'depositAccountId', message: 'Choose a bank account' }]),
-        );
-      }
+  /** Also used when a bank transaction is added as a deposit. */
+  async saveInTx(
+    tx: Tx,
+    auth: AuthContext,
+    ctx: CompanyContext,
+    id: string | null,
+    input: DepositInput,
+    meta: RequestMeta,
+  ): Promise<DepositDto> {
+    const companyId = ctx.companyId;
+    const before = id ? await this.load(tx, companyId, id) : null;
+    if (before && before.status !== 'posted')
+      throw new ConflictException('A void deposit cannot be edited');
 
-      const uf = await systemAccount(tx, companyId, 'undeposited_funds');
-      const sourceIds = input.lines.map((l) => l.sourceTxnId).filter((v): v is string => !!v);
-      if (new Set(sourceIds).size !== sourceIds.length) {
-        throw new BadRequestException(
-          validationError([{ path: 'lines', message: 'A payment is listed twice' }]),
-        );
-      }
-      const available = new Map(
-        (await this.pendingInTx(tx, companyId, id ?? undefined)).map((p) => [p.txnId, p]),
+    const bank = await tx
+      .selectFrom('accounts')
+      .select(['account_type', 'is_active'])
+      .where('id', '=', input.depositAccountId)
+      .where('company_id', '=', companyId)
+      .executeTakeFirst();
+    if (!bank?.is_active || bank.account_type !== 'bank') {
+      throw new BadRequestException(
+        validationError([{ path: 'depositAccountId', message: 'Choose a bank account' }]),
       );
-      if (sourceIds.length) {
-        // Lock the sources so two deposits cannot claim the same payment concurrently.
-        await tx
-          .selectFrom('transactions')
-          .select('id')
-          .where('id', 'in', sourceIds)
-          .forUpdate()
-          .execute();
-      }
+    }
 
-      const errors: Array<{ path: string; message: string }> = [];
-      const resolved = input.lines.map((l, i) => {
-        if (l.sourceTxnId) {
-          const src = available.get(l.sourceTxnId);
-          if (!src) {
-            errors.push({
-              path: `lines.${i}.sourceTxnId`,
-              message: 'This payment is not waiting in Undeposited Funds',
-            });
-            return null;
-          }
-          return {
-            sourceTxnId: src.txnId,
-            accountId: uf,
-            amount: parseMoney(src.amount),
-            customerId: src.customerId,
-            description: l.description ?? null,
-            paymentMethodId: src.paymentMethodId,
-            reference: src.reference,
-            classId: null,
-          };
+    const uf = await systemAccount(tx, companyId, 'undeposited_funds');
+    const sourceIds = input.lines.map((l) => l.sourceTxnId).filter((v): v is string => !!v);
+    if (new Set(sourceIds).size !== sourceIds.length) {
+      throw new BadRequestException(
+        validationError([{ path: 'lines', message: 'A payment is listed twice' }]),
+      );
+    }
+    const available = new Map(
+      (await this.pendingInTx(tx, companyId, id ?? undefined)).map((p) => [p.txnId, p]),
+    );
+    if (sourceIds.length) {
+      // Lock the sources so two deposits cannot claim the same payment concurrently.
+      await tx
+        .selectFrom('transactions')
+        .select('id')
+        .where('id', 'in', sourceIds)
+        .forUpdate()
+        .execute();
+    }
+
+    const errors: Array<{ path: string; message: string }> = [];
+    const resolved = input.lines.map((l, i) => {
+      if (l.sourceTxnId) {
+        const src = available.get(l.sourceTxnId);
+        if (!src) {
+          errors.push({
+            path: `lines.${i}.sourceTxnId`,
+            message: 'This payment is not waiting in Undeposited Funds',
+          });
+          return null;
         }
         return {
-          sourceTxnId: null,
-          accountId: l.accountId!,
-          amount: parseMoney(l.amount!),
-          customerId: l.customerId ?? null,
+          sourceTxnId: src.txnId,
+          accountId: uf,
+          amount: parseMoney(src.amount),
+          customerId: src.customerId,
           description: l.description ?? null,
-          paymentMethodId: l.paymentMethodId ?? null,
-          reference: l.reference ?? null,
-          classId: l.classId ?? null,
-        };
-      });
-      if (errors.length) throw new BadRequestException(validationError(errors));
-      const lines = resolved.filter((l): l is NonNullable<typeof l> => l !== null);
-      const total = lines.reduce((s, l) => s + l.amount, 0n as Money);
-
-      const journal: PostingLine[] = [
-        {
-          accountId: input.depositAccountId,
-          debit: total,
-          credit: 0n,
-          description: input.memo ?? null,
-          customerId: null,
-          vendorId: null,
+          paymentMethodId: src.paymentMethodId,
+          reference: src.reference,
           classId: null,
-          locationId: null,
-        },
-        ...lines.map((l) => ({
-          accountId: l.accountId,
-          debit: 0n,
-          credit: l.amount,
-          description: l.description,
-          customerId: l.customerId,
-          vendorId: null,
-          classId: l.classId,
-          locationId: null,
-        })),
-      ];
-      const header = {
-        txnType: 'deposit' as const,
-        txnDate: input.txnDate,
-        number: null,
-        memo: input.memo ?? null,
-        isAdjusting: false,
-        details: { depositAccountId: input.depositAccountId, total: moneyToString(total, 2) },
+        };
+      }
+      return {
+        sourceTxnId: null,
+        accountId: l.accountId!,
+        amount: parseMoney(l.amount!),
+        customerId: l.customerId ?? null,
+        description: l.description ?? null,
+        paymentMethodId: l.paymentMethodId ?? null,
+        reference: l.reference ?? null,
+        classId: l.classId ?? null,
       };
-      const postingCtx = { companyId, userId: auth.userId, closingPassword: input.closingPassword };
-      let depositId = id;
-      if (id) await this.posting.revise(tx, postingCtx, id, input.version, header, journal);
-      else depositId = await this.posting.create(tx, postingCtx, header, journal);
-
-      await tx.deleteFrom('deposit_lines').where('deposit_id', '=', depositId!).execute();
-      await tx
-        .insertInto('deposit_lines')
-        .values(
-          lines.map((l, i) => ({
-            company_id: companyId,
-            deposit_id: depositId!,
-            line_no: i + 1,
-            source_txn_id: l.sourceTxnId,
-            account_id: l.accountId,
-            amount: moneyToString(l.amount, 2),
-            customer_id: l.customerId,
-            description: l.description,
-            payment_method_id: l.paymentMethodId,
-            reference: l.reference,
-            class_id: l.classId,
-          })),
-        )
-        .execute();
-
-      const after = await this.load(tx, companyId, depositId!);
-      await this.audit.record(
-        tx,
-        {
-          companyId,
-          actorUserId: auth.userId,
-          action: before ? 'deposit.updated' : 'deposit.created',
-          entityType: 'transaction',
-          entityId: depositId!,
-          before: before ? auditView(before) : null,
-          after: auditView(after),
-        },
-        meta,
-      );
-      return after;
     });
+    if (errors.length) throw new BadRequestException(validationError(errors));
+    const lines = resolved.filter((l): l is NonNullable<typeof l> => l !== null);
+    const total = lines.reduce((s, l) => s + l.amount, 0n as Money);
+
+    const journal: PostingLine[] = [
+      {
+        accountId: input.depositAccountId,
+        debit: total,
+        credit: 0n,
+        description: input.memo ?? null,
+        customerId: null,
+        vendorId: null,
+        classId: null,
+        locationId: null,
+      },
+      ...lines.map((l) => ({
+        accountId: l.accountId,
+        debit: 0n,
+        credit: l.amount,
+        description: l.description,
+        customerId: l.customerId,
+        vendorId: null,
+        classId: l.classId,
+        locationId: null,
+      })),
+    ];
+    const header = {
+      txnType: 'deposit' as const,
+      txnDate: input.txnDate,
+      number: null,
+      memo: input.memo ?? null,
+      isAdjusting: false,
+      details: { depositAccountId: input.depositAccountId, total: moneyToString(total, 2) },
+    };
+    const postingCtx = { companyId, userId: auth.userId, closingPassword: input.closingPassword };
+    let depositId = id;
+    if (id) await this.posting.revise(tx, postingCtx, id, input.version, header, journal);
+    else depositId = await this.posting.create(tx, postingCtx, header, journal);
+
+    await tx.deleteFrom('deposit_lines').where('deposit_id', '=', depositId!).execute();
+    await tx
+      .insertInto('deposit_lines')
+      .values(
+        lines.map((l, i) => ({
+          company_id: companyId,
+          deposit_id: depositId!,
+          line_no: i + 1,
+          source_txn_id: l.sourceTxnId,
+          account_id: l.accountId,
+          amount: moneyToString(l.amount, 2),
+          customer_id: l.customerId,
+          description: l.description,
+          payment_method_id: l.paymentMethodId,
+          reference: l.reference,
+          class_id: l.classId,
+        })),
+      )
+      .execute();
+
+    const after = await this.load(tx, companyId, depositId!);
+    await this.audit.record(
+      tx,
+      {
+        companyId,
+        actorUserId: auth.userId,
+        action: before ? 'deposit.updated' : 'deposit.created',
+        entityType: 'transaction',
+        entityId: depositId!,
+        before: before ? auditView(before) : null,
+        after: auditView(after),
+      },
+      meta,
+    );
+    return after;
   }
 
   setStatus(
