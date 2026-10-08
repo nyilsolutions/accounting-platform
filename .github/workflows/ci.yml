@@ -169,3 +169,25 @@ jobs:
           only-fixed: true
           severity-cutoff: high
           output-format: table
+
+  # Infrastructure (ADR 0030): formatting, validation and the module's tests against mocked AWS
+  # (no credentials, nothing created).
+  terraform:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
+        with:
+          terraform_version: 1.16.3
+          terraform_wrapper: false
+      - run: terraform fmt -check -recursive infra/terraform
+      - name: Test the platform module
+        working-directory: infra/terraform/modules/platform
+        run: terraform init -backend=false -input=false && terraform test
+      - name: Validate the environments
+        run: |
+          for env in staging production backup; do
+            (cd "infra/terraform/envs/$env" && terraform init -backend=false -input=false \
+              && terraform validate)
+          done

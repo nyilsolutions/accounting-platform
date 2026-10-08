@@ -1,0 +1,2 @@
+# Copy to backend.hcl: the state bucket made by modules/state-backend in the backup account.
+bucket = "acct-backup-terraform-state-<account id>"
