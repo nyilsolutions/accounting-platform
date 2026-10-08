@@ -72,8 +72,14 @@ const envSchema = z.object({
   PASSWORD_BREACH_CHECK: z.enum(['hibp', 'off']).default('off'),
   LOGIN_LOCKOUT_MINUTES: z.coerce.number().int().min(1).default(15),
   INVITATION_TTL_DAYS: z.coerce.number().int().min(1).max(30).default(7),
-  // Development transports only; production requires a real provider (added with Phase 2 email).
-  MAIL_TRANSPORT: z.enum(['console', 'capture', 'file']).default('console'),
+  /** 'ses' in production (ADR 0030); the others are for development and tests. */
+  MAIL_TRANSPORT: z.enum(['console', 'capture', 'file', 'ses']).default('console'),
+  /** The From address for SES, e.g. "Accounting Platform <no-reply@mail.example.com>". */
+  MAIL_FROM: z.string().optional(),
+  /** The SES configuration set (suppression list and delivery events). */
+  SES_CONFIGURATION_SET: z.string().optional(),
+  /** The SES region, when it differs from the AWS default for the task. */
+  SES_REGION: z.string().optional(),
   MAIL_OUTBOX_DIR: z.string().default('.outbox'),
   APP_NAME: z.string().default('Accounting Platform'),
   /** Express "trust proxy" setting; the web app proxies /api to us from localhost. */
@@ -253,8 +259,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     if (config.PASSWORD_BREACH_CHECK !== 'hibp') {
       throw new Error("PASSWORD_BREACH_CHECK must be 'hibp' in production");
     }
-    if (['console', 'capture', 'file'].includes(config.MAIL_TRANSPORT)) {
-      throw new Error('A real mail transport must be configured in production');
+    if (config.MAIL_TRANSPORT !== 'ses') {
+      throw new Error("MAIL_TRANSPORT must be 'ses' in production");
     }
     if (config.DOCUMENT_STORAGE !== 's3') {
       throw new Error("DOCUMENT_STORAGE must be 's3' in production");
@@ -293,13 +299,15 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
   if (config.BANK_FEED_PROVIDER === 'plaid' && (!config.PLAID_CLIENT_ID || !config.PLAID_SECRET)) {
     throw new Error('PLAID_CLIENT_ID and PLAID_SECRET are required when BANK_FEED_PROVIDER=plaid');
   }
-  if (
-    config.DOCUMENT_STORAGE === 's3' &&
-    (!config.S3_BUCKET || !config.S3_ACCESS_KEY_ID || !config.S3_SECRET_ACCESS_KEY)
-  ) {
-    throw new Error(
-      'S3_BUCKET, S3_ACCESS_KEY_ID and S3_SECRET_ACCESS_KEY are required for S3 storage',
-    );
+  if (config.MAIL_TRANSPORT === 'ses' && !config.MAIL_FROM) {
+    throw new Error('MAIL_FROM is required when MAIL_TRANSPORT=ses');
+  }
+  if (config.DOCUMENT_STORAGE === 's3' && !config.S3_BUCKET) {
+    throw new Error('S3_BUCKET is required for S3 storage');
+  }
+  // Static keys come as a pair; without them the AWS default chain (the task's IAM role) is used.
+  if (!config.S3_ACCESS_KEY_ID !== !config.S3_SECRET_ACCESS_KEY) {
+    throw new Error('Set both S3_ACCESS_KEY_ID and S3_SECRET_ACCESS_KEY, or neither');
   }
   if (config.DOCUMENT_AI === 'anthropic' && !config.ANTHROPIC_API_KEY) {
     throw new Error('ANTHROPIC_API_KEY is required when DOCUMENT_AI=anthropic');

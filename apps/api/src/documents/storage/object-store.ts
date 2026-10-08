@@ -32,7 +32,7 @@ export interface ObjectStore {
       contentType: string;
       disposition: 'inline' | 'attachment';
     },
-  ): string | null;
+  ): Promise<string | null>;
 }
 
 /** Text is served as UTF-8 so a browser never guesses another charset (ASVS 14.4.1). */
@@ -98,17 +98,27 @@ export class LocalObjectStore implements ObjectStore {
     await rm(this.path(key), { force: true });
   }
 
-  presignGet(): null {
+  async presignGet(): Promise<null> {
     return null;
   }
 }
+
+/** AWS credentials, possibly temporary (with a session token) and refreshed as they expire. */
+export type S3Credentials = () => Promise<{
+  accessKeyId: string;
+  secretAccessKey: string;
+  sessionToken?: string;
+}>;
 
 export interface S3Options {
   bucket: string;
   region: string;
   endpoint?: string;
-  accessKeyId: string;
-  secretAccessKey: string;
+  /**
+   * Where credentials come from: on AWS, the task's IAM role through the default chain (they
+   * rotate, so each request asks); static keys only for S3-compatible stores in development.
+   */
+  credentials: S3Credentials;
   forcePathStyle: boolean;
   sse: 'AES256' | 'aws:kms';
   kmsKeyId?: string;
@@ -121,16 +131,20 @@ export interface S3Options {
  */
 export class S3ObjectStore implements ObjectStore {
   readonly kind = 's3' as const;
-  private readonly credentials: SigV4Credentials;
   private readonly fetch: typeof fetch;
 
   constructor(private readonly opts: S3Options) {
-    this.credentials = {
-      accessKeyId: opts.accessKeyId,
-      secretAccessKey: opts.secretAccessKey,
-      region: opts.region,
-    };
     this.fetch = opts.fetch ?? fetch;
+  }
+
+  private async credentials(): Promise<SigV4Credentials> {
+    const c = await this.opts.credentials();
+    return {
+      accessKeyId: c.accessKeyId,
+      secretAccessKey: c.secretAccessKey,
+      sessionToken: c.sessionToken,
+      region: this.opts.region,
+    };
   }
 
   objectUrl(key: string): URL {
@@ -158,7 +172,7 @@ export class S3ObjectStore implements ObjectStore {
       url,
       headers,
       payloadHash: sha256Hex(body ?? ''),
-      credentials: this.credentials,
+      credentials: await this.credentials(),
     });
     const res = await this.fetch(url, {
       method,
@@ -199,7 +213,7 @@ export class S3ObjectStore implements ObjectStore {
     await this.send('DELETE', key);
   }
 
-  presignGet(
+  async presignGet(
     key: string,
     opts: {
       expiresIn: number;
@@ -207,7 +221,7 @@ export class S3ObjectStore implements ObjectStore {
       contentType: string;
       disposition: 'inline' | 'attachment';
     },
-  ): string {
+  ): Promise<string> {
     const url = this.objectUrl(key);
     url.searchParams.set(
       'response-content-disposition',
@@ -217,7 +231,7 @@ export class S3ObjectStore implements ObjectStore {
     return presignUrl({
       method: 'GET',
       url,
-      credentials: this.credentials,
+      credentials: await this.credentials(),
       expiresIn: opts.expiresIn,
     });
   }

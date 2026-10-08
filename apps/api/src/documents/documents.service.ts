@@ -971,7 +971,7 @@ export class DocumentsService implements OnModuleInit {
         meta,
       );
       const fileName = withSafeExtension(v.file_name, v.content_type);
-      const direct = this.store.presignGet(v.storage_key, {
+      const direct = await this.store.presignGet(v.storage_key, {
         expiresIn: FILE_URL_TTL_SECONDS,
         fileName,
         contentType: v.content_type,

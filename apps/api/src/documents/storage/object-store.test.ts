@@ -43,7 +43,7 @@ describe('LocalObjectStore', () => {
     await expect(store.get('../../etc/passwd', { keyEnc, aad: 'a' })).rejects.toThrow(
       /Invalid storage key/,
     );
-    expect(store.presignGet()).toBeNull();
+    expect(await store.presignGet()).toBeNull();
     await store.delete(k);
     await expect(store.get(k, { keyEnc, aad: 'a' })).rejects.toThrow(/ENOENT/);
   });
@@ -59,8 +59,7 @@ describe('S3ObjectStore', () => {
     const store = new S3ObjectStore({
       bucket: 'acct-docs',
       region: 'us-east-2',
-      accessKeyId: 'AKID',
-      secretAccessKey: 'secret',
+      credentials: async () => ({ accessKeyId: 'AKID', secretAccessKey: 'secret' }),
       forcePathStyle: false,
       sse: 'aws:kms',
       kmsKeyId: 'arn:aws:kms:us-east-2:1:key/abc',
@@ -81,18 +80,17 @@ describe('S3ObjectStore', () => {
     expect(headers.authorization).toContain('x-amz-server-side-encryption');
   });
 
-  it('pre-signs downloads with the file name and supports path-style endpoints', () => {
+  it('pre-signs downloads with the file name and supports path-style endpoints', async () => {
     const store = new S3ObjectStore({
       bucket: 'docs',
       region: 'auto',
       endpoint: 'https://minio.internal:9000',
-      accessKeyId: 'AKID',
-      secretAccessKey: 'secret',
+      credentials: async () => ({ accessKeyId: 'AKID', secretAccessKey: 'secret' }),
       forcePathStyle: true,
       sse: 'AES256',
     });
     const url = new URL(
-      store.presignGet('c/d/v', {
+      await store.presignGet('c/d/v', {
         expiresIn: 300,
         fileName: 'Réceipt.pdf',
         contentType: 'application/pdf',
@@ -113,5 +111,44 @@ describe('contentDisposition', () => {
     expect(contentDisposition('attachment', 'a"b\\c.pdf')).toBe(
       `attachment; filename="a_b_c.pdf"; filename*=UTF-8''a%22b%5Cc.pdf`,
     );
+  });
+
+  it('uses temporary role credentials, asking for them on every request', async () => {
+    const calls: Array<Record<string, string>> = [];
+    const fake = (async (_url: URL, init: RequestInit) => {
+      calls.push(init.headers as Record<string, string>);
+      return new Response('ok', { status: 200 });
+    }) as unknown as typeof fetch;
+    // As the AWS default chain would on ECS: the task role's keys rotate.
+    let round = 0;
+    const store = new S3ObjectStore({
+      bucket: 'acct-docs',
+      region: 'us-east-1',
+      credentials: async () => {
+        round++;
+        return {
+          accessKeyId: `ASIA${round}`,
+          secretAccessKey: 's',
+          sessionToken: `token-${round}`,
+        };
+      },
+      forcePathStyle: false,
+      sse: 'aws:kms',
+      kmsKeyId: 'k',
+      fetch: fake,
+    });
+    await store.get('a/b/c');
+    await store.get('a/b/c');
+    expect(calls.map((h) => h['x-amz-security-token'])).toEqual(['token-1', 'token-2']);
+    expect(calls[1]!.authorization).toContain('Credential=ASIA2/');
+    const url = new URL(
+      await store.presignGet('a/b/c', {
+        expiresIn: 300,
+        fileName: 'r.pdf',
+        contentType: 'application/pdf',
+        disposition: 'attachment',
+      }),
+    );
+    expect(url.searchParams.get('X-Amz-Security-Token')).toBe('token-3');
   });
 });
