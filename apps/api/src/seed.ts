@@ -39,6 +39,7 @@ import {
   seedPhase10c,
   seedPhase10d,
   seedPhase10e,
+  seedPhase10f,
 } from './seed-phase10';
 
 const DEMO_EMAIL = 'demo@example.com';
@@ -178,6 +179,7 @@ async function main(): Promise<void> {
     await seedPhase10c(db, config, userId, companyId!);
     await seedPhase10d(db, config, userId, companyId!);
     await seedPhase10e(db, config, userId, companyId!);
+    await seedPhase10f(db, config, userId, companyId!);
     await seedMigration(db, config, userId);
 
     console.log(

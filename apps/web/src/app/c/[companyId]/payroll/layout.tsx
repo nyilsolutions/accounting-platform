@@ -23,6 +23,7 @@ export default function PayrollLayout({ children }: { children: ReactNode }) {
           { href: `${base}/reports`, label: 'Reports' },
           { href: `${base}/setup`, label: 'Setup' },
           { href: `${base}/direct-deposit`, label: 'Direct deposit' },
+          { href: `${base}/requests`, label: 'Employee requests' },
         ]}
       />
       {children}

@@ -41,6 +41,7 @@ import { TimeService } from './time/time.service';
 import { OnlinePaymentsService } from './online-payments/online-payments.service';
 import { PaymentEventsService } from './online-payments/payment-events.service';
 import { PublicPayService } from './online-payments/public-pay.service';
+import { WorkerPortalService } from './portals/worker-portal.service';
 
 /**
  * Demo of Phase 10a inventory in Sample Landscaping Co. (FIFO, the default):
@@ -835,6 +836,95 @@ export async function seedPhase10e(
     await standIn({ action: 'payout', accountId, arrivalDate: today });
 
     await invoice(oakwood.id, 'ONL-1003', 'Shrub trimming', '195');
+  } finally {
+    await app.close();
+  }
+}
+
+/**
+ * Demo of Phase 10f portals in Sample Landscaping Co.: the demo login is also linked to employee
+ * Maria Lopez's portal (so /portal shows her pay stubs, W-2 figures and time without a second
+ * login), and Maria has asked for a new W-4 (Payroll › Employee requests). Customers get their
+ * sign-in links from Sales › Customers › Invite to customer portal (the email is printed by the
+ * development mail transport).
+ */
+export async function seedPhase10f(
+  db: Db,
+  config: AppConfig,
+  userId: string,
+  companyId: string,
+): Promise<void> {
+  const lookup = await withTenant(db, { userId, companyId }, async (tx) => ({
+    done: await tx
+      .selectFrom('portal_links')
+      .select('id')
+      .where('company_id', '=', companyId)
+      .executeTakeFirst(),
+    maria: await tx
+      .selectFrom('employees')
+      .select('id')
+      .where('company_id', '=', companyId)
+      .where('first_name', '=', 'Maria')
+      .where('last_name', '=', 'Lopez')
+      .executeTakeFirst(),
+    user: await tx
+      .selectFrom('users')
+      .select(['email'])
+      .where('id', '=', userId)
+      .executeTakeFirst(),
+  }));
+  if (lookup.done || !lookup.maria || !lookup.user) return;
+  const maria = lookup.maria;
+
+  // The link as if Maria's invitation had been accepted by the demo login.
+  const link = await withTenant(db, { userId, companyId }, (tx) =>
+    tx
+      .insertInto('portal_links')
+      .values({
+        company_id: companyId,
+        kind: 'employee',
+        employee_id: maria.id,
+        email: lookup.user!.email,
+        expires_at: new Date(),
+        invited_by: userId,
+        user_id: userId,
+        accepted_at: new Date(),
+      })
+      .returning('id')
+      .executeTakeFirstOrThrow(),
+  );
+
+  const app = await NestFactory.createApplicationContext(
+    AppModule.forRoot({ ...config, REPORT_SCHEDULER: 'off' }),
+    { logger: ['error'] },
+  );
+  try {
+    const auth: AuthContext = {
+      sessionId: 'seed',
+      userId,
+      email: lookup.user.email,
+      fullName: 'Demo Owner',
+      mfaEnrolled: true,
+      mfaVerified: true,
+    };
+    const meta: RequestMeta = { ip: null, userAgent: 'seed', requestId: null };
+    await app.get(WorkerPortalService).requestW4(
+      auth,
+      { companyId, linkId: link.id, kind: 'employee', employeeId: maria.id, vendorId: null },
+      {
+        formVersion: '2020',
+        effectiveFrom: `${new Date().getFullYear() + 1}-01-01`,
+        filingStatus: 'married_jointly',
+        multipleJobs: false,
+        dependentsAmount: '4000',
+        otherIncome: '0',
+        deductions: '0',
+        extraWithholding: '0',
+        exempt: false,
+        nonresidentAlien: false,
+      },
+      meta,
+    );
   } finally {
     await app.close();
   }

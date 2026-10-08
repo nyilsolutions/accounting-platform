@@ -348,3 +348,40 @@ Add new questions here instead of guessing.
 69. **Refunds started from the app:** open. In 10e, refunds are made in the Stripe dashboard and
     come back through the payout. Should the invoice or payment get a "Refund" button that calls
     Stripe?
+
+## Portals (Phase 10f)
+
+70. **What the portals do:** decided 2026-10-07 (all the recommended options).
+    - **Customers** sign in with an emailed link. They can:
+      - see their invoices and statement;
+      - pay online through 10e;
+      - accept or decline estimates sent to them.
+
+      They can't edit their details.
+
+    - **Employees** use a password and MFA. They can:
+      - see their pay stubs and W-2 figures;
+      - enter and submit their own time.
+
+      They see their W-4 and direct deposit (masked); changing either is a **request a payroll
+      admin approves**.
+
+    - **Contractors** use a password and MFA. They can:
+      - enter their time;
+      - see payments made to them and their 1099 totals.
+
+      Their TIN stays with the business.
+
+    - Employees and contractors use the **normal sign-in** linked to their own record, with no
+      company membership (ADR 0023).
+71. **Choices in portal timesheets:** open. In 10f the portal enters hours with a note only:
+    regular pay for employees, and no customer or billable flag. Should employees choose an
+    earning (overtime, holiday), and contractors a customer to bill? Doing so shows them the
+    company's customer list.
+72. **Official W-2 copies in the portal:** open, waiting on the Phase 9 documents (question 57).
+    The portal shows the W-2 figures for reference only. It must not be the way a W-2 is
+    furnished until there is a consent step: furnishing a W-2 electronically needs the
+    employee's affirmative consent and the disclosures of Treas. Reg. §31.6051-1(j).
+73. **State withholding certificates in the portal:** open. Employees can ask for a new federal
+    W-4 only. State certificates (IL-W-4, DE 4, IT-2104 and others) stay with the payroll admin.
+    Should they be requests too?

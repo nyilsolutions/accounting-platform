@@ -189,41 +189,52 @@ export class ArService {
     from: string,
     to: string,
   ): Promise<StatementDto> {
-    return withTenant(this.db, { userId: auth.userId, companyId: ctx.companyId }, async (tx) => {
-      const customer = await tx
-        .selectFrom('customers')
-        .selectAll()
-        .where('id', '=', customerId)
-        .where('company_id', '=', ctx.companyId)
-        .executeTakeFirst();
-      if (!customer) throw new NotFoundException('Customer not found');
-      const company = await tx
-        .selectFrom('companies')
-        .select([
-          'legal_name',
-          'dba_name',
-          'address_line1',
-          'address_line2',
-          'city',
-          'state',
-          'postal_code',
-        ])
-        .where('id', '=', ctx.companyId)
-        .executeTakeFirstOrThrow();
+    return withTenant(this.db, { userId: auth.userId, companyId: ctx.companyId }, (tx) =>
+      this.statementInTx(tx, ctx, customerId, from, to),
+    );
+  }
 
-      // A/R activity for the customer from the general ledger (every source, not just documents).
-      // A foreign-currency customer's statement is in their currency, from the documents and
-      // payments themselves (ADR 0020); revaluations change nothing in their currency.
-      if (customer.currency)
-        return foreignStatement(tx, ctx.companyId, customer, company, from, to);
-      const activity = await sql<{
-        id: string;
-        txn_type: string;
-        txn_date: string;
-        txn_number: string | null;
-        memo: string | null;
-        net: string;
-      }>`
+  /** Also used by the customer portal (ADR 0023). */
+  async statementInTx(
+    tx: Tx,
+    ctx: Pick<CompanyContext, 'companyId'>,
+    customerId: string,
+    from: string,
+    to: string,
+  ): Promise<StatementDto> {
+    const customer = await tx
+      .selectFrom('customers')
+      .selectAll()
+      .where('id', '=', customerId)
+      .where('company_id', '=', ctx.companyId)
+      .executeTakeFirst();
+    if (!customer) throw new NotFoundException('Customer not found');
+    const company = await tx
+      .selectFrom('companies')
+      .select([
+        'legal_name',
+        'dba_name',
+        'address_line1',
+        'address_line2',
+        'city',
+        'state',
+        'postal_code',
+      ])
+      .where('id', '=', ctx.companyId)
+      .executeTakeFirstOrThrow();
+
+    // A/R activity for the customer from the general ledger (every source, not just documents).
+    // A foreign-currency customer's statement is in their currency, from the documents and
+    // payments themselves (ADR 0020); revaluations change nothing in their currency.
+    if (customer.currency) return foreignStatement(tx, ctx.companyId, customer, company, from, to);
+    const activity = await sql<{
+      id: string;
+      txn_type: string;
+      txn_date: string;
+      txn_number: string | null;
+      memo: string | null;
+      net: string;
+    }>`
         select t.id, t.txn_type, t.txn_date, t.txn_number, t.memo, sum(l.debit - l.credit) as net
         from journal_lines l
         join transactions t on t.id = l.transaction_id and t.version = l.version
@@ -232,44 +243,43 @@ export class ArService {
           and l.txn_date <= ${to}
         group by t.id, t.txn_type, t.txn_date, t.txn_number, t.memo, t.created_at
         order by t.txn_date, t.created_at`.execute(tx);
-      let opening = 0n;
-      let running = 0n;
-      const rows: StatementDto['rows'] = [];
-      for (const a of activity.rows) {
-        const net = parseMoney(a.net);
-        if (a.txn_date < from) {
-          opening += net;
-          continue;
-        }
-        if (rows.length === 0) running = opening;
-        running += net;
-        rows.push({
-          txnId: a.id,
-          txnType: a.txn_type,
-          txnDate: a.txn_date,
-          number: a.txn_number,
-          description: `${TXN_TYPE_LABELS[a.txn_type] ?? a.txn_type}${a.txn_number ? ` #${a.txn_number}` : ''}${a.memo ? ` — ${a.memo}` : ''}`,
-          amount: moneyToString(net),
-          balance: moneyToString(running),
-        });
+    let opening = 0n;
+    let running = 0n;
+    const rows: StatementDto['rows'] = [];
+    for (const a of activity.rows) {
+      const net = parseMoney(a.net);
+      if (a.txn_date < from) {
+        opening += net;
+        continue;
       }
       if (rows.length === 0) running = opening;
-      const items = await arOpenItems(tx, ctx.companyId, to, customerId);
-      return {
-        companyName: company.dba_name ?? company.legal_name,
-        companyAddress: companyAddress(company),
-        customerId,
-        customerName: customer.display_name,
-        currency: null,
-        billTo: billTo(customer),
-        from,
-        to,
-        openingBalance: moneyToString(opening),
-        rows,
-        endingBalance: moneyToString(running),
-        aging: agingDto(agingOf(items, to)),
-      };
-    });
+      running += net;
+      rows.push({
+        txnId: a.id,
+        txnType: a.txn_type,
+        txnDate: a.txn_date,
+        number: a.txn_number,
+        description: `${TXN_TYPE_LABELS[a.txn_type] ?? a.txn_type}${a.txn_number ? ` #${a.txn_number}` : ''}${a.memo ? ` — ${a.memo}` : ''}`,
+        amount: moneyToString(net),
+        balance: moneyToString(running),
+      });
+    }
+    if (rows.length === 0) running = opening;
+    const items = await arOpenItems(tx, ctx.companyId, to, customerId);
+    return {
+      companyName: company.dba_name ?? company.legal_name,
+      companyAddress: companyAddress(company),
+      customerId,
+      customerName: customer.display_name,
+      currency: null,
+      billTo: billTo(customer),
+      from,
+      to,
+      openingBalance: moneyToString(opening),
+      rows,
+      endingBalance: moneyToString(running),
+      aging: agingDto(agingOf(items, to)),
+    };
   }
 }
 
