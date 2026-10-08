@@ -80,6 +80,17 @@ const envSchema = z.object({
   /** Exchange rates: 'ecb' (the European Central Bank's daily reference rates) or 'none'. */
   EXCHANGE_RATE_PROVIDER: z.enum(['ecb', 'none']).default('ecb'),
   ECB_RATES_URL: z.url().default('https://www.ecb.europa.eu/stats/eurofxref'),
+  // Online payments (Phase 10e)
+  /**
+   * Customers pay invoices online: 'stripe' (Stripe Connect, Standard accounts), 'mock' (the
+   * stand-in for development, tests and demos) or 'none'.
+   */
+  PAYMENTS_PROVIDER: z.enum(['stripe', 'mock', 'none']).default('mock'),
+  STRIPE_SECRET_KEY: z.string().optional(),
+  /** Signing secret of the platform's Connect webhook endpoint (…/api/webhooks/payments/stripe). */
+  STRIPE_WEBHOOK_SECRET: z.string().optional(),
+  /** Pins Stripe's API version; unset uses the platform account's default. */
+  STRIPE_API_VERSION: z.string().optional(),
   /** Emails scheduled reports (checks for due schedules every minute). 'off' in tests. */
   REPORT_SCHEDULER: z.enum(['on', 'off']).default('on'),
 });
@@ -109,9 +120,20 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     if (config.BANK_FEED_PROVIDER === 'mock') {
       throw new Error("BANK_FEED_PROVIDER must be 'plaid' or 'none' in production");
     }
+    if (config.PAYMENTS_PROVIDER === 'mock') {
+      throw new Error("PAYMENTS_PROVIDER must be 'stripe' or 'none' in production");
+    }
     if (config.QBO_ENVIRONMENT === 'mock') {
       throw new Error("QBO_ENVIRONMENT must be 'production', 'sandbox' or 'none' in production");
     }
+  }
+  if (
+    config.PAYMENTS_PROVIDER === 'stripe' &&
+    (!config.STRIPE_SECRET_KEY || !config.STRIPE_WEBHOOK_SECRET)
+  ) {
+    throw new Error(
+      'STRIPE_SECRET_KEY and STRIPE_WEBHOOK_SECRET are required when PAYMENTS_PROVIDER=stripe',
+    );
   }
   if (config.BANK_FEED_PROVIDER === 'plaid' && (!config.PLAID_CLIENT_ID || !config.PLAID_SECRET)) {
     throw new Error('PLAID_CLIENT_ID and PLAID_SECRET are required when BANK_FEED_PROVIDER=plaid');

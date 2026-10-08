@@ -18,6 +18,7 @@ import type {
   W2FormsDto,
   ItemDto,
   CurrencySettingsDto,
+  OnlinePaymentsSettingsDto,
   LedgerSettingsDto,
   MeDto,
   PayrollItemDto,
@@ -84,6 +85,8 @@ export const keys = {
   time: (id: string) => ['company', id, 'time'] as const,
   /** Multi-currency: settings, currencies, rates and revaluations. */
   currencies: (id: string) => ['company', id, 'currencies'] as const,
+  /** Online payments: Stripe connection, payments and payouts (ADR 0022). */
+  onlinePayments: (id: string) => ['company', id, 'online-payments'] as const,
   /** Accountant tools: close checklist, client changes, reclassify, write-offs. */
   accountant: (id: string) => ['company', id, 'accountant'] as const,
 };
@@ -166,6 +169,15 @@ export function useCurrencies(id: string) {
   return useQuery({
     queryKey: keys.currencies(id),
     queryFn: () => api<CurrencySettingsDto>(`/companies/${id}/currencies`),
+  });
+}
+
+/** The company's online payments settings (Stripe connection and accounts). */
+export function useOnlinePayments(id: string, enabled = true) {
+  return useQuery({
+    queryKey: keys.onlinePayments(id),
+    queryFn: () => api<OnlinePaymentsSettingsDto>(`/companies/${id}/online-payments`),
+    enabled,
   });
 }
 

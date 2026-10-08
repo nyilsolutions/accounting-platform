@@ -29,6 +29,7 @@ import { APP_CONFIG, type AppConfig } from '../config';
 import type { AuthContext, CompanyContext, RequestMeta } from '../common/request';
 import { DB } from '../db/db.module';
 import { InventoryService, type ProposedMove } from '../inventory/inventory.service';
+import { createPayLink, payLinkRefusal, payUrl } from '../online-payments/pay-links';
 import { PostingService, type PostingLine } from '../ledger/posting.service';
 import { MAILER, type Mailer } from '../mail/mailer';
 import { replaceSalesTaxLines } from '../sales-tax/sales-tax-ledger';
@@ -591,6 +592,13 @@ export class SalesDocumentsService {
         .executeTakeFirstOrThrow();
       const from = company.dba_name ?? company.legal_name;
       const label = TXN_TYPE_LABELS[type]!;
+      // Invoices with a balance carry a link to pay online when the company takes payments.
+      const payLink =
+        type === 'invoice' &&
+        parseMoney(doc.balance) > 0n &&
+        !(await payLinkRefusal(tx, this.config, ctx.companyId, id))
+          ? payUrl(this.config, await createPayLink(tx, ctx.companyId, id, auth.userId))
+          : null;
       const body = [
         input.message ?? `Dear ${doc.customerName ?? 'customer'},`,
         '',
@@ -609,6 +617,7 @@ export class SalesDocumentsService {
           : []),
         `Total: ${doc.total}`,
         ...(type === 'invoice' ? [`Balance due: ${doc.balance}`] : []),
+        ...(payLink ? ['', `Pay online by card or bank transfer: ${payLink}`] : []),
         ...(doc.customerMessage ? ['', doc.customerMessage] : []),
         '',
         `${from}${company.phone ? ` · ${company.phone}` : ''}${company.email ? ` · ${company.email}` : ''}`,

@@ -185,12 +185,13 @@ export function Badge({
   tone = 'gray',
 }: {
   children: ReactNode;
-  tone?: 'gray' | 'green' | 'amber';
+  tone?: 'gray' | 'green' | 'amber' | 'red';
 }) {
   const styles = {
     gray: 'bg-gray-100 text-gray-700',
     green: 'bg-emerald-100 text-emerald-800',
     amber: 'bg-amber-100 text-amber-800',
+    red: 'bg-red-100 text-red-800',
   }[tone];
   return (
     <span className={cx('inline-flex rounded px-2 py-0.5 text-xs font-medium', styles)}>

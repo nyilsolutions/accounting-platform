@@ -318,3 +318,33 @@ Add new questions here instead of guessing.
     model once a sample multi-currency company file or export is available. **Still needed:**
     that sample (a QuickBooks Online sandbox company with multi-currency on, or a Desktop file).
     Until then the import reads document amounts as US dollars, as before.
+
+## Online payments (Phase 10e)
+
+65. **How online payments work:** decided 2026-10-07 (all the recommended options).
+    - Each business connects its own **Stripe Standard** account. Charges are made on it
+      directly, so the platform never holds the money.
+    - The **business pays the fees**; there are no card surcharges.
+    - Payments are recorded **QuickBooks style**: into Undeposited Funds, then one deposit per
+      payout, net of fees.
+    - There is **no platform fee** for now.
+    - **Refunds** go to Refunds and Allowances, and **lost chargebacks** to Chargebacks. The
+      sales tax stays owed unless it is adjusted by hand (ADR 0022).
+66. **The platform's Stripe account (still needed).** Until it exists, a stand-in takes test
+    payments. Going live needs:
+    - a Stripe account with Connect turned on for Standard accounts, and its secret key;
+    - a Connect webhook endpoint at `…/api/webhooks/payments/stripe` and its signing secret. It
+      must send these events: `account.updated`, `checkout.session.completed`,
+      `checkout.session.async_payment_succeeded`, `checkout.session.async_payment_failed`,
+      `checkout.session.expired`, `charge.refunded`, `charge.dispute.*`, `payout.paid` and
+      `payout.failed`;
+    - the API version to pin (`STRIPE_API_VERSION`).
+67. **Paying foreign-currency invoices online:** open. 10e takes online payments for US dollar
+    invoices only. Charging in the customer's currency raises two questions:
+    - which rate records the payment;
+    - how the processor's conversion shows in the deposit.
+68. **Paying part of an invoice online:** open. The pay page charges the whole balance. Should
+    customers be able to choose a smaller amount, or should a deposit be required on estimates?
+69. **Refunds started from the app:** open. In 10e, refunds are made in the Stripe dashboard and
+    come back through the payout. Should the invoice or payment get a "Refund" button that calls
+    Stripe?

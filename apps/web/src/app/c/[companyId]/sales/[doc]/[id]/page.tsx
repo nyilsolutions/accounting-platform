@@ -24,6 +24,7 @@ import { api, errorMessage } from '@/lib/api';
 import { txnHref } from '@/lib/links';
 import { keys, ledgerKeys, useAccess } from '@/lib/queries';
 import { Attachments } from '@/components/documents/attachments';
+import { InvoiceOnlinePayments } from '@/components/online-payments/invoice-online-payments';
 
 function SalesDocument() {
   const { companyId, doc, id } = useParams<{ companyId: string; doc: string; id: string }>();
@@ -102,6 +103,9 @@ function SalesDocument() {
         <div className="mb-4 print:hidden">
           {error ? <Alert>{error}</Alert> : <Alert kind="success">{notice}</Alert>}
         </div>
+      )}
+      {type === 'invoice' && (
+        <InvoiceOnlinePayments companyId={companyId} invoice={d} canManage={canManage} />
       )}
       {d.applied.length > 0 && (
         <Card className="mb-4 p-4 text-sm print:hidden">

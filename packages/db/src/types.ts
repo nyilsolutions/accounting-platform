@@ -1297,6 +1297,80 @@ export interface PeriodClosesTable {
   closed_at: Generated<Date>;
 }
 
+export interface PaymentAccountsTable {
+  company_id: string;
+  provider: 'stripe' | 'mock';
+  account_id: string;
+  status: Generated<'pending' | 'active' | 'restricted' | 'disconnected'>;
+  charges_enabled: Generated<boolean>;
+  payouts_enabled: Generated<boolean>;
+  requirements: string | null;
+  accept_card: Generated<boolean>;
+  accept_ach: Generated<boolean>;
+  deposit_account_id: string;
+  fee_account_id: string;
+  refund_account_id: string;
+  chargeback_account_id: string;
+  connected_by: string | null;
+  created_at: Generated<Date>;
+  updated_at: Generated<Date>;
+}
+
+export interface PayLinksTable {
+  id: Generated<string>;
+  company_id: string;
+  invoice_id: string;
+  token_hash: string;
+  created_by: string | null;
+  created_at: Generated<Date>;
+  revoked_at: Date | null;
+}
+
+export interface OnlinePaymentsTable {
+  id: Generated<string>;
+  company_id: string;
+  invoice_id: string;
+  pay_link_id: string | null;
+  provider: 'stripe' | 'mock';
+  account_id: string;
+  session_id: string;
+  payment_intent_id: string | null;
+  charge_id: string | null;
+  method: 'card' | 'us_bank_account' | null;
+  amount: Numeric;
+  status: Generated<'started' | 'processing' | 'succeeded' | 'failed' | 'canceled'>;
+  refunded: ColumnType<string, string | number | undefined, string | number>;
+  dispute_status: 'open' | 'won' | 'lost' | null;
+  failure_message: string | null;
+  payment_txn_id: string | null;
+  succeeded_at: Date | null;
+  created_at: Generated<Date>;
+  updated_at: Generated<Date>;
+}
+
+export interface ProcessorPayoutsTable {
+  id: Generated<string>;
+  company_id: string;
+  provider: 'stripe' | 'mock';
+  payout_id: string;
+  amount: Numeric;
+  arrival_date: DateCol;
+  status: 'recorded' | 'review' | 'failed';
+  message: string | null;
+  items: ColumnType<unknown, string | undefined, string>;
+  deposit_txn_id: string | null;
+  created_at: Generated<Date>;
+  updated_at: Generated<Date>;
+}
+
+export interface PaymentEventsTable {
+  provider: 'stripe' | 'mock';
+  event_id: string;
+  company_id: string;
+  type: string;
+  received_at: Generated<Date>;
+}
+
 export interface Database {
   users: UsersTable;
   mfa_recovery_codes: MfaRecoveryCodesTable;
@@ -1388,6 +1462,11 @@ export interface Database {
   inventory_adjustment_lines: InventoryAdjustmentLinesTable;
   inventory_builds: InventoryBuildsTable;
   inventory_opening_lines: InventoryOpeningLinesTable;
+  payment_accounts: PaymentAccountsTable;
+  pay_links: PayLinksTable;
+  online_payments: OnlinePaymentsTable;
+  processor_payouts: ProcessorPayoutsTable;
+  payment_events: PaymentEventsTable;
 }
 
 export type User = Selectable<UsersTable>;

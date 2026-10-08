@@ -2,6 +2,7 @@ import { Module, type DynamicModule } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { AccountantModule } from './accountant/accountant.module';
+import { OnlinePaymentsModule } from './online-payments/online-payments.module';
 import { AuditModule } from './audit/audit.module';
 import { AuthModule } from './auth/auth.module';
 import { CompaniesModule } from './companies/companies.module';
@@ -49,6 +50,7 @@ export class AppModule {
         TimeModule,
         CurrencyModule,
         AccountantModule,
+        OnlinePaymentsModule,
         ListsModule,
         ReportsModule,
         SalesModule,

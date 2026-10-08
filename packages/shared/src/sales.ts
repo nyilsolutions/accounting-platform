@@ -387,7 +387,8 @@ export const depositInputSchema = z
           /** A payment or sales receipt waiting in Undeposited Funds. Its amount and account come from it. */
           sourceTxnId: z.uuid().nullable().optional(),
           accountId: z.uuid().nullable().optional(),
-          amount: positiveAmount.optional(),
+          /** Other lines may be negative (fees, refunds); the deposit's total must stay positive. */
+          amount: signedAmount,
           customerId: z.uuid().nullable().optional(),
           description: optText(4000),
           paymentMethodId: z.uuid().nullable().optional(),
@@ -402,7 +403,7 @@ export const depositInputSchema = z
   })
   .superRefine((d, ctx) => {
     d.lines.forEach((l, i) => {
-      if (!l.sourceTxnId && (!l.accountId || !l.amount || tryParseMoney(l.amount) === 0n)) {
+      if (!l.sourceTxnId && (!l.accountId || !l.amount || !tryParseMoney(l.amount))) {
         ctx.addIssue({
           code: 'custom',
           path: ['lines', i, 'accountId'],
