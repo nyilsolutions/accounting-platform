@@ -1,0 +1,12 @@
+# Copy to terraform.tfvars and fill in. Nothing here is secret.
+management_account_id = "000000000000"
+account_emails = {
+  staging    = "aws+staging@example.com"
+  production = "aws+production@example.com"
+  backup     = "aws+backup@example.com"
+}
+people = [
+  { email = "you@example.com", given_name = "First", family_name = "Last", group = "admins" },
+]
+budget_emails = ["you@example.com"]
+# monthly_budget_usd = { staging = 500, production = 2500, backup = 200, management = 50 }

@@ -185,11 +185,14 @@ jobs:
       - name: Test the platform module
         working-directory: infra/terraform/modules/platform
         run: terraform init -backend=false -input=false && terraform test
+      - name: Test the organization root
+        working-directory: infra/terraform/envs/organization
+        run: terraform init -backend=false -input=false && terraform test
       - name: Test the deploy script (fake AWS CLI)
         run: bash infra/deploy/test/ecs-deploy.test.sh
       - name: Validate the environments
         run: |
-          for env in staging production backup; do
+          for env in staging production backup organization; do
             (cd "infra/terraform/envs/$env" && terraform init -backend=false -input=false \
               && terraform validate)
           done

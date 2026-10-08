@@ -10,10 +10,14 @@ modules/platform       one environment (network, database, storage, keys, servic
                        backups, alarms, account security); tests/ checks it with mocked AWS
 modules/backup-vault   the locked vault in the backup account
 modules/state-backend  a state bucket for one account
+envs/organization      the AWS Organization: accounts, guardrails, budgets, Identity Center
 envs/staging           staging (its own account)
 envs/production        production (its own account)
 envs/backup            the backup account
 ```
+
+The first launch, step by step: `docs/launch-walkthrough.md`. The first images come from
+`infra/bootstrap/push-images.sh`; after that the Deploy workflow builds them.
 
 ## First time, per account
 

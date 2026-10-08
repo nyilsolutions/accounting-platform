@@ -1,10 +1,11 @@
 # Copy to terraform.tfvars and fill in. Nothing here is secret.
 account_id            = "111111111111"
 production_account_id = "222222222222"
-domain_name           = "books-staging.example.com"
-route53_zone_id       = "Z0000000000000000000"
-mail_domain           = "mail-staging.example.com"
-mail_from             = "Books (staging) <no-reply@mail-staging.example.com>"
+# Staging lives under its own subdomain, hosted in this account and delegated from production.
+dns_zone_name = "staging.example.com"
+domain_name   = "books.staging.example.com"
+mail_domain   = "mail.staging.example.com"
+mail_from     = "Books (staging) <no-reply@mail.staging.example.com>"
 alarm_emails          = ["ops@example.com"]
 # The first deploy's images (built and pushed by the deploy workflow, or by hand).
 api_image = "111111111111.dkr.ecr.us-east-1.amazonaws.com/acct/api:<git sha>"

@@ -58,8 +58,30 @@ variable "mail_from" {
 }
 
 variable "route53_zone_id" {
-  type    = string
-  default = null
+  description = "The domain's hosted zone in this account (Route 53 creates it when the domain is registered here)."
+  type        = string
+  default     = null
+}
+
+variable "staging_delegation" {
+  description = "Delegates staging's subdomain to its zone in the staging account (its dns_name_servers output)."
+  type        = object({ name = string, name_servers = list(string) })
+  default     = null
+}
+
+resource "aws_route53_record" "staging_delegation" {
+  count   = var.staging_delegation == null ? 0 : 1
+  zone_id = var.route53_zone_id
+  name    = var.staging_delegation.name
+  type    = "NS"
+  ttl     = 3600
+  records = var.staging_delegation.name_servers
+  lifecycle {
+    precondition {
+      condition     = var.route53_zone_id != null
+      error_message = "staging_delegation needs route53_zone_id (the domain's zone)."
+    }
+  }
 }
 
 variable "alarm_emails" {

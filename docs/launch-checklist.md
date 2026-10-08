@@ -4,14 +4,18 @@ What has to be true before customers use production (ADR 0030). Code and Terrafo
 rest; this is what they can't. Work through it for staging first, then production. Tick each
 item in the launch ticket with who did it and when.
 
+[The launch walkthrough](launch-walkthrough.md) has the order to do it in, with the commands,
+starting from no AWS accounts and no domain.
+
 ## 1. Accounts and access
 
-- [ ] Three AWS accounts in one AWS Organization: staging, production, backup.
-- [ ] Cross-account backup turned on in the management account (AWS Backup > Settings).
+- [ ] Three AWS accounts in one AWS Organization: staging, production, backup
+      (`envs/organization`, with its guardrail policies).
+- [ ] Cross-account backup turned on in the management account (`envs/organization` does it).
 - [ ] People sign in through IAM Identity Center with MFA. There are no IAM users with keys.
       Root users have MFA, and their credentials are locked away.
 - [ ] Production access follows the access control policy: few people, reviewed quarterly.
-- [ ] A billing alarm or budget on each account.
+- [ ] A budget on each account (`envs/organization`), with alerts to a person.
 
 ## 2. Terraform
 
