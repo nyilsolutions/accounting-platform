@@ -5,6 +5,7 @@ import { Logger } from '@nestjs/common';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { CredentialCleanupService } from '../src/auth/credential-cleanup.service';
 import { loadConfig } from '../src/config';
+import { JobQueue } from '../src/jobs/job-queue.service';
 import { agent, signUp, startApp, type Agent, type TestContext } from './helpers';
 
 /** Authentication hardening from the ASVS Level 2 review (ADR 0029). */
@@ -36,7 +37,11 @@ const forgetLastStep = async (email: string) =>
 const ageMfa = async (email: string) =>
   sql`update sessions set mfa_verified_at = now() - interval '10 minutes'
       where user_id = ${await userId(email)}`.execute(admin);
-const mailsTo = (to: string) => ctx.mailer.sent.filter((m) => m.to === to);
+/** Mail sent to someone, once queued jobs have run: security notices go through the queue. */
+const mailsTo = async (to: string) => {
+  await ctx.app.get(JobQueue).drain();
+  return ctx.mailer.sent.filter((m) => m.to === to);
+};
 const code = (secret: string) => generateTotp(secret, Date.now());
 
 async function signIn(
@@ -84,7 +89,7 @@ describe('lockout', () => {
       .where('email', '=', u.email)
       .executeTakeFirstOrThrow();
     expect(row.locked_until!.getTime()).toBeGreaterThan(Date.now());
-    expect(mailsTo(u.email).some((m) => m.subject.startsWith('Sign-in locked'))).toBe(true);
+    expect((await mailsTo(u.email)).some((m) => m.subject.startsWith('Sign-in locked'))).toBe(true);
     await agent(ctx.app)
       .post('/auth/login')
       .send({ email: u.email, password: u.password })
@@ -123,7 +128,9 @@ describe('one-time codes', () => {
       .where('actor_user_id', '=', await userId(u.email))
       .execute();
     expect(events.map((e) => e.action)).toContain('auth.totp_replayed');
-    expect(mailsTo(u.email).some((m) => m.subject.startsWith('A used sign-in code'))).toBe(true);
+    expect((await mailsTo(u.email)).some((m) => m.subject.startsWith('A used sign-in code'))).toBe(
+      true,
+    );
   });
 
   it('accepts a code once even when two requests race', async () => {
@@ -161,7 +168,7 @@ describe('one-time codes', () => {
     await a.post('/auth/login').send({ email: u.email, password: u.password }).expect(200);
     await a.post('/auth/mfa/verify').send({ code: u.recoveryCodes[0] }).expect(401);
     await a.post('/auth/mfa/verify').send({ code: fresh.body.recoveryCodes[0] }).expect(204);
-    const subjects = mailsTo(u.email).map((m) => m.subject);
+    const subjects = (await mailsTo(u.email)).map((m) => m.subject);
     expect(subjects.some((s) => s.startsWith('New recovery codes'))).toBe(true);
     expect(subjects.some((s) => s.startsWith('A recovery code was used'))).toBe(true);
   });
@@ -237,9 +244,9 @@ describe('passwords', () => {
       .post('/auth/login')
       .send({ email: u.email, password: newPassword })
       .expect(200);
-    expect(mailsTo(u.email).some((m) => m.subject.startsWith('Your password was changed'))).toBe(
-      true,
-    );
+    expect(
+      (await mailsTo(u.email)).some((m) => m.subject.startsWith('Your password was changed')),
+    ).toBe(true);
   });
 
   it('hashes with the pepper, and re-hashes older passwords at sign-in', async () => {
@@ -285,7 +292,7 @@ describe('sessions', () => {
       expect.arrayContaining(['second-browser', 'third-browser']),
     );
     // A new browser is reported to the user.
-    expect(mailsTo(u.email).some((m) => m.subject.startsWith('New sign-in'))).toBe(true);
+    expect((await mailsTo(u.email)).some((m) => m.subject.startsWith('New sign-in'))).toBe(true);
 
     const second = list.find((s) => s.userAgent === 'second-browser')!;
     await u.agent.delete(`/auth/sessions/${second.id}`).expect(204);
