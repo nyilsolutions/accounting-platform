@@ -76,6 +76,21 @@ export function PayStub({ companyId, paycheck: p }: { companyId: string; paychec
           <Alert>{errText(m.error)}</Alert>
         </div>
       )}
+      {p.depositReturns.length > 0 && (
+        <div className="mb-3 print:hidden" data-testid="deposit-returned">
+          <Alert>
+            {p.depositReturns
+              .map(
+                (r) =>
+                  `The deposit of ${usd(r.amount)} to ${r.accountMasked} came back (${r.code}${r.reason ? `: ${r.reason}` : ''}).`,
+              )
+              .join(' ')}{' '}
+            {p.status === 'posted'
+              ? 'Void this paycheck and pay it again by check.'
+              : 'It was voided; pay it again by check if not done yet.'}
+          </Alert>
+        </div>
+      )}
       {voiding && (
         <Card className="mb-4 p-4 print:hidden">
           <form

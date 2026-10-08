@@ -77,6 +77,11 @@ export interface PaycheckFacts {
   newYork?: { pflDeducted: boolean; dblDeducted: boolean; dblExempt: boolean };
   payMethod: 'check' | 'direct_deposit';
   hasDepositAccounts: boolean;
+  /**
+   * Deposit accounts whose partner deposit came back (ADR 0025), e.g. "****1234 (R03: No account)":
+   * they aren't paid into until fixed.
+   */
+  returnedDepositAccounts?: string[];
 }
 
 export interface LineDraft {
@@ -286,6 +291,10 @@ export function buildPaycheck(f: PaycheckFacts): PaycheckResult {
   if (f.payMethod === 'direct_deposit' && !f.hasDepositAccounts)
     problems.push(
       'Paid by direct deposit, but there is no deposit account. Add one or pay by check.',
+    );
+  if (f.payMethod === 'direct_deposit' && f.returnedDepositAccounts?.length)
+    problems.push(
+      `A direct deposit to ${f.returnedDepositAccounts.join(', ')} came back. Fix the account on the employee's page or pay by check.`,
     );
 
   return {

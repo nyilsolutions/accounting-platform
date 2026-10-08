@@ -46,7 +46,10 @@ A single package: `pnpm --filter @acct/api test`, `pnpm --filter @acct/db test`,
   prenotes in `employees.service.ts`, NACHA records in `nacha.ts` behind `PaymentRail`; the tax
   engine in `payroll/tax/` (pure, exact fractions); paychecks built by `paycheck-calc.ts` and run
   by `pay-runs.service.ts`; liabilities in `liabilities.ts` with payments through `EftpsProvider`;
-  payroll reports in `payroll-reports.ts`; tax forms in `payroll/forms/` (pure builders over pay
+  payroll reports in `payroll-reports.ts`; EFTPS as batch provider and the direct deposit
+  partner behind `EftpsBatchProvider` and `DepositPartner` with stand-ins in `payroll/partners/`
+  (`eftps.service.ts`, `deposit-partner.service.ts`, the poller in `partners-poller.service.ts`);
+  tax forms in `payroll/forms/` (pure builders over pay
   records) served by `tax-forms.service.ts`, prior payroll in `prior-payroll.service.ts`, filing
   records in `tax-filings.ts`), inventory (costing in `inventory/costing.ts` (pure),
   `InventoryService` for movements and recosting, adjustments, builds and starting values in
@@ -227,6 +230,17 @@ A single package: `pnpm --filter @acct/api test`, `pnpm --filter @acct/db test`,
   `tax_filings` row (method electronic), which can't be voided; a rejected one is fixed and sent
   again. Forms 1099 have filing records too (`form_1099`, purchases permissions, never covering
   payroll). The ATS harness only sends to a transmitter in the test environment.
+- EFTPS and the direct deposit partner (ADR 0025): both are reached only through their
+  interfaces (stand-ins until the Treasury enrollment and a partner contract exist; tests never
+  call the network). An EFTPS payment of an enrolled company is recorded and posted as `sending`
+  through `PayrollLiabilitiesService.payInTx`, committed, then sent; it becomes `scheduled`, or is
+  voided when refused, cancelled or returned (never voided directly while scheduled). A partner
+  batch and its `direct_deposit_entries` are written as `sending` before the partner is called;
+  one per pay run unless it failed. Returns flag the paycheck and turn the account off
+  (`employee_bank_accounts.returned_at`) and post nothing. The EIN and account numbers are
+  decrypted only to build requests; enrollment accounts use the AAD
+  `eftps_enrollment:<id>:account_number`. `payroll_settings.deposit_rail` picks the NACHA file or
+  the partner.
 - Database errors map to HTTP in `common/pg-error.filter.ts`; add friendly messages for new unique
   indexes there.
 
@@ -243,5 +257,5 @@ A single package: `pnpm --filter @acct/api test`, `pnpm --filter @acct/db test`,
 - [x] Phase 8: Payroll core (setup, employees, tax engine with golden tests, pay runs, pay stubs, direct deposit, liabilities + EFTPS, payroll reports; tax data owner-approved, awaiting professional review)
 - [ ] Phase 9: Payroll and 1099 tax forms (part 1 done: prior payroll, W-2/W-3 figures, quarterly and FUTA summaries, state reports, filings; official PDFs, EFW2, 1099/IRIS and state layouts wait on documents)
 - [x] Phase 10: Advanced, in six parts (10a inventory done: items and assemblies, FIFO/average costing with backdated recosting, no negative stock, adjustments, builds, valuation and stock status reports, QuickBooks cut-over; 10b time tracking done: timesheets, approvals, paychecks and invoices from approved time, progress invoicing; 10c multi-currency done: foreign-currency customers, vendors, documents and payments, rates by hand or from the ECB, realized and unrealized gains and losses; 10d accountant tools done: reclassify, write off invoices, fix undeposited funds, client change review, month-end close, Adjusted Trial Balance; 10e online payments done: Stripe Connect Standard accounts (stand-in until the platform's keys exist), pay links and the pay page, payments into Undeposited Funds, payouts as deposits net of fees, refunds and chargebacks; 10f portals done: employee and contractor portals with password and MFA (pay stubs, W-2 figures, own time, W-4 and direct deposit requests approved by payroll, contractor payments and 1099 totals), customer portal by emailed link (invoices, statement, paying online, accepting estimates); follow-ups are open questions 62, 64, 66–69 and 71–73)
-- [ ] Phase 11: E-file and partners, in three parts (11a electronic filing done: Forms 941 and 940 through MeF and Forms 1099 through IRIS behind `EfileTransmitter`, with a stand-in for the IRS until the platform's approvals exist, rejections fixed and sent again, accepted returns recorded as filings, the ATS harness; 11b EFTPS batch payments and a payments partner; 11c a licensed tax engine or embedded provider; follow-ups are open questions 74–76)
+- [ ] Phase 11: E-file and partners, in three parts (11a electronic filing done: Forms 941 and 940 through MeF and Forms 1099 through IRIS behind `EfileTransmitter`, with a stand-in for the IRS until the platform's approvals exist, rejections fixed and sent again, accepted returns recorded as filings, the ATS harness; 11b partners done: EFTPS through the platform as batch provider (enrollment, scheduled payments booked when scheduled and voided when cancelled or returned) and direct deposit through a payments partner (per company, returns flag the paycheck and account), both with stand-ins; 11c a licensed tax engine or embedded provider; follow-ups are open questions 74–80)
 - [ ] Phase 12: Hardening and launch

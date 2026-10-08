@@ -32,6 +32,7 @@ import { CompanyAccessGuard } from '../companies/company-access.guard';
 import { DB } from '../db/db.module';
 import { renderReport } from '../reports/export/render';
 import { PayrollLiabilitiesService } from './liabilities.service';
+import { EftpsService } from './partners/eftps.service';
 import { PAYROLL_REPORTS } from './payroll-reports';
 
 type Parsed<T extends { parse: (v: unknown) => unknown }> = ReturnType<T['parse']>;
@@ -56,6 +57,7 @@ function keyOf(slug: string): PayrollReportKey {
 export class PayrollLiabilitiesController {
   constructor(
     private readonly liabilities: PayrollLiabilitiesService,
+    private readonly eftps: EftpsService,
     @Inject(DB) private readonly db: Db,
   ) {}
 
@@ -86,7 +88,8 @@ export class PayrollLiabilitiesController {
     body: Parsed<typeof payrollLiabilityPaymentSchema> & Parsed<typeof closingPasswordSchema>,
     @Meta() meta: RequestMeta,
   ): Promise<PayrollLiabilityPaymentDto> {
-    return this.liabilities.pay(a, c, body, meta, body.closingPassword);
+    // EFTPS payments of an enrolled company are scheduled through the batch provider (ADR 0025).
+    return this.eftps.pay(a, c, body, meta, body.closingPassword);
   }
 
   @Post('liabilities/payments/:paymentId/void')

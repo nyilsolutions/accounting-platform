@@ -20,6 +20,12 @@ import {
   Table,
   usePayrollMutation,
 } from '@/components/payroll/payroll-ui';
+import {
+  EftpsCard,
+  EftpsPaymentActions,
+  EftpsStatusBadge,
+  nextBusinessDay,
+} from '@/components/payroll/partners-ui';
 import { PayrollSetupCard } from '@/components/payroll/setup-card';
 import { Alert, Badge, Button, Card, Dialog, Spinner, TextInput } from '@/components/ui';
 import {
@@ -27,6 +33,7 @@ import {
   usePayrollLiabilities,
   usePayrollLiabilityPayments,
   usePayrollLookups,
+  usePayrollPartners,
   usePayrollSettings,
 } from '@/lib/queries';
 
@@ -42,6 +49,7 @@ export default function PayrollLiabilitiesPage() {
   const liabilities = usePayrollLiabilities(companyId);
   const payments = usePayrollLiabilityPayments(companyId);
   const lookups = usePayrollLookups(companyId);
+  const partners = usePayrollPartners(companyId);
   const m = usePayrollMutation(companyId);
   const [paying, setPaying] = useState<PayrollLiabilityDto | null>(null);
   const [paid, setPaid] = useState<PayrollLiabilityPaymentDto | null>(null);
@@ -53,6 +61,9 @@ export default function PayrollLiabilitiesPage() {
   const shown = data.liabilities.filter((l) => showPaid || l.status !== 'paid');
   const manage = access.can('payroll.manage');
   const ds = data.depositSchedule;
+  // Enrolled: EFTPS payments are scheduled through the batch provider (ADR 0025).
+  const enrolled = partners.data?.enrollment?.status === 'enrolled';
+  const standIn = !!partners.data?.eftpsProvider?.standIn;
 
   async function pay(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -76,6 +87,7 @@ export default function PayrollLiabilitiesPage() {
 
   return (
     <>
+      <EftpsCard companyId={companyId} canManage={manage} />
       <Card className="mb-6 p-5" data-testid="deposit-schedule">
         <h2 className="text-base font-semibold text-gray-900">Federal deposit schedule</h2>
         <p className="mt-1 text-sm text-gray-700">
@@ -100,8 +112,14 @@ export default function PayrollLiabilitiesPage() {
 
       {paid && (
         <div className="mb-4" data-testid="payment-recorded">
-          <Alert kind="success">
-            Payment of {usd(paid.amount)} to {paid.agencyLabel} recorded.
+          <Alert kind={paid.eftpsStatus === 'failed' ? 'error' : 'success'}>
+            {paid.eftpsStatus === 'scheduled'
+              ? `Scheduled in EFTPS: ${usd(paid.amount)} to ${paid.agencyLabel}, settling ${formatDate(paid.paymentDate)}. EFT number ${paid.reference}.`
+              : paid.eftpsStatus === 'failed'
+                ? `EFTPS did not schedule the payment: ${paid.providerMessage}`
+                : paid.eftpsStatus === 'sending'
+                  ? 'EFTPS has not confirmed the payment yet. Check its status below before paying again.'
+                  : `Payment of ${usd(paid.amount)} to ${paid.agencyLabel} recorded.`}
             {paid.instructions && (
               <ol className="mt-2 list-decimal pl-5">
                 {paid.instructions.map((x) => (
@@ -204,23 +222,38 @@ export default function PayrollLiabilitiesPage() {
                 <td className="px-2 py-2 font-mono text-xs">{p.reference ?? ''}</td>
                 <td className="px-2 py-2">{usd(p.amount)}</td>
                 <td className="px-2 py-2">
-                  <Badge tone={p.status === 'void' ? 'amber' : 'green'}>
-                    {p.status === 'void' ? 'Void' : 'Posted'}
-                  </Badge>
+                  {p.eftpsStatus ? (
+                    <>
+                      <EftpsStatusBadge status={p.eftpsStatus} />
+                      {p.providerMessage && (
+                        <p className="text-xs text-gray-500">{p.providerMessage}</p>
+                      )}
+                    </>
+                  ) : (
+                    <Badge tone={p.status === 'void' ? 'amber' : 'green'}>
+                      {p.status === 'void' ? 'Void' : 'Posted'}
+                    </Badge>
+                  )}
                 </td>
                 <td className="px-2 py-2 text-right">
-                  {manage && p.status === 'posted' && (
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => {
-                        if (window.confirm('Void this payment? The amount will be owed again.'))
-                          void m.run(`/liabilities/payments/${p.id}/void`, 'POST', {});
-                      }}
-                    >
-                      Void
-                    </Button>
+                  {manage && p.eftpsStatus && (
+                    <EftpsPaymentActions companyId={companyId} payment={p} standIn={standIn} />
                   )}
+                  {manage &&
+                    p.status === 'posted' &&
+                    p.eftpsStatus !== 'scheduled' &&
+                    p.eftpsStatus !== 'sending' && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => {
+                          if (window.confirm('Void this payment? The amount will be owed again.'))
+                            void m.run(`/liabilities/payments/${p.id}/void`, 'POST', {});
+                        }}
+                      >
+                        Void
+                      </Button>
+                    )}
                 </td>
               </tr>
             ))}
@@ -243,12 +276,24 @@ export default function PayrollLiabilitiesPage() {
               error={m.fieldError('amount')}
             />
             <TextInput
-              label="Payment date"
+              label={
+                enrolled && paying.agency.startsWith('federal_')
+                  ? 'Payment (settlement) date'
+                  : 'Payment date'
+              }
               name="paymentDate"
               type="date"
-              defaultValue={todayIso()}
+              defaultValue={
+                enrolled && paying.agency.startsWith('federal_') ? nextBusinessDay() : todayIso()
+              }
               error={m.fieldError('paymentDate')}
             />
+            {enrolled && paying.agency.startsWith('federal_') && (
+              <p className="text-xs text-gray-600">
+                With EFTPS, the payment is scheduled for you and debited from{' '}
+                {partners.data?.enrollment?.accountMasked} on this date.
+              </p>
+            )}
             <Select
               label="How you paid"
               name="method"

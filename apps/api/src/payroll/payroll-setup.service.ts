@@ -28,6 +28,7 @@ import type { z } from 'zod';
 import { AuditService, diff } from '../audit/audit.service';
 import type { AuthContext, CompanyContext, RequestMeta } from '../common/request';
 import { DB } from '../db/db.module';
+import { DEPOSIT_PARTNER, type DepositPartner } from './partners/deposit-partner';
 import {
   assertAccountTypes,
   bad,
@@ -71,6 +72,7 @@ export class PayrollSetupService {
   constructor(
     @Inject(DB) private readonly db: Db,
     private readonly audit: AuditService,
+    @Inject(DEPOSIT_PARTNER) private readonly partner: DepositPartner | null,
   ) {}
 
   private tenant<T>(auth: AuthContext, ctx: CompanyContext, fn: (tx: Tx) => Promise<T>) {
@@ -213,6 +215,8 @@ export class PayrollSetupService {
       liabilityAccountId: string;
     },
   ) {
+    if (input.depositRail === 'partner' && !this.partner)
+      throw bad('depositRail', "Direct deposit through a payments partner isn't set up yet");
     return {
       federal_form: input.federalForm,
       deposit_schedule: input.depositSchedule,
@@ -227,6 +231,7 @@ export class PayrollSetupService {
       ach_company_id: input.achCompanyId ?? null,
       ...(input.nyPflDeducted !== undefined ? { ny_pfl_deducted: input.nyPflDeducted } : {}),
       ...(input.nyDblDeducted !== undefined ? { ny_dbl_deducted: input.nyDblDeducted } : {}),
+      ...(input.depositRail !== undefined ? { deposit_rail: input.depositRail } : {}),
     };
   }
 
@@ -306,6 +311,7 @@ export class PayrollSetupService {
         's.ach_company_id',
         's.ny_pfl_deducted',
         's.ny_dbl_deducted',
+        's.deposit_rail',
         'c.ein_last4',
       ])
       .where('s.company_id', '=', companyId)
@@ -325,6 +331,7 @@ export class PayrollSetupService {
       achCompanyId: r.ach_company_id,
       nyPflDeducted: r.ny_pfl_deducted,
       nyDblDeducted: r.ny_dbl_deducted,
+      depositRail: r.deposit_rail as PayrollSettingsDto['depositRail'],
       hasEin: r.ein_last4 !== null,
     };
   }

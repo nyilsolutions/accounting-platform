@@ -14,13 +14,13 @@ The owner decided (2026-10-07):
   credentials arrive.
 - **The long-term partner is decided later:** the IRS route in-house with a licensed state
   engine, or an embedded payroll provider.
-- **Direct deposit stays a NACHA file** the employer uploads; a partner goes behind
-  `PaymentRail` later.
+- **Direct deposit stays a NACHA file** the employer uploads by default; a payments partner is
+  added beside it (11b).
 
 | Part | What                                                              | Status  |
 | ---- | ----------------------------------------------------------------- | ------- |
 | 11a  | Electronic filing of Forms 941, 940 and 1099, and the ATS harness | This PR |
-| 11b  | EFTPS batch payments and a payments partner, with stand-ins       | Next    |
+| 11b  | EFTPS batch payments and a payments partner, with stand-ins       | This PR |
 | 11c  | A plug-in point for a licensed tax engine or an embedded provider | Planned |
 
 ## 11a: Electronic filing (ADR 0024)
@@ -85,3 +85,72 @@ Screenshots: `docs/screenshots/119-efile-941.png`, `120-efile-log.png`, `121-efi
 - **The electronic signature method** for Forms 941 and 940 (question 75).
 - **W-2s to the SSA** (uploaded through BSO, and waiting on Publication 42-007, question 57).
 - **State returns, corrected returns and Form 944.**
+
+## 11b: EFTPS batch payments and the direct deposit partner (ADR 0025)
+
+The owner's decisions (2026-10-07):
+
+- **EFTPS:** the platform is each company's EFTPS batch provider. No money passes through the
+  platform.
+- **Recording payments:** a payment is recorded when it is scheduled, and voided automatically if
+  it is cancelled or comes back.
+- **Direct deposit:** the NACHA file stays the default.
+- **Returned deposits:** they are flagged for the payroll admin to reissue, not posted.
+
+### Delivered
+
+- **EFTPS enrollment** (Payroll › Taxes & liabilities): **Enroll in EFTPS** takes the account
+  EFTPS debits (stored encrypted, shown masked) and the person authorizing it.
+  - EFTPS's answer comes back as enrolled or not, with an email to the payroll admins.
+  - **Cancel enrollment** stops scheduling.
+- **Scheduled tax payments:** once enrolled, paying a federal liability by EFTPS schedules it for
+  you, on the next business day by default. It is recorded in the books with its EFT number and
+  shows as **Scheduled**.
+  - **Cancel EFTPS payment** cancels and voids it.
+  - **Paid** when EFTPS settles it.
+  - **Returned unpaid:** it is voided, so the tax is owed again, and the payroll admins are
+    emailed.
+  - Refused or never confirmed payments are shown as such and can be paid again.
+- **Payments partner for direct deposit** (Payroll › Direct deposit): **Send through the payments
+  partner** replaces the NACHA file for the company.
+  - Pay runs get **Send direct deposits** and prenotes get **Send prenotes**.
+  - Each batch lists its deposits.
+- **Returned deposits:** a returned deposit:
+  - shows its return code on the batch;
+  - adds a notice on the paycheck (void it and pay it again by check);
+  - marks the employee's account (**It's fixed: use it again**);
+  - emails the payroll admins.
+
+  The next paycheck can't be deposited to that account until it is fixed.
+
+- **Updates:** the platform asks EFTPS and the partner for updates every 15 minutes. In stand-in
+  mode, buttons play their answers.
+
+### Demo script
+
+1. Sign in as the demo user. **Payroll › Taxes & liabilities**: the company is **Enrolled** in
+   EFTPS (stand-in), and its oldest Form 941 deposit is **Scheduled** for the next business day.
+2. Choose **Stand-in: returned**. The payment shows **Returned unpaid**, its amount is owed again,
+   and the payroll admins are emailed. Pay it again with **Pay**: it is scheduled.
+3. **Payroll › Direct deposit**: choose **Send through the payments partner**. Open a posted pay
+   run with direct deposits and choose **Send direct deposits**.
+4. Back on **Direct deposit**, choose **Stand-in: return** on a deposit. It shows **Returned R03:
+   No account**. The paycheck says to void it and pay it again, and the employee's page marks the
+   account.
+
+Screenshots: `docs/screenshots/122-eftps-scheduled.png`, `123-partner-deposits.png`.
+
+### Tests
+
+| Suite                   | Count | Highlights                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| ----------------------- | ----- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `packages/db`           | 115   | +4: one live enrollment per company, kept within it and never deleted; each batch tied to its rail (a NACHA file keeps its hash, a partner batch its reference); only a partner batch's status moves, forward; returns need their code, prenotes have no paycheck; the waiting lookup returns ids and references only                                                                                                                                                                                                                                                                                                      |
+| `packages/shared`       | 158   | +2: enrollment needs a valid routing number, the account and the authorization; returns need an R code                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| `apps/api`              | 574   | +11. **EFTPS:** manual until enrolled; enrollment rejected then accepted, with emails, the account number never stored in clear or audited; a payment scheduled, booked, not voidable while scheduled, then settled; one returned unpaid is voided and owed again, with an email; cancelling; a refused one and an unknown one (marked not sent after ten minutes); polling. **Partner:** the company switches, the NACHA file is refused; a failed batch can be sent again, then once per run; a returned deposit flags the paycheck and the account, emails, blocks the next deposit until cleared; settlement; prenotes |
+| `apps/web` (Playwright) | 20    | +1: enroll in EFTPS (stand-in), schedule the Form 941 deposit, see it returned unpaid; switch to the payments partner, send a run's deposits, a return shows on the batch, the paycheck and the employee, and is cleared                                                                                                                                                                                                                                                                                                                                                                                                   |
+
+### Not in this part
+
+- **The Treasury's batch provider enrollment** and the EFTPS specifications (question 77).
+- **The payments partner itself** (question 78).
+- **State tax payments** through a provider.

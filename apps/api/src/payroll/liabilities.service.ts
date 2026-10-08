@@ -186,18 +186,27 @@ export class PayrollLiabilitiesService {
 
   // --- Payments ------------------------------------------------------------------------------------
   listPayments(auth: AuthContext, ctx: CompanyContext): Promise<PayrollLiabilityPaymentDto[]> {
-    return this.tenant(auth, ctx, async (tx) => {
-      const rows = await tx
-        .selectFrom('payroll_liability_payments')
-        .selectAll()
-        .where('company_id', '=', ctx.companyId)
-        .orderBy('payment_date', 'desc')
-        .orderBy('created_at', 'desc')
-        .limit(500)
-        .execute();
-      const names = await this.itemNames(tx, ctx.companyId);
-      return rows.map((r) => paymentDto(r, names));
-    });
+    return this.tenant(auth, ctx, (tx) => this.paymentsInTx(tx, ctx.companyId));
+  }
+
+  /** Payments, newest first (or the one with `id`). */
+  async paymentsInTx(
+    tx: Tx,
+    companyId: string,
+    id?: string,
+  ): Promise<PayrollLiabilityPaymentDto[]> {
+    let q = tx
+      .selectFrom('payroll_liability_payments')
+      .selectAll()
+      .where('company_id', '=', companyId);
+    if (id) q = q.where('id', '=', id);
+    const rows = await q
+      .orderBy('payment_date', 'desc')
+      .orderBy('created_at', 'desc')
+      .limit(500)
+      .execute();
+    const names = await this.itemNames(tx, companyId);
+    return rows.map((r) => paymentDto(r, names));
   }
 
   pay(
@@ -207,7 +216,26 @@ export class PayrollLiabilitiesService {
     meta: RequestMeta,
     closingPassword?: string,
   ): Promise<PayrollLiabilityPaymentDto> {
-    return this.tenant(auth, ctx, async (tx) => {
+    return this.tenant(auth, ctx, (tx) =>
+      this.payInTx(tx, auth, ctx, input, meta, closingPassword),
+    );
+  }
+
+  /**
+   * Records a payment and posts it. `via` is the EFTPS batch provider about to schedule it
+   * (ADR 0025): the payment is recorded as sending, without a reference, and the EFTPS service
+   * sends it after this transaction commits.
+   */
+  async payInTx(
+    tx: Tx,
+    auth: AuthContext,
+    ctx: CompanyContext,
+    input: PaymentInput,
+    meta: RequestMeta,
+    closingPassword?: string,
+    via?: { provider: string },
+  ): Promise<PayrollLiabilityPaymentDto> {
+    {
       const today = todayIso();
       const current = await this.compute(tx, ctx.companyId, today);
       const row = current.liabilities.find(
@@ -253,8 +281,8 @@ export class PayrollLiabilitiesService {
       }
 
       let instructions: string[] | undefined;
-      let reference = input.reference ?? null;
-      if (input.method === 'eftps') {
+      let reference = via ? null : (input.reference ?? null);
+      if (input.method === 'eftps' && !via) {
         const company = await tx
           .selectFrom('companies')
           .select('ein_last4')
@@ -328,6 +356,9 @@ export class PayrollLiabilitiesService {
           reference,
           transaction_id: txnId,
           created_by: auth.userId,
+          provider: via?.provider ?? null,
+          eftps_status: via ? 'sending' : null,
+          status_at: via ? new Date() : null,
         })
         .returningAll()
         .executeTakeFirstOrThrow();
@@ -345,13 +376,13 @@ export class PayrollLiabilitiesService {
             periodEnd: input.periodEnd,
             amount: moneyToString(amount),
             method: input.method,
-            provider: input.method === 'eftps' ? this.eftps.name : undefined,
+            provider: input.method === 'eftps' ? (via?.provider ?? this.eftps.name) : undefined,
           },
         },
         meta,
       );
       return { ...paymentDto(payment, await this.itemNames(tx, ctx.companyId)), instructions };
-    });
+    }
   }
 
   voidPayment(
@@ -371,6 +402,10 @@ export class PayrollLiabilitiesService {
         .executeTakeFirst();
       if (!p) throw new NotFoundException('Payment not found');
       if (p.status === 'void') throw new ConflictException('This payment is already void.');
+      if (p.eftps_status === 'sending' || p.eftps_status === 'scheduled')
+        throw new ConflictException(
+          'This payment is scheduled in EFTPS. Cancel it there (Cancel EFTPS payment) instead.',
+        );
       await this.posting.setStatus(
         tx,
         { companyId: ctx.companyId, userId: auth.userId, closingPassword },
@@ -422,6 +457,9 @@ function paymentDto(
     status: string;
     transaction_id: string;
     created_at: Date;
+    provider: string | null;
+    eftps_status: string | null;
+    provider_message: string | null;
   },
   names: Map<string, string>,
 ): PayrollLiabilityPaymentDto {
@@ -438,5 +476,8 @@ function paymentDto(
     status: r.status as 'posted' | 'void',
     transactionId: r.transaction_id,
     createdAt: new Date(r.created_at).toISOString(),
+    provider: r.provider,
+    eftpsStatus: r.eftps_status as PayrollLiabilityPaymentDto['eftpsStatus'],
+    providerMessage: r.provider_message,
   };
 }

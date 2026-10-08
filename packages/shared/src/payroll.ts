@@ -195,6 +195,8 @@ export const payrollSettingsInputSchema = z.object({
   nyPflDeducted: z.boolean().optional(),
   /** New York: collect the employee disability benefits (DBL) contribution. */
   nyDblDeducted: z.boolean().optional(),
+  /** How direct deposits leave (ADR 0025): a NACHA file for the bank, or the payments partner. */
+  depositRail: z.enum(['nacha_file', 'partner']).optional(),
 });
 export type PayrollSettingsInput = z.input<typeof payrollSettingsInputSchema>;
 
@@ -212,6 +214,7 @@ export interface PayrollSettingsDto {
   achCompanyId: string | null;
   nyPflDeducted: boolean;
   nyDblDeducted: boolean;
+  depositRail: 'nacha_file' | 'partner';
   /** Whether the company has an EIN on file (payroll needs one). */
   hasEin: boolean;
 }
@@ -1018,6 +1021,9 @@ export interface BankAccountDto {
   amount: string | null;
   prenoteStatus: PrenoteStatus;
   prenoteSentOn: string | null;
+  /** A deposit to it came back (ADR 0025): it isn't used until fixed. */
+  returnedAt: string | null;
+  returnReason: string | null;
 }
 
 // ---- Recurring earnings and deductions --------------------------------------------------------
@@ -1091,8 +1097,32 @@ export interface AchBatchDto {
   effectiveDate: string;
   entryCount: number;
   totalCredit: string;
-  fileSha256: string;
+  /** NACHA files only. */
+  fileSha256: string | null;
   createdAt: string;
+  /** How it was sent (ADR 0025), and for partner batches their status. */
+  rail: 'nacha_file' | 'partner';
+  provider: string | null;
+  status: 'file' | 'sending' | 'submitted' | 'settled' | 'failed';
+  reference: string | null;
+  providerMessage: string | null;
+  payRunId: string | null;
+  /** Partner batches: each entry, with returns. */
+  entries: DirectDepositEntryDto[];
+}
+
+export interface DirectDepositEntryDto {
+  id: string;
+  employeeId: string;
+  employeeName: string;
+  paycheckId: string | null;
+  accountMasked: string;
+  amount: string;
+  prenote: boolean;
+  status: 'submitted' | 'settled' | 'returned';
+  returnCode: string | null;
+  returnReason: string | null;
+  returnedAt: string | null;
 }
 
 export const prenoteFileInputSchema = z.object({
@@ -1337,6 +1367,8 @@ export interface PaycheckDto extends PaycheckSummaryDto {
   };
   /** Where net pay went (masked accounts), for direct deposit. */
   deposits: { accountMasked: string; accountType: BankAccountType; amount: string }[];
+  /** Partner deposits that came back (ADR 0025): void the paycheck and pay it again. */
+  depositReturns: { accountMasked: string; amount: string; code: string; reason: string | null }[];
   voidedAt: string | null;
 }
 
@@ -1431,7 +1463,30 @@ export interface PayrollLiabilityPaymentDto {
   createdAt: string;
   /** For EFTPS without a connected provider: what to enter in EFTPS. */
   instructions?: string[];
+  /** Scheduled through the EFTPS batch provider (ADR 0025). */
+  provider: string | null;
+  eftpsStatus: EftpsPaymentStatus | null;
+  providerMessage: string | null;
 }
+
+/** An EFTPS payment through the batch provider (ADR 0025). */
+export const EFTPS_PAYMENT_STATUSES = [
+  'sending',
+  'scheduled',
+  'settled',
+  'returned',
+  'cancelled',
+  'failed',
+] as const;
+export type EftpsPaymentStatus = (typeof EFTPS_PAYMENT_STATUSES)[number];
+export const EFTPS_PAYMENT_STATUS_LABELS: Record<EftpsPaymentStatus, string> = {
+  sending: 'Sending to EFTPS',
+  scheduled: 'Scheduled',
+  settled: 'Paid',
+  returned: 'Returned unpaid',
+  cancelled: 'Cancelled',
+  failed: 'Not scheduled',
+};
 
 export const PAYROLL_REPORT_KEYS = [
   'payroll_summary',

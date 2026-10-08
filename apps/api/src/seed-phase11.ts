@@ -1,10 +1,12 @@
 import { NestFactory } from '@nestjs/core';
 import { withTenant, type Db } from '@acct/db';
-import { PERMISSIONS, todayIso } from '@acct/shared';
+import { addDays, PERMISSIONS, todayIso, weekday } from '@acct/shared';
 import { AppModule } from './app.module';
 import type { AuthContext, CompanyContext, RequestMeta } from './common/request';
 import type { AppConfig } from './config';
 import { EfileService } from './efile/efile.service';
+import { PayrollLiabilitiesService } from './payroll/liabilities.service';
+import { EftpsService } from './payroll/partners/eftps.service';
 
 /**
  * Phase 11a demo (ADR 0024): the quarter before last's Form 941 was filed electronically and
@@ -91,6 +93,99 @@ export async function seedPhase11a(
           },
         ],
       });
+  } finally {
+    await app.close();
+  }
+}
+
+/**
+ * Phase 11b demo (ADR 0025): the company is enrolled in EFTPS through the stand-in, and its
+ * oldest unpaid Form 941 deposit is scheduled for the next business day. Direct deposit stays a
+ * NACHA file; the demo script switches it to the payments partner.
+ */
+export async function seedPhase11b(
+  db: Db,
+  config: AppConfig,
+  userId: string,
+  companyId: string,
+): Promise<void> {
+  if (config.EFTPS_BATCH_PROVIDER !== 'stand-in') return;
+  const lookup = await withTenant(db, { userId, companyId }, async (tx) => ({
+    done: await tx
+      .selectFrom('eftps_enrollments')
+      .select('id')
+      .where('company_id', '=', companyId)
+      .executeTakeFirst(),
+    payroll: await tx
+      .selectFrom('payroll_settings')
+      .select('company_id')
+      .where('company_id', '=', companyId)
+      .executeTakeFirst(),
+    user: await tx
+      .selectFrom('users')
+      .select(['email', 'full_name'])
+      .where('id', '=', userId)
+      .executeTakeFirst(),
+  }));
+  if (lookup.done || !lookup.payroll || !lookup.user) return;
+
+  const app = await NestFactory.createApplicationContext(
+    AppModule.forRoot({
+      ...config,
+      REPORT_SCHEDULER: 'off',
+      EFILE_ACK_POLLER: 'off',
+      PAYROLL_PARTNER_POLLER: 'off',
+    }),
+    { logger: ['error'] },
+  );
+  try {
+    const auth: AuthContext = {
+      sessionId: 'seed',
+      userId,
+      email: lookup.user.email,
+      fullName: lookup.user.full_name,
+      mfaEnrolled: true,
+      mfaVerified: true,
+    };
+    const ctx: CompanyContext = { companyId, role: 'owner', permissions: PERMISSIONS };
+    const meta: RequestMeta = { ip: null, userAgent: 'seed', requestId: null };
+    const eftps = app.get(EftpsService);
+    await eftps.enroll(
+      auth,
+      ctx,
+      {
+        routingNumber: '021000021',
+        accountNumber: '000555123456',
+        accountType: 'checking',
+        authorizedName: lookup.user.full_name,
+        authorizedTitle: 'Owner',
+        authorize: true,
+      },
+      meta,
+    );
+    await eftps.standInEnrollment(auth, ctx, { action: 'enroll' });
+
+    const owed = (await app.get(PayrollLiabilitiesService).list(auth, ctx)).liabilities
+      .filter((l) => l.agency === 'federal_941' && l.balance !== '0.00')
+      .sort((a, b) => a.periodStart.localeCompare(b.periodStart))[0];
+    if (!owed) return;
+    let settles = addDays(todayIso(), 1);
+    while (weekday(settles) === 0 || weekday(settles) === 6) settles = addDays(settles, 1);
+    await eftps.pay(
+      auth,
+      ctx,
+      {
+        agency: owed.agency,
+        periodStart: owed.periodStart,
+        periodEnd: owed.periodEnd,
+        paymentDate: settles,
+        amount: owed.balance,
+        method: 'eftps',
+        reference: null,
+        bankAccountId: null,
+      },
+      meta,
+    );
   } finally {
     await app.close();
   }
