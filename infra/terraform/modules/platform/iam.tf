@@ -115,8 +115,8 @@ resource "aws_iam_role_policy" "app_exec" {
   })
 }
 
-# The release step and the keys:* commands (run with the release task definition): field keys
-# may be generated and wrapped here, never by the API or worker.
+# The release step, the keys:* commands and the restore drill's checks (all run with the release
+# task definition): field keys may be generated and wrapped here, never by the API or worker.
 resource "aws_iam_role" "release" {
   name               = "${local.prefix}-release"
   assume_role_policy = local.ecs_tasks_assume
@@ -128,17 +128,33 @@ resource "aws_iam_role_policy" "release" {
   role = aws_iam_role.release.id
   policy = jsonencode({
     Version = "2012-10-17"
-    Statement = [{
-      Effect   = "Allow"
-      Action   = ["kms:Decrypt", "kms:Encrypt", "kms:GenerateDataKey"]
-      Resource = aws_kms_key.field.arn
-      Condition = {
-        StringEquals = {
-          "kms:EncryptionContext:app"     = "acct"
-          "kms:EncryptionContext:purpose" = "field-key"
+    Statement = [
+      {
+        Effect   = "Allow"
+        Action   = ["kms:Decrypt", "kms:Encrypt", "kms:GenerateDataKey"]
+        Resource = aws_kms_key.field.arn
+        Condition = {
+          StringEquals = {
+            "kms:EncryptionContext:app"     = "acct"
+            "kms:EncryptionContext:purpose" = "field-key"
+          }
         }
-      }
-    }]
+      },
+      # The restore drill's checks read a sample of documents (never write or delete).
+      {
+        Effect   = "Allow"
+        Action   = "s3:GetObject"
+        Resource = "${aws_s3_bucket.documents.arn}/*"
+      },
+      {
+        Effect   = "Allow"
+        Action   = "kms:Decrypt"
+        Resource = aws_kms_key.storage.arn
+        Condition = {
+          StringEquals = { "kms:ViaService" = "s3.${local.region}.amazonaws.com" }
+        }
+      },
+    ]
   })
 }
 
