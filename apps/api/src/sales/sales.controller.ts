@@ -22,6 +22,7 @@ import {
   openItemsQuerySchema,
   paymentInputSchema,
   pendingDepositsQuerySchema,
+  progressInvoiceSchema,
   salesDocumentInputSchema,
   salesListQuerySchema,
   SALES_DOC_BY_SLUG,
@@ -431,6 +432,18 @@ export class SalesController {
       { txnDate: body.txnDate ?? todayIso(), closingPassword: body.closingPassword },
       meta,
     );
+  }
+
+  @Post('estimates/:id/progress-invoice')
+  @RequirePermission('sales.manage')
+  progressInvoice(
+    @CurrentAuth() a: AuthContext,
+    @CurrentCompany() c: CompanyContext,
+    @Param('id', UuidPipe) id: string,
+    @Body(new ZodPipe(progressInvoiceSchema)) body: Parsed<typeof progressInvoiceSchema>,
+    @Meta() meta: RequestMeta,
+  ): Promise<SalesDocumentDto> {
+    return this.estimates.progressInvoice(a, c, id, body, meta);
   }
 
   @Post('estimates/:id/send')

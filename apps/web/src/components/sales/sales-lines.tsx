@@ -29,6 +29,11 @@ export interface LineState {
   customerId: string;
   /** Sales: charged sales tax; null = as the product/service says. */
   taxable: boolean | null;
+  /** Invoices: the time entries the line bills (ADR 0019). */
+  timeEntryIds: string[];
+  /** Progress invoicing: the estimate line the line bills. */
+  estimateId: string | null;
+  estimateLineNo: number | null;
 }
 
 let nextKey = 1;
@@ -43,6 +48,9 @@ export const emptyLine = (): LineState => ({
   serviceDate: '',
   customerId: '',
   taxable: null,
+  timeEntryIds: [],
+  estimateId: null,
+  estimateLineNo: null,
 });
 
 const QTY = /^-?\d{1,15}(\.\d{1,4})?$/;
@@ -82,6 +90,9 @@ export function linesFrom(
     serviceDate?: string | null;
     customerId?: string | null;
     taxable?: boolean;
+    timeEntryIds?: string[];
+    estimateId?: string | null;
+    estimateLineNo?: number | null;
   }>,
 ): LineState[] {
   return lines.map((l) => ({
@@ -95,6 +106,9 @@ export function linesFrom(
     serviceDate: l.serviceDate ?? '',
     customerId: l.customerId ?? '',
     taxable: l.taxable ?? null,
+    timeEntryIds: l.timeEntryIds ?? [],
+    estimateId: l.estimateId ?? null,
+    estimateLineNo: l.estimateLineNo ?? null,
   }));
 }
 
@@ -111,6 +125,8 @@ export function linesToInput(lines: LineState[]): SalesLineInput[] {
       classId: l.classId || null,
       serviceDate: l.serviceDate || null,
       ...(l.taxable !== null ? { taxable: l.taxable } : {}),
+      ...(l.timeEntryIds.length ? { timeEntryIds: l.timeEntryIds } : {}),
+      ...(l.estimateId ? { estimateId: l.estimateId, estimateLineNo: l.estimateLineNo } : {}),
     }));
 }
 

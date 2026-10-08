@@ -7,7 +7,8 @@ export interface NavItem {
   path: string;
   /** Second key of the "g <key>" navigation shortcut. */
   shortcut?: string;
-  permission?: Permission;
+  /** Shown to members with this permission (or any of these). */
+  permission?: Permission | Permission[];
   /** 'hidden' items are reachable by shortcut and command palette only. */
   section: 'main' | 'settings' | 'hidden';
 }
@@ -44,6 +45,14 @@ export const NAV: NavItem[] = [
     path: '/payroll',
     shortcut: 'p',
     permission: 'payroll.view',
+    section: 'main',
+  },
+  {
+    key: 'time',
+    label: 'Time',
+    path: '/time',
+    shortcut: 'g',
+    permission: ['time.manage', 'time.approve'],
     section: 'main',
   },
   {

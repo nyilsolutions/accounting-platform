@@ -92,6 +92,7 @@ export function EmployeeForm({
       payScheduleId: text('payScheduleId'),
       payMethod: text('payMethod'),
       overtimeExempt: f.get('overtimeExempt') === 'on',
+      managerUserId: text('managerUserId') || null,
       nyDblExempt: f.get('nyDblExempt') === 'on',
       tippedOccupationCodes: formField(f, 'tippedOccupationCodes'),
       workersCompClassId: text('workersCompClassId') || null,
@@ -312,6 +313,17 @@ export function EmployeeForm({
               options={lookups.data!.locations.map((c) => ({ value: c.id, label: c.fullName }))}
             />
           )}
+          <Select
+            label="Time approved by"
+            name="managerUserId"
+            defaultValue={e?.managerUserId ?? ''}
+            placeholder="Payroll admins only"
+            hint="This person can approve the employee's time, besides payroll admins."
+            options={(lookups.data?.members ?? []).map((u) => ({
+              value: u.userId,
+              label: u.fullName,
+            }))}
+          />
           <div className="flex items-end pb-2">
             <Checkbox
               label="Exempt from overtime"

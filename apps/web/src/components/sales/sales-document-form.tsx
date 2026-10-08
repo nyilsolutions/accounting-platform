@@ -13,8 +13,10 @@ import {
 import { AccountSelect, OptionSelect } from '@/components/ledger/pickers';
 import { Alert, Button, cx } from '@/components/ui';
 import { ApiError } from '@/lib/api';
+import { BillableTime } from './billable-time';
 import {
   emptyLine,
+  isBlankLine,
   linesFrom,
   linesToInput,
   linesTotal,
@@ -353,6 +355,21 @@ export function SalesDocumentForm({
           )}
         </div>
 
+        {!readOnly && customerId && (type === 'invoice' || type === 'sales_receipt') && (
+          <div className="flex justify-end">
+            <BillableTime
+              companyId={lookups.company.id}
+              customerId={customerId}
+              onFile={lines.flatMap((l) => l.timeEntryIds)}
+              onAdd={(added) =>
+                setLines((ls) => {
+                  const filled = ls.filter((l) => !isBlankLine(l));
+                  return [...filled, ...added, emptyLine()];
+                })
+              }
+            />
+          </div>
+        )}
         <SalesLines
           lines={lines}
           onChange={setLines}

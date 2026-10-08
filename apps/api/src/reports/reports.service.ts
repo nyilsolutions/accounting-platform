@@ -49,6 +49,12 @@ import {
   inventoryValuationSummaryReport,
 } from './inventory-reports';
 import {
+  estimatesProgressReport,
+  timeByCustomerReport,
+  timeDetailReport,
+  unbilledTimeReport,
+} from './time-reports';
+import {
   balanceSheetReport,
   budgetOverviewReport,
   budgetVsActualsReport,
@@ -118,6 +124,10 @@ export class ReportsService {
     inventory_valuation_summary: inventoryValuationSummaryReport,
     inventory_valuation_detail: inventoryValuationDetailReport,
     inventory_stock_status: inventoryStockStatusReport,
+    time_by_customer: timeByCustomerReport,
+    time_detail: timeDetailReport,
+    unbilled_time: unbilledTimeReport,
+    estimates_progress: estimatesProgressReport,
   };
 
   run(

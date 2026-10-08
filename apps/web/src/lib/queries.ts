@@ -79,6 +79,8 @@ export const keys = {
   payroll: (id: string) => ['company', id, 'payroll'] as const,
   /** Inventory: adjustments and builds (quantities on hand come with the items). */
   inventory: (id: string) => ['company', id, 'inventory'] as const,
+  /** Time: entries, timesheets, approvals. */
+  time: (id: string) => ['company', id, 'time'] as const,
 };
 
 /** Invalidates everything derived from the ledger (balances, lists of entries, reports). */
