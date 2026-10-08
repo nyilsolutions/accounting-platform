@@ -47,7 +47,6 @@ function headerSafe(value: string, what: string): string {
 
 /** RFC 2047: non-ASCII text in a header as UTF-8 base64 encoded-words. */
 function encodeWord(value: string): string {
-  // eslint-disable-next-line no-control-regex
   if (/^[\x20-\x7e]*$/.test(value)) return value;
   return `=?UTF-8?B?${Buffer.from(value, 'utf8').toString('base64')}?=`;
 }

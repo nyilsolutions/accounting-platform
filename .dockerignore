@@ -1,0 +1,20 @@
+# Only what the images need goes into the build context (Dockerfile).
+**/node_modules
+**/dist
+**/.next
+**/.turbo
+**/coverage
+**/*.tsbuildinfo
+**/playwright-report
+**/test-results
+**/.env
+**/.env.*
+!.env.example
+.git
+.github
+.outbox
+.documents
+apps/desktop-agent
+agent-publish
+docs
+infra

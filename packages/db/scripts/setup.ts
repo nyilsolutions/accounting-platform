@@ -1,8 +1,9 @@
 /**
  * Local/CI bootstrap: creates the application role and the dev/test databases.
- * Production roles and databases are created by infrastructure code, not this script.
+ * On AWS, Terraform creates the database and the release step (`apps/api/src/release.ts`) the role.
  */
 import { Client } from 'pg';
+import { APP_ROLE, ensureAppRole } from '../src/roles';
 
 async function main(): Promise<void> {
   const adminUrl = process.env.ADMIN_DATABASE_URL;
@@ -18,17 +19,7 @@ async function main(): Promise<void> {
   const client = new Client({ connectionString: maintenance.toString() });
   await client.connect();
   try {
-    const role = await client.query(`select 1 from pg_roles where rolname = 'acct_app'`);
-    if (role.rowCount === 0) {
-      await client.query(
-        `create role acct_app login nosuperuser nobypassrls nocreatedb nocreaterole password ${client.escapeLiteral(appPassword)}`,
-      );
-      console.log('created role acct_app');
-    } else {
-      await client.query(
-        `alter role acct_app with login nosuperuser nobypassrls password ${client.escapeLiteral(appPassword)}`,
-      );
-    }
+    console.log(`${await ensureAppRole(client, appPassword)} role ${APP_ROLE}`);
     for (const name of dbNames) {
       if (!/^[a-z0-9_]+$/.test(name)) throw new Error(`Unsafe database name: ${name}`);
       const exists = await client.query('select 1 from pg_database where datname = $1', [name]);
