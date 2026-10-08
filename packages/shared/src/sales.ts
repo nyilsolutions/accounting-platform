@@ -1,13 +1,6 @@
 import { z } from 'zod';
-import {
-  decimalPlaces,
-  MAX_AMOUNT,
-  moneyToString,
-  parseMoney,
-  tryParseMoney,
-  type Money,
-} from './money';
-import { isIsoDate } from './dates';
+import { MAX_AMOUNT, moneyToString, parseMoney, tryParseMoney, type Money } from './money';
+import { isoDate, optDate, optText, positiveAmount, qtyRate, signedAmount } from './fields';
 
 // ---------------------------------------------------------------------------------------------
 // Document types
@@ -40,12 +33,18 @@ export const TXN_TYPE_LABELS: Record<string, string> = {
   payment: 'Payment',
   deposit: 'Deposit',
   estimate: 'Estimate',
+  bill: 'Bill',
+  vendor_credit: 'Vendor Credit',
+  bill_payment: 'Bill Payment',
+  check: 'Check',
+  expense: 'Expense',
+  cc_credit: 'Credit Card Credit',
+  purchase_order: 'Purchase Order',
 };
 
 // ---------------------------------------------------------------------------------------------
 // Amount helpers shared by the web form and the API (the API recomputes; it never trusts totals)
 // ---------------------------------------------------------------------------------------------
-const QTY_RATE = /^-?\d{1,15}(\.\d{1,4})?$/;
 
 /** Line amount = quantity × rate, rounded half away from zero to cents. */
 export function lineAmount(quantity: string, rate: string): Money {
@@ -56,54 +55,6 @@ export function lineAmount(quantity: string, rate: string): Money {
   const cents = (abs + perCent / 2n) / perCent;
   return (product < 0n ? -cents : cents) * 100n;
 }
-
-const optText = (max: number) =>
-  z
-    .string()
-    .trim()
-    .max(max)
-    .transform((v) => (v === '' ? null : v))
-    .nullable()
-    .optional();
-
-const isoDate = z.string().refine(isIsoDate, 'Enter a valid date');
-const optDate = isoDate
-  .nullable()
-  .optional()
-  .or(z.literal('').transform(() => null));
-
-const qtyRate = z
-  .string()
-  .trim()
-  .transform((v) => v.replace(/[$,\s]/g, ''))
-  .refine((v) => v === '' || QTY_RATE.test(v), 'Use up to 4 decimal places')
-  .transform((v) => (v === '' ? null : v))
-  .nullable()
-  .optional();
-
-const signedAmount = z
-  .string()
-  .trim()
-  .transform((v) => v.replace(/[$,\s]/g, ''))
-  .refine((v) => v === '' || tryParseMoney(v) !== null, 'Enter a valid amount')
-  .refine((v) => v === '' || decimalPlaces(v) <= 2, 'Amounts can have at most 2 decimal places')
-  .refine(
-    (v) => v === '' || (parseMoney(v) <= MAX_AMOUNT && parseMoney(v) >= -MAX_AMOUNT),
-    'Amount is too large',
-  )
-  .optional();
-
-const positiveAmount = z
-  .string()
-  .trim()
-  .transform((v) => v.replace(/[$,\s]/g, ''))
-  .refine((v) => tryParseMoney(v) !== null, 'Enter a valid amount')
-  .refine(
-    (v) => tryParseMoney(v) === null || decimalPlaces(v) <= 2,
-    'Amounts can have at most 2 decimal places',
-  )
-  .refine((v) => tryParseMoney(v) === null || parseMoney(v) >= 0n, 'Enter a positive amount')
-  .refine((v) => tryParseMoney(v) === null || parseMoney(v) <= MAX_AMOUNT, 'Amount is too large');
 
 // ---------------------------------------------------------------------------------------------
 // Sales documents (invoice, sales receipt, credit memo, refund receipt)

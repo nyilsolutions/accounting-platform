@@ -50,6 +50,47 @@ const GROUPS: Array<{
     ],
   },
   {
+    title: 'What you owe',
+    reports: [
+      {
+        slug: 'ap-aging-summary',
+        title: 'A/P Aging Summary',
+        description: 'Unpaid bills per vendor, by how long they are overdue.',
+      },
+      {
+        slug: 'ap-aging-detail',
+        title: 'A/P Aging Detail',
+        description: 'Every unpaid bill and vendor credit, grouped by days past due.',
+      },
+      {
+        slug: 'unpaid-bills',
+        title: 'Unpaid Bills',
+        description: 'Open bills and unused vendor credits by vendor.',
+      },
+      {
+        slug: 'vendor-balance-summary',
+        title: 'Vendor Balance Summary',
+        description: 'What you owe each vendor on a date.',
+      },
+    ],
+  },
+  {
+    title: 'Expenses and vendors',
+    reports: [
+      {
+        slug: 'expenses-by-vendor',
+        title: 'Expenses by Vendor Summary',
+        description: 'Spending per vendor for a period.',
+      },
+      {
+        slug: 'vendor-1099-summary',
+        title: '1099 Contractor Summary',
+        description:
+          'Payments to 1099 vendors per box for a calendar year, against the thresholds.',
+      },
+    ],
+  },
+  {
     title: 'Sales and customers',
     reports: [
       {
@@ -87,7 +128,7 @@ export default function ReportsPage() {
     <>
       <PageHeader
         title="Reports"
-        description="A/P, cash flow, sales tax and custom reports arrive in later phases."
+        description="Cash flow, sales tax, budgets and custom reports arrive in Phase 7."
       />
       <div className="space-y-8">
         {GROUPS.map((g) => (

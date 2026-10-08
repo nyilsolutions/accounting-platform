@@ -12,6 +12,7 @@ import {
   todayIso,
   type CustomerBalanceDto,
   type ReportDto,
+  type VendorBalanceDto,
 } from '@acct/shared';
 import { api } from '@/lib/api';
 import { useAccess, useAccounts, useCompany } from '@/lib/queries';
@@ -36,6 +37,11 @@ export default function DashboardPage() {
     queryKey: ['company', companyId, 'sales', 'balances'],
     queryFn: () => api<CustomerBalanceDto[]>(`/companies/${companyId}/customer-balances`),
     enabled: access.can('sales.view'),
+  });
+  const ap = useQuery({
+    queryKey: ['company', companyId, 'sales', 'vendor-balances'],
+    queryFn: () => api<VendorBalanceDto[]>(`/companies/${companyId}/vendor-balances`),
+    enabled: access.can('purchases.view'),
   });
   if (company.isPending) return <Spinner />;
   if (!company.data) return null;
@@ -162,6 +168,40 @@ export default function DashboardPage() {
                 className="text-brand-700 hover:underline"
               >
                 A/R aging
+              </Link>
+            </div>
+          </Card>
+        )}
+        {ap.data && (
+          <Card className="p-5">
+            <h2 className="mb-3 font-semibold text-gray-900">Bills</h2>
+            <dl className="space-y-2 text-sm" data-testid="dashboard-ap">
+              {(
+                [
+                  [
+                    'Unpaid',
+                    sumMoney(
+                      ap.data.map((b) => parseMoney(b.openBalance) + parseMoney(b.availableCredit)),
+                    ),
+                  ],
+                  ['Overdue', sumMoney(ap.data.map((b) => parseMoney(b.overdueBalance)))],
+                ] as const
+              ).map(([label, v]) => (
+                <div key={label} className="flex justify-between">
+                  <dt className="text-gray-500">{label}</dt>
+                  <dd className="font-semibold tabular-nums">${formatMoney(v)}</dd>
+                </div>
+              ))}
+            </dl>
+            <div className="mt-3 flex gap-4 text-sm">
+              <Link href={`${base}/expenses/pay-bills`} className="text-brand-700 hover:underline">
+                Pay bills
+              </Link>
+              <Link
+                href={`${base}/reports/ap-aging-summary`}
+                className="text-brand-700 hover:underline"
+              >
+                A/P aging
               </Link>
             </div>
           </Card>

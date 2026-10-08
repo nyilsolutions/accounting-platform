@@ -11,6 +11,7 @@ import { LedgerModule } from './ledger/ledger.module';
 import { ListsModule } from './lists/lists.module';
 import { MailModule } from './mail/mail.module';
 import { MembersModule } from './members/members.module';
+import { PurchasesModule } from './purchases/purchases.module';
 import { ReportsModule } from './reports/reports.module';
 import { SalesModule } from './sales/sales.module';
 
@@ -37,6 +38,7 @@ export class AppModule {
         ListsModule,
         ReportsModule,
         SalesModule,
+        PurchasesModule,
       ],
       controllers: [HealthController],
       providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],

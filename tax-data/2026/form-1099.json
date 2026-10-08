@@ -1,0 +1,17 @@
+{
+  "year": 2026,
+  "description": "Information-return reporting thresholds for payments made in calendar year 2026 (1099-NEC / 1099-MISC boxes tracked by the app).",
+  "thresholds": {
+    "nec_1": "2000.00",
+    "misc_1": "2000.00",
+    "misc_2": "10.00",
+    "misc_3": "2000.00",
+    "misc_6": "2000.00"
+  },
+  "sources": [
+    "One Big Beautiful Bill Act (Pub. L. 119-21), amending IRC §6041(a) and §6041A: threshold raised from $600 to $2,000 for payments made after December 31, 2025 (inflation-indexed after 2026)",
+    "IRC §6050N: $10 for royalties (unchanged)"
+  ],
+  "reviewedBy": null,
+  "note": "Pending CPA review (docs/open-questions.md). Confirm against the 2026 IRS instructions when published."
+}

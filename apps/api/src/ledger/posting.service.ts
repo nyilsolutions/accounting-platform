@@ -26,9 +26,15 @@ export type PostingTxnType =
   | 'credit_memo'
   | 'refund_receipt'
   | 'payment'
-  | 'deposit';
+  | 'deposit'
+  | 'bill'
+  | 'vendor_credit'
+  | 'bill_payment'
+  | 'check'
+  | 'expense'
+  | 'cc_credit';
 
-/** Document fields stored on the transaction header (sales/A/R documents). */
+/** Document fields stored on the transaction header (sales and purchase documents). */
 export interface DocumentDetails {
   customerId?: string | null;
   dueDate?: string | null;
@@ -41,6 +47,10 @@ export interface DocumentDetails {
   emailTo?: string | null;
   /** Document amount, as a decimal string. */
   total?: string | null;
+  vendorId?: string | null;
+  paymentAccountId?: string | null;
+  printStatus?: 'to_print' | 'printed' | null;
+  mailingAddress?: string | null;
 }
 
 function detailColumns(d: DocumentDetails | undefined) {
@@ -57,6 +67,10 @@ function detailColumns(d: DocumentDetails | undefined) {
     ['billTo', 'bill_to'],
     ['emailTo', 'email_to'],
     ['total', 'total'],
+    ['vendorId', 'vendor_id'],
+    ['paymentAccountId', 'payment_account_id'],
+    ['printStatus', 'print_status'],
+    ['mailingAddress', 'mailing_address'],
   ];
   for (const [key, column] of map) if (d[key] !== undefined) out[column] = d[key] ?? null;
   return out;
@@ -179,6 +193,26 @@ export class PostingService {
           ? { status, voided_at: new Date(), voided_by: ctx.userId, updated_by: ctx.userId }
           : { status, deleted_at: new Date(), deleted_by: ctx.userId, updated_by: ctx.userId },
       )
+      .where('id', '=', txnId)
+      .execute();
+  }
+
+  /**
+   * Records that a check was printed with the given number. Printing changes no amounts, dates or
+   * accounts, so it is allowed in a closed period and creates no new journal version.
+   */
+  async markCheckPrinted(
+    tx: Tx,
+    ctx: PostingContext,
+    txnId: string,
+    checkNumber: string,
+  ): Promise<void> {
+    const current = await this.lockTransaction(tx, ctx.companyId, txnId);
+    if (current.status !== 'posted')
+      throw new ConflictException('Only posted checks can be printed');
+    await tx
+      .updateTable('transactions')
+      .set({ txn_number: checkNumber, print_status: 'printed', updated_by: ctx.userId })
       .where('id', '=', txnId)
       .execute();
   }

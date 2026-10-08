@@ -17,8 +17,15 @@ import { OptionSelect } from '@/components/ledger/pickers';
 import { LedgerView, StatementView, toCsv } from '@/components/reports/report-view';
 import { Alert, Button, Card, Spinner } from '@/components/ui';
 import { api, errorMessage } from '@/lib/api';
-import { customerHref, txnHref } from '@/lib/links';
-import { keys, useAccounts, useCompany, useCustomers, useSimpleList } from '@/lib/queries';
+import { customerHref, txnHref, vendorHref } from '@/lib/links';
+import {
+  keys,
+  useAccounts,
+  useCompany,
+  useCustomers,
+  useSimpleList,
+  useVendors,
+} from '@/lib/queries';
 
 interface ReportConfig {
   pointInTime: boolean;
@@ -29,6 +36,8 @@ interface ReportConfig {
   basis?: boolean;
   /** Customer filter. */
   customer?: boolean;
+  /** Vendor filter. */
+  vendor?: boolean;
 }
 
 const REPORTS: Record<string, ReportConfig> = {
@@ -72,9 +81,26 @@ const REPORTS: Record<string, ReportConfig> = {
     defaultPreset: 'this_fiscal_year_to_date',
     customer: true,
   },
+  'ap-aging-summary': { pointInTime: true, filters: false, defaultPreset: 'today', vendor: true },
+  'ap-aging-detail': { pointInTime: true, filters: false, defaultPreset: 'today', vendor: true },
+  'unpaid-bills': { pointInTime: true, filters: false, defaultPreset: 'today', vendor: true },
+  'vendor-balance-summary': {
+    pointInTime: true,
+    filters: false,
+    defaultPreset: 'today',
+    vendor: true,
+  },
+  'expenses-by-vendor': {
+    pointInTime: false,
+    filters: true,
+    defaultPreset: 'this_fiscal_year_to_date',
+    vendor: true,
+  },
+  // The calendar year of "As of" (1099s are per calendar year).
+  'vendor-1099-summary': { pointInTime: true, filters: false, defaultPreset: 'today' },
 };
 
-const FILTER_KEYS = ['classId', 'locationId', 'accountId', 'customerId', 'basis'];
+const FILTER_KEYS = ['classId', 'locationId', 'accountId', 'customerId', 'vendorId', 'basis'];
 
 function ReportPage() {
   const { companyId, key } = useParams<{ companyId: string; key: string }>();
@@ -87,6 +113,7 @@ function ReportPage() {
   const locations = useSimpleList(companyId, 'locations');
   const accounts = useAccounts(companyId, true);
   const customers = useCustomers(companyId, true, !!cfg?.customer);
+  const vendors = useVendors(companyId, true, !!cfg?.vendor);
   if (!cfg) notFound();
 
   const fyStart = company.data?.fiscalYearStartMonth ?? 1;
@@ -242,6 +269,18 @@ function ReportPage() {
               />
             </label>
           )}
+          {cfg.vendor && (
+            <label>
+              <span className="mb-1 block font-medium text-gray-700">Vendor</span>
+              <OptionSelect
+                name="vendorId"
+                defaultValue={query.vendorId ?? ''}
+                placeholder="All vendors"
+                options={(vendors.data ?? []).map((v) => ({ id: v.id, label: v.displayName }))}
+                className="w-56"
+              />
+            </label>
+          )}
           {cfg.basis && (
             <label>
               <span className="mb-1 block font-medium text-gray-700">Accounting method</span>
@@ -301,9 +340,11 @@ function ReportPage() {
                 ? txnHref(companyId, row.txnType, row.txnId)
                 : row.customerId
                   ? customerHref(companyId, row.customerId)
-                  : row.accountId
-                    ? glHref(row.accountId, (report.data as ReportDto).drillFrom, query.to!)
-                    : null
+                  : row.vendorId
+                    ? vendorHref(companyId, row.vendorId)
+                    : row.accountId
+                      ? glHref(row.accountId, (report.data as ReportDto).drillFrom, query.to!)
+                      : null
             }
           />
         )}

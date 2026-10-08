@@ -28,12 +28,16 @@ A single package: `pnpm --filter @acct/api test`, `pnpm --filter @acct/db test`,
 
 - `apps/api`: NestJS 11 REST API (Express 5). Modules: auth, companies, members, audit, mail, health,
   ledger (accounts, journal entries, posting engine, ledger settings), lists, sales (invoices,
-  receipts, credit memos, refunds, payments, deposits, estimates, A/R subledger in `ar-ledger.ts`),
-  reports (including A/R reports and cash basis in `cash-basis.ts`).
+  receipts, credit memos, refunds, payments, deposits, estimates), purchases (bills, vendor credits,
+  bill payments/pay bills, checks and check printing, expenses, credit card credits, purchase
+  orders, 1099 in `vendor-1099.ts`), reports (A/R and A/P reports; cash basis in `cash-basis.ts`).
+  The A/R and A/P subledgers share one engine: `ledger/subledger.ts`.
 - `apps/web`: Next.js 16 (App Router) + TanStack Query + Tailwind 4. Calls the API only via `/api/*`.
 - `packages/db`: plain-SQL migrations, migrator, Kysely types, `withTenant()`, `createTestDatabase()`.
 - `packages/crypto`: server-only: argon2id, TOTP, AES-256-GCM field encryption, tokens.
 - `packages/shared`: zod schemas, DTO types, roles and permissions (used by API **and** web).
+- `tax-data/<year>/*.json`: tax thresholds and tables with citations, loaded by
+  `apps/api/src/common/tax-data.ts`.
 
 ## Non-negotiable rules
 
@@ -71,9 +75,11 @@ A single package: `pnpm --filter @acct/api test`, `pnpm --filter @acct/db test`,
 - Report layout: pure functions in `apps/api/src/reports/report-builder.ts` and
   `ar-report-builder.ts`; the API returns rows and the web renders them generically
   (`components/reports/report-view.tsx`). Tabular reports set `textColumns` and per-row `cells`.
-- Sales documents keep their business detail in mutable tables (`sales_lines`,
-  `payment_applications`, `deposit_lines`) replaced on save; only journal lines are versioned
-  (ADR 0009). Keep the A/R subledger tied to the GL: open items must sum to the A/R balance.
+- Sales and purchase documents keep their business detail in mutable tables (`sales_lines`,
+  `purchase_lines`, `payment_applications`, `deposit_lines`) replaced on save; only journal lines
+  are versioned (ADR 0009, 0010). Keep the A/R and A/P subledgers tied to the GL: open items must
+  sum to the control account balance (property tests check this).
+- A journal line names one party (`customer_id` or `vendor_id`, never both).
 - Transaction links in the web go through `apps/web/src/lib/links.ts` (`txnHref`).
 - Database errors map to HTTP in `common/pg-error.filter.ts`; add friendly messages for new unique
   indexes there.
@@ -83,7 +89,7 @@ A single package: `pnpm --filter @acct/api test`, `pnpm --filter @acct/db test`,
 - [x] Phase 0: Foundation (monorepo, CI, auth + MFA, companies, users/roles, RLS, audit log, app shell)
 - [x] Phase 1: Ledger core (chart of accounts, lists, journal entries, posting engine, TB/GL/P&L/BS)
 - [x] Phase 2: Sales & A/R (invoices, payments, deposits, estimates, statements, A/R reports, cash basis)
-- [ ] Phase 3: Purchases & A/P
+- [x] Phase 3: Purchases & A/P (bills, pay bills, checks + printing, expenses, POs, vendor credits, 1099, A/P reports)
 - [ ] Phase 4: Banking (registers, reconciliation, file imports, Plaid)
 - [ ] Phase 5: Documents
 - [ ] Phase 6: QuickBooks migration
