@@ -1143,6 +1143,9 @@ export interface PaycheckLinesTable {
   taxable_wages: Numeric | null;
   /** Wages subject to the tax before any wage base (migration 0016; null on older lines). */
   subject_wages: Numeric | null;
+  /** Migration 0028: a licensed engine's state or local jurisdiction. */
+  jurisdiction_code: ColumnType<string | null, string | null | undefined, string | null>;
+  jurisdiction_name: ColumnType<string | null, string | null | undefined, string | null>;
   description: string | null;
 }
 
@@ -1190,6 +1193,9 @@ export interface PriorPayrollLinesTable {
   amount: Numeric;
   taxable_wages: Numeric | null;
   subject_wages: Numeric | null;
+  /** Migration 0028: a licensed engine's state or local jurisdiction. */
+  jurisdiction_code: ColumnType<string | null, string | null | undefined, string | null>;
+  jurisdiction_name: ColumnType<string | null, string | null | undefined, string | null>;
 }
 
 export interface PriorTaxDepositsTable extends Audited {

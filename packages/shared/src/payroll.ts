@@ -25,6 +25,121 @@ export function isPayrollState(s: string | null | undefined): s is PayrollState 
   return (PAYROLL_STATES as readonly string[]).includes(s ?? '');
 }
 
+/**
+ * Where employees can work (ADR 0026): any state or DC. The built-in engine calculates the
+ * PAYROLL_STATES above; the others need a licensed state tax engine (StateTaxEngine).
+ */
+export const PAYROLL_WORK_STATES = [
+  'AL',
+  'AK',
+  'AZ',
+  'AR',
+  'CA',
+  'CO',
+  'CT',
+  'DE',
+  'DC',
+  'FL',
+  'GA',
+  'HI',
+  'ID',
+  'IL',
+  'IN',
+  'IA',
+  'KS',
+  'KY',
+  'LA',
+  'ME',
+  'MD',
+  'MA',
+  'MI',
+  'MN',
+  'MS',
+  'MO',
+  'MT',
+  'NE',
+  'NV',
+  'NH',
+  'NJ',
+  'NM',
+  'NY',
+  'NC',
+  'ND',
+  'OH',
+  'OK',
+  'OR',
+  'PA',
+  'RI',
+  'SC',
+  'SD',
+  'TN',
+  'TX',
+  'UT',
+  'VT',
+  'VA',
+  'WA',
+  'WV',
+  'WI',
+  'WY',
+] as const;
+export type WorkState = (typeof PAYROLL_WORK_STATES)[number];
+export const WORK_STATE_NAMES: Record<WorkState, string> = {
+  AL: 'Alabama',
+  AK: 'Alaska',
+  AZ: 'Arizona',
+  AR: 'Arkansas',
+  CA: 'California',
+  CO: 'Colorado',
+  CT: 'Connecticut',
+  DE: 'Delaware',
+  DC: 'District of Columbia',
+  FL: 'Florida',
+  GA: 'Georgia',
+  HI: 'Hawaii',
+  ID: 'Idaho',
+  IL: 'Illinois',
+  IN: 'Indiana',
+  IA: 'Iowa',
+  KS: 'Kansas',
+  KY: 'Kentucky',
+  LA: 'Louisiana',
+  ME: 'Maine',
+  MD: 'Maryland',
+  MA: 'Massachusetts',
+  MI: 'Michigan',
+  MN: 'Minnesota',
+  MS: 'Mississippi',
+  MO: 'Missouri',
+  MT: 'Montana',
+  NE: 'Nebraska',
+  NV: 'Nevada',
+  NH: 'New Hampshire',
+  NJ: 'New Jersey',
+  NM: 'New Mexico',
+  NY: 'New York',
+  NC: 'North Carolina',
+  ND: 'North Dakota',
+  OH: 'Ohio',
+  OK: 'Oklahoma',
+  OR: 'Oregon',
+  PA: 'Pennsylvania',
+  RI: 'Rhode Island',
+  SC: 'South Carolina',
+  SD: 'South Dakota',
+  TN: 'Tennessee',
+  TX: 'Texas',
+  UT: 'Utah',
+  VT: 'Vermont',
+  VA: 'Virginia',
+  WA: 'Washington',
+  WV: 'West Virginia',
+  WI: 'Wisconsin',
+  WY: 'Wyoming',
+};
+export function isWorkState(s: string | null | undefined): s is WorkState {
+  return (PAYROLL_WORK_STATES as readonly string[]).includes(s ?? '');
+}
+
 /** The state withholding certificate, for the supported states that have an income tax. */
 export const STATE_CERTIFICATE_FORMS: Record<PayrollState, string | null> = {
   CA: 'DE 4',
@@ -358,7 +473,7 @@ export function payPeriods(s: ScheduleShape, from: IsoDate, count: number): PayP
 export const STATE_DEPOSIT_SCHEDULES = ['monthly', 'semiweekly'] as const;
 export type StateDepositSchedule = (typeof STATE_DEPOSIT_SCHEDULES)[number];
 export const stateRegistrationInputSchema = z.object({
-  state: z.enum(PAYROLL_STATES, 'Payroll supports CA, FL, IL, NY and TX for now'),
+  state: z.enum(PAYROLL_WORK_STATES, 'Choose a state'),
   withholdingAccountNumber: optText(30),
   unemploymentAccountNumber: optText(30),
   /** The withholding deposit schedule the state assigned (Illinois: from its IDOR notice). */
@@ -376,17 +491,25 @@ export type UnemploymentRateInput = z.input<typeof unemploymentRateInputSchema>;
 
 export interface StateRegistrationDto {
   id: string;
-  state: PayrollState;
+  state: WorkState;
   withholdingAccountNumber: string | null;
   unemploymentAccountNumber: string | null;
   withholdingDepositSchedule: StateDepositSchedule | null;
   isActive: boolean;
   /** The employer's unemployment rate per year, newest first. */
   unemploymentRates: { year: number; rate: string }[];
+  /**
+   * Who calculates the state's payroll taxes (ADR 0026): the built-in engine, a licensed tax
+   * engine (named), or nobody yet, in which case its paychecks are refused.
+   */
+  taxSource: StateTaxSource;
+  taxEngineName: string | null;
 }
+export const STATE_TAX_SOURCES = ['built_in', 'tax_engine', 'none'] as const;
+export type StateTaxSource = (typeof STATE_TAX_SOURCES)[number];
 
 export const workersCompClassInputSchema = z.object({
-  state: z.enum(PAYROLL_STATES),
+  state: z.enum(PAYROLL_WORK_STATES),
   code: reqText(10, 'Enter the class code'),
   description: reqText(100, 'Enter a description'),
   /** Premium per $100 of wages, from the policy. */
@@ -397,7 +520,7 @@ export type WorkersCompClassInput = z.input<typeof workersCompClassInputSchema>;
 
 export interface WorkersCompClassDto {
   id: string;
-  state: PayrollState;
+  state: WorkState;
   code: string;
   description: string;
   rate: string;
@@ -643,7 +766,7 @@ export const employeeInputSchema = z
     postalCode: optZip,
     workAddressLine1: optText(200),
     workCity: optText(100),
-    workState: z.enum(PAYROLL_STATES, 'Payroll supports work in CA, FL, IL, NY and TX for now'),
+    workState: z.enum(PAYROLL_WORK_STATES, 'Choose the work state'),
     workPostalCode: optZip,
     hireDate: isoDate,
     terminationDate: optDate,
@@ -720,7 +843,7 @@ export interface EmployeeSummaryDto {
   payRate: string;
   payScheduleId: string;
   payMethod: PayMethod;
-  workState: PayrollState;
+  workState: WorkState;
   hireDate: string;
   terminationDate: string | null;
   ssnMasked: string | null;
@@ -1185,8 +1308,16 @@ export const PAYROLL_TAX_CODES = [
   'ca_sdi',
   'ny_pfl',
   'ny_dbl',
+  // A licensed engine's lines (ADR 0026), each naming its jurisdiction.
+  'state_other',
+  'local_income',
+  'local_other',
 ] as const;
 export type PayrollTaxCode = (typeof PAYROLL_TAX_CODES)[number];
+/** Codes only a licensed state tax engine produces; their lines name a jurisdiction. */
+export const ENGINE_TAX_CODES = ['state_other', 'local_income', 'local_other'] as const;
+export const isEngineTaxCode = (c: string): c is (typeof ENGINE_TAX_CODES)[number] =>
+  (ENGINE_TAX_CODES as readonly string[]).includes(c);
 /** Labels; state taxes are prefixed with the state on screen ("NY income tax"). */
 export const PAYROLL_TAX_LABELS: Record<PayrollTaxCode, string> = {
   federal_income: 'Federal income tax',
@@ -1205,8 +1336,16 @@ export const PAYROLL_TAX_LABELS: Record<PayrollTaxCode, string> = {
   ca_sdi: 'CA SDI',
   ny_pfl: 'NY Paid Family Leave',
   ny_dbl: 'NY Disability Benefits (DBL)',
+  state_other: 'state tax',
+  local_income: 'local income tax',
+  local_other: 'local tax',
 };
-export function payrollTaxLabel(code: PayrollTaxCode, state: string | null): string {
+export function payrollTaxLabel(
+  code: PayrollTaxCode,
+  state: string | null,
+  jurisdictionName?: string | null,
+): string {
+  if (jurisdictionName) return jurisdictionName;
   const label = PAYROLL_TAX_LABELS[code];
   return (code === 'state_income' || code === 'state_unemployment') && state
     ? `${state} ${label}`
@@ -1380,7 +1519,9 @@ export interface PaycheckDto extends PaycheckSummaryDto {
  *   federal_941 (income tax withheld, social security, Medicare), federal_940 (FUTA),
  *   state_withholding:<ST> (state and local income tax, CA SDI), state_unemployment:<ST>
  *   (unemployment, NY Re-employment Service Fund, CA ETT), ny_pfl and ny_dbl (the employer's Paid
- *   Family Leave and disability benefits carrier), item:<payroll item id> (a deduction or contribution's payee).
+ *   Family Leave and disability benefits carrier), item:<payroll item id> (a deduction or contribution's payee),
+ *   and for a licensed tax engine's taxes (ADR 0026) state_other:<ST>:<jurisdiction code> and
+ *   local:<ST>:<jurisdiction code>.
  */
 export type PayrollAgency = string;
 
@@ -1527,9 +1668,16 @@ export const PAYROLL_TAX_PAYERS: Record<PayrollTaxCode, 'employee' | 'employer'>
   ca_sdi: 'employee',
   ny_pfl: 'employee',
   ny_dbl: 'employee',
+  // A tax engine's lines carry their own payer; these are only defaults.
+  state_other: 'employee',
+  local_income: 'employee',
+  local_other: 'employee',
 };
 /** Which state a tax line names: none (federal), any work state, or one state. */
 export const PAYROLL_TAX_STATES: Record<PayrollTaxCode, 'none' | 'any' | PayrollState> = {
+  state_other: 'any',
+  local_income: 'any',
+  local_other: 'any',
   federal_income: 'none',
   social_security_employee: 'none',
   social_security_employer: 'none',
@@ -1563,8 +1711,13 @@ export const priorPayrollInputSchema = z
     taxes: z
       .array(
         z.object({
-          taxCode: z.enum(PAYROLL_TAX_CODES),
-          state: z.enum(PAYROLL_STATES).nullable().optional(),
+          taxCode: z
+            .enum(PAYROLL_TAX_CODES)
+            .refine(
+              (c) => !isEngineTaxCode(c),
+              "A tax engine's local and other state taxes can't be entered as prior payroll yet",
+            ),
+          state: z.enum(PAYROLL_WORK_STATES).nullable().optional(),
           /** Wages the tax was figured on (after any wage base). */
           taxableWages: money,
           /** Wages subject to the tax before any wage base; blank means the same. */
@@ -1639,7 +1792,7 @@ export interface PriorPayrollDto {
   }[];
   taxes: {
     taxCode: PayrollTaxCode;
-    state: PayrollState | null;
+    state: WorkState | null;
     payer: 'employee' | 'employer';
     taxableWages: string;
     subjectWages: string;
@@ -1683,7 +1836,7 @@ export const taxFilingInputSchema = z
     form: z.enum(TAX_FILING_FORMS),
     taxYear: z.number().int().min(2000).max(2199),
     quarter: z.number().int().min(1).max(4).nullable().optional(),
-    state: z.enum(PAYROLL_STATES).nullable().optional(),
+    state: z.enum(PAYROLL_WORK_STATES).nullable().optional(),
     filedOn: isoDate,
     method: z.enum(TAX_FILING_METHODS),
     confirmation: optText(60),
@@ -1709,7 +1862,7 @@ export interface TaxFilingDto {
   label: string;
   taxYear: number;
   quarter: number | null;
-  state: PayrollState | null;
+  state: WorkState | null;
   filedOn: string;
   method: TaxFilingMethod;
   confirmation: string | null;
@@ -1840,7 +1993,7 @@ export interface FutaAnnualDto extends FormFilingState {
 export interface StateQuarterDto extends FormFilingState {
   taxYear: number;
   quarter: number;
-  state: PayrollState;
+  state: WorkState;
   stateName: string;
   /** The state's quarterly return, when tax-data names it (e.g. RT-6, DE 9). */
   form: string | null;
@@ -1874,7 +2027,7 @@ export interface StateQuarterDto extends FormFilingState {
 export const taxFormQuerySchema = z.object({
   year: z.coerce.number().int().min(2000).max(2199),
   quarter: z.coerce.number().int().min(1).max(4).optional(),
-  state: z.enum(PAYROLL_STATES).optional(),
+  state: z.enum(PAYROLL_WORK_STATES).optional(),
 });
 export type TaxFormQuery = z.input<typeof taxFormQuerySchema>;
 

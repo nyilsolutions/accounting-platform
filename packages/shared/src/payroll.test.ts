@@ -158,8 +158,12 @@ describe('employees', () => {
     expect(e).toMatchObject({ payMethod: 'check', overtimeExempt: false, payRate: '22.50' });
   });
 
-  it('only supported work states', () => {
-    expect(employeeInputSchema.safeParse({ ...employee, workState: 'WA' }).success).toBe(false);
+  it('any of the 50 states or DC as the work state', () => {
+    // Taxes for states without a built-in engine are refused when a paycheck is calculated.
+    expect(employeeInputSchema.safeParse({ ...employee, workState: 'WA' }).success).toBe(true);
+    expect(employeeInputSchema.safeParse({ ...employee, workState: 'DC' }).success).toBe(true);
+    expect(employeeInputSchema.safeParse({ ...employee, workState: 'PR' }).success).toBe(false);
+    expect(employeeInputSchema.safeParse({ ...employee, workState: 'XX' }).success).toBe(false);
   });
 
   it('hourly and salaried employees need a rate; commission-only do not', () => {

@@ -9,7 +9,7 @@ import {
   type W3Dto,
 } from '@acct/shared';
 import type { FederalTaxData } from '../tax/tax-data-types';
-import { sumKinds, sumTax, type EmployeeFacts, type PayRecord } from './records';
+import { engineTaxGroups, sumKinds, sumTax, type EmployeeFacts, type PayRecord } from './records';
 
 /**
  * Forms W-2 and W-3 from the year's pay records (ADR 0017), box by box as the 2026 General
@@ -124,6 +124,16 @@ export function buildW2s(f: W2Facts): W2Dto[] {
       const amount = sumTax(recs, [code], 'amount');
       if (amount > ZERO) box14a.push({ label, amount: m(amount) });
     }
+    // A licensed engine's taxes (ADR 0026): local income taxes go in boxes 18–20; the employee's
+    // other state and local taxes, and unemployment tax withheld, are listed in box 14.
+    const engine = engineTaxGroups(recs, (l) =>
+      l.taxCode === 'state_unemployment'
+        ? `${l.state} UI`
+        : (l.jurisdictionName ?? l.jurisdictionCode ?? ''),
+    );
+    for (const g of engine)
+      if (g.payer === 'employee' && g.code !== 'local_income' && g.amount > ZERO)
+        box14a.push({ label: g.label, amount: m(g.amount) });
     const hasTips = box12.some((b) => b.code === 'TP');
     const box14b = hasTips ? e.tippedOccupationCodes : null;
 
@@ -153,6 +163,14 @@ export function buildW2s(f: W2Facts): W2Dto[] {
         tax: m(sumTax(recs, [l.code], 'amount')),
       });
     }
+    for (const g of engine)
+      if (g.code === 'local_income')
+        localities.push({
+          state: g.state,
+          locality: g.label,
+          wages: m(g.taxableWages),
+          tax: m(g.amount),
+        });
 
     // The instructions' reconciliation rules (p.26) and what every W-2 needs.
     if (!e.hasSsn) problems.push("The employee's social security number is missing.");

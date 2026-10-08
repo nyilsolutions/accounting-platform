@@ -427,6 +427,68 @@ describe('pay runs (migration 0011)', () => {
     );
   });
 
+  it('engine tax lines name their state and jurisdiction (migration 0028)', async () => {
+    const line = (line_no: number, over: Record<string, unknown>) =>
+      asA((tx) =>
+        tx
+          .insertInto('paycheck_lines')
+          .values({
+            company_id: A,
+            paycheck_id: paycheckId,
+            line_no,
+            line_type: 'tax',
+            payer: 'employee',
+            amount: '1.00',
+            taxable_wages: '100',
+            ...over,
+          })
+          .execute(),
+      );
+    // A local tax names its state and jurisdiction.
+    await line(4, {
+      tax_code: 'local_income',
+      state: 'PA',
+      jurisdiction_code: '510101',
+      jurisdiction_name: 'Philadelphia',
+    });
+    await line(5, {
+      tax_code: 'state_other',
+      state: 'WA',
+      jurisdiction_code: 'WA-PFML',
+      jurisdiction_name: 'Paid Family and Medical Leave',
+    });
+    await expect(line(6, { tax_code: 'local_income', state: 'PA' })).rejects.toThrow(
+      /paycheck_lines_jurisdiction_check/,
+    );
+    await expect(
+      line(6, { tax_code: 'local_other', jurisdiction_code: 'X1', jurisdiction_name: 'X' }),
+    ).rejects.toThrow(/paycheck_lines_jurisdiction_check/);
+    await expect(
+      line(6, {
+        tax_code: 'local_other',
+        state: 'OH',
+        jurisdiction_code: 'bad code!',
+        jurisdiction_name: 'Columbus',
+      }),
+    ).rejects.toThrow(/check constraint/);
+    // Built-in codes never carry a jurisdiction.
+    await expect(
+      line(6, {
+        tax_code: 'state_income',
+        state: 'NY',
+        jurisdiction_code: 'NY',
+        jurisdiction_name: 'New York',
+      }),
+    ).rejects.toThrow(/paycheck_lines_jurisdiction_check/);
+    await asA((tx) =>
+      tx
+        .deleteFrom('paycheck_lines')
+        .where('paycheck_id', '=', paycheckId)
+        .where('line_no', 'in', [4, 5])
+        .execute(),
+    );
+  });
+
   it('a posted paycheck is frozen: its lines and amounts cannot change, and it is voided, not deleted', async () => {
     await asA(async (tx) => {
       const txn = await tx
@@ -594,6 +656,18 @@ describe('payroll liability payments (migration 0013)', () => {
     await asA((tx) =>
       tx.insertInto('payroll_liability_payments').values(values('ny_dbl')).execute(),
     );
+    // Agencies of a licensed engine's taxes (migration 0028).
+    await asA((tx) =>
+      tx
+        .insertInto('payroll_liability_payments')
+        .values([values('local:PA:510101'), values('state_other:WA:WA-PFML')])
+        .execute(),
+    );
+    for (const agency of ['local:pa:510101', 'local:PA:', 'local:PA:a b', 'state_other:WA']) {
+      await expect(
+        asA((tx) => tx.insertInto('payroll_liability_payments').values(values(agency)).execute()),
+      ).rejects.toThrow(/check constraint/);
+    }
     expect(
       await asB((tx) => tx.selectFrom('payroll_liability_payments').select('id').execute()),
     ).toEqual([]);

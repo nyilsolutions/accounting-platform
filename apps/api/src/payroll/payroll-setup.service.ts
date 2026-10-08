@@ -1,4 +1,4 @@
-import { ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { ConflictException, Inject, Injectable, NotFoundException, Optional } from '@nestjs/common';
 import { withTenant, type Db, type Tx } from '@acct/db';
 import {
   payPeriods,
@@ -9,12 +9,13 @@ import {
   type PayrollItemDto,
   type PayrollItemKind,
   type PayrollSettingsDto,
-  type PayrollState,
+  type WorkState,
   type PayScheduleDto,
   type PtoAccrualMethod,
   type PtoKind,
   type PtoPolicyDto,
   type StateRegistrationDto,
+  isPayrollState,
   type WorkersCompClassDto,
   type payrollItemInputSchema,
   type payrollSettingsInputSchema,
@@ -29,6 +30,7 @@ import { AuditService, diff } from '../audit/audit.service';
 import type { AuthContext, CompanyContext, RequestMeta } from '../common/request';
 import { DB } from '../db/db.module';
 import { DEPOSIT_PARTNER, type DepositPartner } from './partners/deposit-partner';
+import { STATE_TAX_ENGINE, type StateTaxEngine } from './tax/state-tax-engine';
 import {
   assertAccountTypes,
   bad,
@@ -73,7 +75,18 @@ export class PayrollSetupService {
     @Inject(DB) private readonly db: Db,
     private readonly audit: AuditService,
     @Inject(DEPOSIT_PARTNER) private readonly partner: DepositPartner | null,
+    @Optional()
+    @Inject(STATE_TAX_ENGINE)
+    private readonly stateTaxEngine: StateTaxEngine | null = null,
   ) {}
+
+  /** Who calculates a state's payroll taxes (ADR 0026). */
+  private taxSource(state: WorkState): Pick<StateRegistrationDto, 'taxSource' | 'taxEngineName'> {
+    if (isPayrollState(state)) return { taxSource: 'built_in', taxEngineName: null };
+    if (this.stateTaxEngine?.supports(state))
+      return { taxSource: 'tax_engine', taxEngineName: this.stateTaxEngine.name };
+    return { taxSource: 'none', taxEngineName: null };
+  }
 
   private tenant<T>(auth: AuthContext, ctx: CompanyContext, fn: (tx: Tx) => Promise<T>) {
     return withTenant(this.db, { userId: auth.userId, companyId: ctx.companyId }, fn);
@@ -572,7 +585,7 @@ export class PayrollSetupService {
       .execute();
     return regs.map((r) => ({
       id: r.id,
-      state: r.state as PayrollState,
+      state: r.state as WorkState,
       withholdingAccountNumber: r.withholding_account_number,
       unemploymentAccountNumber: r.unemployment_account_number,
       withholdingDepositSchedule: r.withholding_deposit_schedule,
@@ -580,6 +593,7 @@ export class PayrollSetupService {
       unemploymentRates: rates
         .filter((x) => x.registration_id === r.id)
         .map((x) => ({ year: x.year, rate: trimNumber(x.rate)! })),
+      ...this.taxSource(r.state as WorkState),
     }));
   }
 
@@ -873,7 +887,7 @@ function workersCompDto(r: {
 }): WorkersCompClassDto {
   return {
     id: r.id,
-    state: r.state as PayrollState,
+    state: r.state as WorkState,
     code: r.code,
     description: r.description,
     rate: trimNumber(r.rate)!,

@@ -10,7 +10,7 @@ import {
   moneyToString,
   parseMoney,
   type PayrollItemKind,
-  type PayrollState,
+  type WorkState,
   type PayrollTaxCode,
   type PriorDepositAgency,
   type PriorPayrollDto,
@@ -495,7 +495,7 @@ export class PriorPayrollService {
           else employerTaxes += amount;
           taxes.push({
             taxCode: l.tax_code as PayrollTaxCode,
-            state: l.state as PayrollState | null,
+            state: l.state as WorkState | null,
             payer: l.payer as 'employee' | 'employer',
             taxableWages: moneyToString(parseMoney(l.taxable_wages!)),
             subjectWages: moneyToString(parseMoney(l.subject_wages ?? l.taxable_wages!)),

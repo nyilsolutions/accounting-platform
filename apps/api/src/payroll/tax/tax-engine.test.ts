@@ -750,3 +750,63 @@ function nyCert(fields: Partial<Record<string, unknown>>): PaycheckTaxInput['sta
     } as never,
   };
 }
+
+describe('a state without a built-in engine (ADR 0026)', () => {
+  const pay = items(['salary', '2000']);
+
+  it('is refused with the reason when no licensed engine answered', () => {
+    expect(refusal(() => calculatePaycheckTaxes(data, { ...baseInput('WA'), items: pay }))).toEqual(
+      [
+        "Washington payroll taxes aren't built in. They need a licensed tax engine, and none is set up on this platform yet.",
+      ],
+    );
+    expect(
+      refusal(() =>
+        calculatePaycheckTaxes(data, {
+          ...baseInput('WA'),
+          items: pay,
+          externalState: { refused: ['Engine: the employee needs a work location.'] },
+        }),
+      ),
+    ).toEqual(['Engine: the employee needs a work location.']);
+  });
+
+  it("keeps the built-in federal taxes and adds the engine's checked lines", () => {
+    const r = calculatePaycheckTaxes(data, {
+      ...baseInput('WA'),
+      items: pay,
+      externalState: {
+        // Fixture figures, not Washington's.
+        lines: [
+          {
+            code: 'state_other',
+            payer: 'employee',
+            state: 'WA',
+            jurisdiction: { code: 'WA-PFML', name: 'WA Paid Family and Medical Leave' },
+            taxableWages: m('2000'),
+            subjectWages: m('2000'),
+            amount: m('12.34'),
+          },
+          {
+            code: 'state_unemployment',
+            payer: 'employer',
+            state: 'WA',
+            jurisdiction: null,
+            taxableWages: m('2000'),
+            subjectWages: m('2000'),
+            amount: m('20.00'),
+          },
+        ],
+        notices: ['Fixture notice.'],
+      },
+    });
+    expect(str(line(r, 'social_security_employee').amount)).toBe('124.00');
+    expect(line(r, 'state_other')).toMatchObject({
+      state: 'WA',
+      jurisdiction: { code: 'WA-PFML', name: 'WA Paid Family and Medical Leave' },
+      amount: m('12.34'),
+    });
+    expect(str(r.wages.stateUnemployment)).toBe('2000.00');
+    expect(r.notices).toContain('Fixture notice.');
+  });
+});

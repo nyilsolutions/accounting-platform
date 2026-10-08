@@ -2,7 +2,7 @@
 
 import { useParams } from 'next/navigation';
 import { useState } from 'react';
-import { formatDate, type PayrollState } from '@acct/shared';
+import { formatDate, type WorkState } from '@acct/shared';
 import { EfilePanel } from '@/components/efile/efile-panel';
 import { usd } from '@/components/payroll/pay-run-ui';
 import { Section, Table } from '@/components/payroll/payroll-ui';
@@ -160,7 +160,7 @@ function StateQuarter({
   companyId: string;
   year: number;
   quarter: number;
-  state: PayrollState;
+  state: WorkState;
 }) {
   const access = useAccess(companyId);
   const q = useStateQuarter(companyId, year, quarter, state);

@@ -9,7 +9,7 @@ import {
   formatDate,
   todayIso,
   type FormFilingState,
-  type PayrollState,
+  type WorkState,
   type TaxFilingForm,
 } from '@acct/shared';
 import { usd } from '@/components/payroll/pay-run-ui';
@@ -132,7 +132,7 @@ export function FilingPanel({
   form: TaxFilingForm;
   taxYear: number;
   quarter?: number;
-  payrollState?: PayrollState;
+  payrollState?: WorkState;
   canManage: boolean;
   /** Why it can't be marked filed yet. */
   blocked?: string | null;

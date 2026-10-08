@@ -207,7 +207,8 @@ describe('setup', () => {
         .expect(201)
     ).body;
     await owner.agent.post(`${base()}/states`).send({ state: 'NY' }).expect(409);
-    await owner.agent.post(`${base()}/states`).send({ state: 'WA' }).expect(400);
+    // Any of the 50 states or DC (ADR 0026); not a territory or an unknown code.
+    await owner.agent.post(`${base()}/states`).send({ state: 'PR' }).expect(400);
     await owner.agent
       .put(`${base()}/states/${ny.id}/unemployment-rates`)
       .send({ year: 2025, rate: '4.1' })
@@ -347,7 +348,7 @@ describe('employees', () => {
       .expect(409);
     await owner.agent
       .post(`${base()}/employees`)
-      .send(employeeInput({ employeeNumber: 'E-102', workState: 'WA' }))
+      .send(employeeInput({ employeeNumber: 'E-102', workState: 'XX' }))
       .expect(400);
     await owner.agent
       .post(`${base()}/employees`)

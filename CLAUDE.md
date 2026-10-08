@@ -46,7 +46,8 @@ A single package: `pnpm --filter @acct/api test`, `pnpm --filter @acct/db test`,
   prenotes in `employees.service.ts`, NACHA records in `nacha.ts` behind `PaymentRail`; the tax
   engine in `payroll/tax/` (pure, exact fractions); paychecks built by `paycheck-calc.ts` and run
   by `pay-runs.service.ts`; liabilities in `liabilities.ts` with payments through `EftpsProvider`;
-  payroll reports in `payroll-reports.ts`; EFTPS as batch provider and the direct deposit
+  payroll reports in `payroll-reports.ts`; a licensed state and local tax engine behind
+  `StateTaxEngine` in `payroll/tax/state-tax-engine.ts`; EFTPS as batch provider and the direct deposit
   partner behind `EftpsBatchProvider` and `DepositPartner` with stand-ins in `payroll/partners/`
   (`eftps.service.ts`, `deposit-partner.service.ts`, the poller in `partners-poller.service.ts`);
   tax forms in `payroll/forms/` (pure builders over pay
@@ -153,8 +154,10 @@ A single package: `pnpm --filter @acct/api test`, `pnpm --filter @acct/db test`,
   taxability rule; those come from `tax-data` with citations. Anything the data doesn't source
   (`"status": "pending"`, or a kind missing from a state's `taxableWages`) is refused with a
   reason, never guessed. Add a tax figure by adding it to the tax file with its source, then a
-  golden test from the publication's own example. Supported states are in `docs/states.md`
-  (`PAYROLL_STATES`). SSNs and direct deposit account numbers are
+  golden test from the publication's own example. The built-in engine's states are in
+  `docs/states.md` (`PAYROLL_STATES`); employees and registrations accept any state
+  (`PAYROLL_WORK_STATES`), whose taxes come only from a licensed `StateTaxEngine` (ADR 0026).
+  SSNs and direct deposit account numbers are
   encrypted with row-bound AADs (`employee:<id>:ssn`,
   `employee_bank_account:<id>:account_number`), shown masked, never audited; ACH files are
   returned to the caller and never stored (only `ach_batches` metadata). Withholding
@@ -241,6 +244,14 @@ A single package: `pnpm --filter @acct/api test`, `pnpm --filter @acct/db test`,
   decrypted only to build requests; enrollment accounts use the AAD
   `eftps_enrollment:<id>:account_number`. `payroll_settings.deposit_rail` picks the NACHA file or
   the partner.
+- Licensed state tax engine (ADR 0026): states outside `PAYROLL_STATES` are calculated only by a
+  `StateTaxEngine` (`payroll/tax/state-tax-engine.ts`); with none (`PAYROLL_TAX_ENGINE=none`,
+  the only production value until one is contracted) their paychecks are refused with the
+  reason. There is no stand-in: never invent a state or local tax figure, even for a demo. Tests
+  use `FixtureStateTaxEngine` (`test-fixture`, NODE_ENV=test only) and program its figures.
+  Every answer goes through `checkStateTaxAnswer`; requests never carry an SSN or bank number.
+  `state_other`, `local_income` and `local_other` lines name their jurisdiction and are owed to
+  `state_other:<ST>:<code>` and `local:<ST>:<code>`; federal taxes stay built in.
 - Database errors map to HTTP in `common/pg-error.filter.ts`; add friendly messages for new unique
   indexes there.
 
@@ -257,5 +268,5 @@ A single package: `pnpm --filter @acct/api test`, `pnpm --filter @acct/db test`,
 - [x] Phase 8: Payroll core (setup, employees, tax engine with golden tests, pay runs, pay stubs, direct deposit, liabilities + EFTPS, payroll reports; tax data owner-approved, awaiting professional review)
 - [ ] Phase 9: Payroll and 1099 tax forms (part 1 done: prior payroll, W-2/W-3 figures, quarterly and FUTA summaries, state reports, filings; official PDFs, EFW2, 1099/IRIS and state layouts wait on documents)
 - [x] Phase 10: Advanced, in six parts (10a inventory done: items and assemblies, FIFO/average costing with backdated recosting, no negative stock, adjustments, builds, valuation and stock status reports, QuickBooks cut-over; 10b time tracking done: timesheets, approvals, paychecks and invoices from approved time, progress invoicing; 10c multi-currency done: foreign-currency customers, vendors, documents and payments, rates by hand or from the ECB, realized and unrealized gains and losses; 10d accountant tools done: reclassify, write off invoices, fix undeposited funds, client change review, month-end close, Adjusted Trial Balance; 10e online payments done: Stripe Connect Standard accounts (stand-in until the platform's keys exist), pay links and the pay page, payments into Undeposited Funds, payouts as deposits net of fees, refunds and chargebacks; 10f portals done: employee and contractor portals with password and MFA (pay stubs, W-2 figures, own time, W-4 and direct deposit requests approved by payroll, contractor payments and 1099 totals), customer portal by emailed link (invoices, statement, paying online, accepting estimates); follow-ups are open questions 62, 64, 66–69 and 71–73)
-- [ ] Phase 11: E-file and partners, in three parts (11a electronic filing done: Forms 941 and 940 through MeF and Forms 1099 through IRIS behind `EfileTransmitter`, with a stand-in for the IRS until the platform's approvals exist, rejections fixed and sent again, accepted returns recorded as filings, the ATS harness; 11b partners done: EFTPS through the platform as batch provider (enrollment, scheduled payments booked when scheduled and voided when cancelled or returned) and direct deposit through a payments partner (per company, returns flag the paycheck and account), both with stand-ins; 11c a licensed tax engine or embedded provider; follow-ups are open questions 74–80)
+- [ ] Phase 11: E-file and partners, in three parts (11a electronic filing done: Forms 941 and 940 through MeF and Forms 1099 through IRIS behind `EfileTransmitter`, with a stand-in for the IRS until the platform's approvals exist, rejections fixed and sent again, accepted returns recorded as filings, the ATS harness; 11b partners done: EFTPS through the platform as batch provider (enrollment, scheduled payments booked when scheduled and voided when cancelled or returned) and direct deposit through a payments partner (per company, returns flag the paycheck and account), both with stand-ins; 11c tax engine plug-in done: any state can be set up, its state and local taxes come from a licensed engine behind `StateTaxEngine` (paychecks refused with the reason until one is contracted; no stand-in), jurisdictions through liabilities, W-2 boxes 14–20 and state quarterly; the embedded provider designed in ADR 0026; follow-ups are open questions 74–83)
 - [ ] Phase 12: Hardening and launch

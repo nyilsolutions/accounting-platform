@@ -9,8 +9,10 @@ import {
   type NyIt2104Fields,
   type PayFrequency,
   type PayrollItemKind,
-  type PayrollState,
+  type WorkState,
   type W4FilingStatus,
+  WORK_STATE_NAMES,
+  isPayrollState,
   type W4Version,
   parseMoney,
 } from '@acct/shared';
@@ -41,6 +43,7 @@ import {
   type StateTaxData,
   type StateWageRule,
 } from './tax-data-types';
+import type { CheckedStateTaxes } from './state-tax-engine';
 
 /**
  * The payroll tax engine (ADR 0016). Pure functions over the year's `tax-data`: no rate, wage
@@ -101,7 +104,7 @@ export interface PaycheckTaxInput {
   /** The pay date: treatments that change during the year are chosen by it. */
   payDate: string;
   frequency: PayFrequency;
-  workState: PayrollState;
+  workState: WorkState;
   /** The Form W-4 in effect on the pay date, or null when none is on file. */
   w4: W4Facts | null;
   /** True when the employee was first paid before 2020 (for the no-W-4 and nonresident rules). */
@@ -123,13 +126,20 @@ export interface PaycheckTaxInput {
    * Omitted: both collected, not exempt.
    */
   newYork?: { pflDeducted: boolean; dblDeducted: boolean; dblExempt: boolean };
+  /**
+   * A state without a built-in engine: the licensed engine's checked answer (ADR 0026), or its
+   * refusal. Omitted, such a paycheck is refused.
+   */
+  externalState?: CheckedStateTaxes | { refused: string[] } | null;
 }
 
 export interface TaxLine {
   code: TaxCode;
   payer: 'employee' | 'employer';
   /** The work state for state and local taxes; null for federal. */
-  state: PayrollState | null;
+  state: WorkState | null;
+  /** A licensed engine's jurisdiction, for state_other, local_income and local_other. */
+  jurisdiction?: { code: string; name: string } | null;
   taxableWages: Money;
   /** Wages subject to the tax before any wage base (equal to taxableWages without one). */
   subjectWages: Money;
@@ -152,13 +162,7 @@ export interface PaycheckTaxResult {
 }
 
 const KIND_LABEL = (k: PayrollItemKind) => PAYROLL_ITEM_KINDS[k].label;
-const STATE_NAMES: Record<PayrollState, string> = {
-  CA: 'California',
-  FL: 'Florida',
-  IL: 'Illinois',
-  NY: 'New York',
-  TX: 'Texas',
-};
+const STATE_NAMES = WORK_STATE_NAMES;
 
 // ---- Taxable wages ------------------------------------------------------------------------------
 
@@ -488,7 +492,7 @@ export function calculatePaycheckTaxes(
     payer: TaxLine['payer'],
     taxable: Q,
     amount: Q,
-    lineState: PayrollState | null = null,
+    lineState: WorkState | null = null,
     subject: Q = taxable,
   ) => {
     const cents = toCents(amount);
@@ -571,11 +575,36 @@ export function calculatePaycheckTaxes(
   );
 
   // State.
-  const sd = data.states[state];
   let stateIncomeWages = Q0;
   let suiWages = Q0;
   let sdiWages = Q0;
-  if (!sd) {
+  const sd = isPayrollState(state) ? data.states[state] : undefined;
+  if (!isPayrollState(state)) {
+    // A licensed engine's taxes (ADR 0026), already checked. Nothing is guessed: without an
+    // answer the paycheck is refused.
+    const ext = input.externalState;
+    if (!ext)
+      refuse.push(
+        `${stateName} payroll taxes aren't built in. They need a licensed tax engine, and none is set up on this platform yet.`,
+      );
+    else if ('refused' in ext) refuse.push(...ext.refused);
+    else {
+      for (const l of ext.lines) {
+        lines.push({
+          code: l.code,
+          payer: l.payer,
+          state: l.state,
+          jurisdiction: l.jurisdiction,
+          taxableWages: l.taxableWages,
+          subjectWages: l.subjectWages,
+          amount: l.amount,
+        });
+        if (l.code === 'state_income') stateIncomeWages = fromMoney(l.taxableWages);
+        if (l.code === 'state_unemployment') suiWages = fromMoney(l.subjectWages);
+      }
+      notices.push(...ext.notices);
+    }
+  } else if (!sd) {
     refuse.push(`There is no ${data.year} tax data for ${stateName}.`);
   } else {
     // Income tax.
@@ -751,7 +780,7 @@ function stateIncomeTax(
     payer: TaxLine['payer'],
     taxable: Q,
     amount: Q,
-    state?: PayrollState | null,
+    state?: WorkState | null,
   ) => void,
 ) {
   const state = input.workState;

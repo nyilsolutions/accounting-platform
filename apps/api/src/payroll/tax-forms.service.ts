@@ -2,7 +2,7 @@ import { ConflictException, Inject, Injectable, NotFoundException } from '@nestj
 import type { FieldEncryptor } from '@acct/crypto';
 import { withTenant, type Db, type Tx } from '@acct/db';
 import {
-  PAYROLL_STATE_LABELS,
+  WORK_STATE_NAMES,
   ZERO,
   employeeDisplayName,
   maskSsn,
@@ -11,7 +11,7 @@ import {
   type FutaAnnualDto,
   type Money,
   type PayrollItemKind,
-  type PayrollState,
+  type WorkState,
   type PayrollTaxCode,
   type ReportDto,
   type StateQuarterDto,
@@ -52,7 +52,7 @@ export interface FormPeriod {
   form: TaxFilingForm;
   taxYear: number;
   quarter?: number | null;
-  state?: PayrollState | null;
+  state?: WorkState | null;
 }
 
 const quarterRange = (year: number, q: number) => {
@@ -104,7 +104,7 @@ export class TaxFormsService {
     ctx: CompanyContext,
     year: number,
     quarter: number,
-    state: PayrollState,
+    state: WorkState,
   ): Promise<StateQuarterDto> {
     return this.tenant(auth, ctx, (tx) =>
       this.stateQuarterInTx(tx, ctx.companyId, year, quarter, state),
@@ -120,7 +120,7 @@ export class TaxFormsService {
     ctx: CompanyContext,
     year: number,
     quarter: number,
-    state: PayrollState,
+    state: WorkState,
     meta: RequestMeta,
   ): Promise<{ filename: string; csv: string }> {
     return this.tenant(auth, ctx, async (tx) => {
@@ -546,7 +546,7 @@ export class TaxFormsService {
     companyId: string,
     year: number,
     quarter: number,
-    state: PayrollState,
+    state: WorkState,
   ): Promise<StateQuarterDto> {
     await requirePayroll(tx, companyId);
     const { start, end } = quarterRange(year, quarter);
@@ -556,7 +556,7 @@ export class TaxFormsService {
       taxYear: year,
       quarter,
       state,
-      stateName: PAYROLL_STATE_LABELS[state],
+      stateName: WORK_STATE_NAMES[state],
       stateData: loadTaxData<StateTaxData>(year, `states/${state.toLowerCase()}`) ?? undefined,
       records,
       employees,
@@ -650,6 +650,9 @@ export class TaxFormsService {
         'l.line_type',
         'l.tax_code',
         'l.state',
+        'l.payer',
+        'l.jurisdiction_code',
+        'l.jurisdiction_name',
         'l.amount',
         'l.taxable_wages',
         'l.subject_wages',
@@ -675,6 +678,9 @@ export class TaxFormsService {
         'l.line_type',
         'l.tax_code',
         'l.state',
+        'l.payer',
+        'l.jurisdiction_code',
+        'l.jurisdiction_name',
         'l.amount',
         'l.taxable_wages',
         'l.subject_wages',
@@ -709,6 +715,9 @@ export class TaxFormsService {
           rateMultiplier: r.rate_multiplier,
           taxCode: (r.tax_code as PayrollTaxCode | null) ?? null,
           state: r.state,
+          payer: (r.payer as PayRecordLine['payer']) ?? null,
+          jurisdictionCode: r.jurisdiction_code,
+          jurisdictionName: r.jurisdiction_name,
           amount: parseMoney(r.amount),
           taxableWages: taxable,
           subjectWages: r.subject_wages === null ? taxable : parseMoney(r.subject_wages),

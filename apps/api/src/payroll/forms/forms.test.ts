@@ -384,3 +384,84 @@ describe('filed forms', () => {
 });
 
 const ZERO_DEPOSITS = 0n;
+
+describe("a licensed engine's taxes on the forms (ADR 0026)", () => {
+  // Fixture figures, not Pennsylvania's.
+  const engineTax = (
+    code: PayrollTaxCode,
+    payer: 'employee' | 'employer',
+    taxable: string,
+    amount: string,
+    jurisdiction: [string, string] | null = null,
+  ): PayRecordLine => ({
+    ...tax(code, taxable, amount, 'PA'),
+    payer,
+    jurisdictionCode: jurisdiction?.[0] ?? null,
+    jurisdictionName: jurisdiction?.[1] ?? null,
+  });
+  const recs = ['2026-02-13', '2026-02-27'].map((d) =>
+    record(d, [
+      item('salary', '2000'),
+      tax('federal_income', '2000', '150'),
+      tax('social_security_employee', '2000', '124'),
+      tax('medicare_employee', '2000', '29'),
+      engineTax('state_income', 'employee', '2000', '61.40'),
+      engineTax('local_income', 'employee', '2000', '75.00', ['510101', 'Philadelphia']),
+      engineTax('local_other', 'employee', '2000', '2.00', ['LST', 'Local services tax']),
+      engineTax('state_unemployment', 'employee', '2000', '1.40'),
+      engineTax('state_unemployment', 'employer', '2000', '62.00'),
+      engineTax('local_other', 'employer', '2000', '5.00', ['BPT', 'Business payroll tax']),
+    ]),
+  );
+
+  it('W-2: state income tax in boxes 15–17, local income tax in 18–20, the rest in box 14', () => {
+    const w = w2(recs, employee(), { PA: '12345678' });
+    expect(w.states).toEqual([
+      { state: 'PA', employerStateId: '12345678', wages: '4000.00', tax: '122.80' },
+    ]);
+    expect(w.localities).toEqual([
+      { state: 'PA', locality: 'Philadelphia', wages: '4000.00', tax: '150.00' },
+    ]);
+    expect(w.box14a).toEqual([
+      { label: 'Local services tax', amount: '4.00' },
+      { label: 'PA UI', amount: '2.80' },
+    ]);
+  });
+
+  it("state quarterly: employer unemployment only in the wage detail; the engine's taxes by jurisdiction", () => {
+    const s = buildStateQuarter({
+      taxYear: 2026,
+      quarter: 1,
+      state: 'PA',
+      stateName: 'Pennsylvania',
+      stateData: undefined,
+      records: recs,
+      employees: [employee()],
+    });
+    expect(s.withholding).toEqual([
+      { code: 'state_income', label: 'PA income tax', wages: '4000.00', tax: '122.80' },
+      { code: 'local_other', label: 'Local services tax', wages: '4000.00', tax: '4.00' },
+      {
+        code: 'state_unemployment',
+        label: 'PA unemployment tax (employee)',
+        wages: '4000.00',
+        tax: '2.80',
+      },
+      { code: 'local_income', label: 'Philadelphia', wages: '4000.00', tax: '150.00' },
+    ]);
+    expect(s.unemployment).toMatchObject({ taxableWages: '4000.00', tax: '124.00' });
+    expect(s.otherEmployerTaxes).toEqual([
+      {
+        code: 'local_other',
+        label: 'Business payroll tax',
+        taxableWages: '4000.00',
+        amount: '10.00',
+      },
+    ]);
+    expect(s.form).toBeNull();
+    expect(s.notes).toEqual([
+      "Pennsylvania's quarterly return form and due date aren't in tax-data yet; this report has the figures it needs.",
+      "Local taxes are usually filed with each locality, not on the state's return; they're listed here for reference.",
+    ]);
+  });
+});
