@@ -1,6 +1,12 @@
-import { BadRequestException, ForbiddenException, Inject, Injectable } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
+  Inject,
+  Injectable,
+} from '@nestjs/common';
 import { hashPassword, verifyPassword } from '@acct/crypto';
-import { withTenant, type Db } from '@acct/db';
+import { withTenant, type Db, type Tx } from '@acct/db';
 import type { LedgerSettingsDto, LedgerSettingsInput } from '@acct/shared';
 import { AuditService } from '../audit/audit.service';
 import type { AuthContext, CompanyContext, RequestMeta } from '../common/request';
@@ -14,18 +20,24 @@ export class LedgerSettingsService {
   ) {}
 
   get(auth: AuthContext, ctx: CompanyContext): Promise<LedgerSettingsDto> {
-    return withTenant(this.db, { userId: auth.userId, companyId: ctx.companyId }, async (tx) => {
-      const c = await tx
-        .selectFrom('companies')
-        .select(['use_account_numbers', 'closing_date', 'closing_password_hash'])
-        .where('id', '=', ctx.companyId)
-        .executeTakeFirstOrThrow();
-      return {
-        useAccountNumbers: c.use_account_numbers,
-        closingDate: c.closing_date,
-        hasClosingPassword: !!c.closing_password_hash,
-      };
-    });
+    return withTenant(this.db, { userId: auth.userId, companyId: ctx.companyId }, (tx) =>
+      this.dto(tx, ctx.companyId),
+    );
+  }
+
+  private async dto(tx: Tx, companyId: string): Promise<LedgerSettingsDto> {
+    const c = await tx
+      .selectFrom('companies')
+      .select(['use_account_numbers', 'closing_date', 'closing_password_hash', 'inventory_costing'])
+      .where('id', '=', companyId)
+      .executeTakeFirstOrThrow();
+    return {
+      useAccountNumbers: c.use_account_numbers,
+      closingDate: c.closing_date,
+      hasClosingPassword: !!c.closing_password_hash,
+      inventoryCosting: c.inventory_costing as 'fifo' | 'average',
+      inventoryCostingLocked: await inventoryHasMoved(tx, companyId),
+    };
   }
 
   /**
@@ -42,7 +54,12 @@ export class LedgerSettingsService {
     return withTenant(this.db, { userId: auth.userId, companyId: ctx.companyId }, async (tx) => {
       const c = await tx
         .selectFrom('companies')
-        .select(['use_account_numbers', 'closing_date', 'closing_password_hash'])
+        .select([
+          'use_account_numbers',
+          'closing_date',
+          'closing_password_hash',
+          'inventory_costing',
+        ])
         .where('id', '=', ctx.companyId)
         .forUpdate()
         .executeTakeFirstOrThrow();
@@ -50,8 +67,16 @@ export class LedgerSettingsService {
         use_account_numbers?: boolean;
         closing_date?: string | null;
         closing_password_hash?: string | null;
+        inventory_costing?: string;
       } = {};
       if (input.useAccountNumbers !== undefined) set.use_account_numbers = input.useAccountNumbers;
+      if (input.inventoryCosting && input.inventoryCosting !== c.inventory_costing) {
+        if (await inventoryHasMoved(tx, ctx.companyId))
+          throw new ConflictException(
+            "The inventory costing method can't change once inventory has been bought, sold or adjusted.",
+          );
+        set.inventory_costing = input.inventoryCosting;
+      }
 
       const closingChange =
         (input.closingDate !== undefined && input.closingDate !== c.closing_date) ||
@@ -107,6 +132,10 @@ export class LedgerSettingsService {
           before.useAccountNumbers = c.use_account_numbers;
           after.useAccountNumbers = set.use_account_numbers;
         }
+        if (set.inventory_costing !== undefined) {
+          before.inventoryCosting = c.inventory_costing;
+          after.inventoryCosting = set.inventory_costing;
+        }
         if (set.closing_date !== undefined && set.closing_date !== c.closing_date) {
           before.closingDate = c.closing_date;
           after.closingDate = set.closing_date;
@@ -131,16 +160,17 @@ export class LedgerSettingsService {
           );
         }
       }
-      const updated = await tx
-        .selectFrom('companies')
-        .select(['use_account_numbers', 'closing_date', 'closing_password_hash'])
-        .where('id', '=', ctx.companyId)
-        .executeTakeFirstOrThrow();
-      return {
-        useAccountNumbers: updated.use_account_numbers,
-        closingDate: updated.closing_date,
-        hasClosingPassword: !!updated.closing_password_hash,
-      };
+      return this.dto(tx, ctx.companyId);
     });
   }
+}
+
+async function inventoryHasMoved(tx: Tx, companyId: string): Promise<boolean> {
+  const row = await tx
+    .selectFrom('inventory_moves')
+    .select('id')
+    .where('company_id', '=', companyId)
+    .limit(1)
+    .executeTakeFirst();
+  return !!row;
 }

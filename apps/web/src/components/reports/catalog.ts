@@ -254,6 +254,33 @@ export const CATALOG: CatalogGroup[] = [
     ],
   },
   {
+    title: 'Inventory',
+    reports: [
+      {
+        slug: 'inventory-valuation-summary',
+        title: 'Inventory Valuation Summary',
+        description: 'Quantity on hand, average cost, asset value and retail value of each item.',
+        pointInTime: true,
+        defaultPreset: 'today',
+      },
+      {
+        slug: 'inventory-valuation-detail',
+        title: 'Inventory Valuation Detail',
+        description:
+          'Every purchase, sale, adjustment and build of each item, with its cost and running value.',
+        pointInTime: false,
+        defaultPreset: 'this_month',
+      },
+      {
+        slug: 'inventory-stock-status',
+        title: 'Inventory Stock Status by Item',
+        description: 'On hand and on order against reorder points, flagging what to reorder.',
+        pointInTime: true,
+        defaultPreset: 'today',
+      },
+    ],
+  },
+  {
     title: 'Banking',
     reports: [
       {

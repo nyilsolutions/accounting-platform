@@ -2,12 +2,18 @@
 
 import { useState, type FormEvent } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { formatDate, type LedgerSettingsDto } from '@acct/shared';
+import {
+  COSTING_METHOD_LABELS,
+  COSTING_METHODS,
+  formatDate,
+  type CostingMethod,
+  type LedgerSettingsDto,
+} from '@acct/shared';
 import { Alert, Button, Card, TextInput } from '@/components/ui';
 import { api, ApiError, errorMessage } from '@/lib/api';
 import { keys, useLedgerSettings } from '@/lib/queries';
 
-/** Accounting preferences: account numbers and the closing date (period lock). */
+/** Accounting preferences: account numbers, inventory costing and the closing date. */
 export function LedgerSettingsCard({
   companyId,
   canEdit,
@@ -99,6 +105,36 @@ export function LedgerSettingsCard({
         />
         Use account numbers in the chart of accounts and reports
       </label>
+
+      <div className="mt-6 space-y-2 border-t border-gray-200 pt-4">
+        <h3 className="font-medium">Inventory costing</h3>
+        <label className="block max-w-sm text-sm">
+          <span className="mb-1 block text-gray-700">Method</span>
+          <select
+            aria-label="Inventory costing method"
+            className="block w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm"
+            value={s.inventoryCosting}
+            disabled={!canEdit || pending || s.inventoryCostingLocked}
+            onChange={(e) =>
+              save(
+                { inventoryCosting: e.target.value as CostingMethod },
+                `Inventory is costed by ${COSTING_METHOD_LABELS[e.target.value as CostingMethod]}.`,
+              )
+            }
+          >
+            {COSTING_METHODS.map((m) => (
+              <option key={m} value={m}>
+                {COSTING_METHOD_LABELS[m]}
+              </option>
+            ))}
+          </select>
+        </label>
+        <p className="text-sm text-gray-600">
+          {s.inventoryCostingLocked
+            ? "Inventory has moved, so the method can't change."
+            : 'Choose before buying or selling inventory: the method is fixed once inventory moves.'}
+        </p>
+      </div>
 
       <form onSubmit={saveClosing} className="mt-6 space-y-3 border-t border-gray-200 pt-4">
         <h3 className="font-medium">Close the books</h3>

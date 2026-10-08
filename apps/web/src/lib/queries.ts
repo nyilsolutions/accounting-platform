@@ -77,6 +77,8 @@ export const keys = {
   memorized: (id: string) => ['company', id, 'memorized-reports'] as const,
   /** Payroll: settings, schedules, states, items, employees, direct deposit files. */
   payroll: (id: string) => ['company', id, 'payroll'] as const,
+  /** Inventory: adjustments and builds (quantities on hand come with the items). */
+  inventory: (id: string) => ['company', id, 'inventory'] as const,
 };
 
 /** Invalidates everything derived from the ledger (balances, lists of entries, reports). */
@@ -91,6 +93,8 @@ export function ledgerKeys(id: string) {
     ['company', id, 'migrations'],
     ['company', id, 'sales-tax'],
     ['company', id, 'budgets'],
+    ['company', id, 'items'],
+    ['company', id, 'inventory'],
   ] as const;
 }
 

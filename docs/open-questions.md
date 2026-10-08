@@ -289,3 +289,16 @@ Add new questions here instead of guessing.
     filed (migration 0017).
 60. **Corrections:** decided 2026-09-30. A filed form lists what changed since filing, and that is
     enough for now. Forms W-2c/W-3c and 941-X are prepared once their instructions are supplied.
+
+## Inventory (Phase 10a)
+
+61. **QuickBooks inventory items:** decided 2026-09-30 ("go with your recommendation"). They keep
+    importing as non-inventory items with their history as QuickBooks posted it. **Inventory ›
+    Start tracking items** converts them on a cut-over date, with each item's quantity and value
+    from QuickBooks' Inventory Valuation Summary on that date:
+    - the value is already in the imported Inventory Asset balance, so nothing is posted;
+    - from then on the item is tracked here, using QuickBooks' method (Desktop: average, Online:
+      FIFO);
+    - transactions before the cut-over stay as QuickBooks posted them.
+
+    See ADR 0018 and migration 0019.

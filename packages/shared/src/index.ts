@@ -20,3 +20,4 @@ export * from './budgets';
 export * from './report-definitions';
 export * from './report-export';
 export * from './payroll';
+export * from './inventory';

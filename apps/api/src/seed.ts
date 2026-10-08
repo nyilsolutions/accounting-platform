@@ -10,6 +10,7 @@ import { addDays, parseMoney } from '@acct/shared';
 import { AuditService } from './audit/audit.service';
 import type { AuthContext, CompanyContext } from './common/request';
 import { loadConfig, type AppConfig } from './config';
+import { InventoryService } from './inventory/inventory.service';
 import { LedgerSetupService } from './ledger/ledger-setup.service';
 import { PostingService } from './ledger/posting.service';
 import type { Mailer } from './mail/mailer';
@@ -32,6 +33,7 @@ import { SalesDocumentsService } from './sales/sales-documents.service';
 import { IMPORTED_COMPANY, seedMigration } from './seed-migration';
 import { seedPhase7 } from './seed-phase7';
 import { seedPhase8 } from './seed-phase8';
+import { seedPhase10 } from './seed-phase10';
 
 const DEMO_EMAIL = 'demo@example.com';
 const DEMO_PASSWORD = 'demo-password-change-me';
@@ -165,6 +167,7 @@ async function main(): Promise<void> {
     if (!hasDocuments) await seedDocuments(db, config, enc, userId, companyId!);
     await seedPhase7(db, config, userId, companyId!);
     await seedPhase8(db, config, userId, companyId!);
+    await seedPhase10(db, config, userId, companyId!);
     await seedMigration(db, config, userId);
 
     console.log(
@@ -306,6 +309,7 @@ async function seedSales(
     noMail,
     new RateTableCalculator(),
     posting,
+    new InventoryService(posting),
     audit,
   );
   const payments = new PaymentsService(db, posting, audit);
@@ -458,7 +462,7 @@ async function seedSales(
 async function seedPurchases(db: Db, userId: string, companyId: string): Promise<void> {
   const audit = new AuditService(db);
   const posting = new PostingService();
-  const documents = new PurchaseDocumentsService(db, posting, audit);
+  const documents = new PurchaseDocumentsService(db, posting, new InventoryService(posting), audit);
   const payments = new BillPaymentsService(db, posting, audit);
   const orders = new PurchaseOrdersService(db, documents, audit);
   const auth = {
@@ -628,7 +632,7 @@ async function seedPurchases(db: Db, userId: string, companyId: string): Promise
 async function seedBanking(db: Db, userId: string, companyId: string): Promise<void> {
   const audit = new AuditService(db);
   const posting = new PostingService();
-  const purchases = new PurchaseDocumentsService(db, posting, audit);
+  const purchases = new PurchaseDocumentsService(db, posting, new InventoryService(posting), audit);
   const deposits = new DepositsService(db, posting, audit);
   const transfers = new TransfersService(db, posting, audit);
   const feed = new BankFeedService(db, audit, posting, purchases, deposits, transfers);
@@ -754,7 +758,7 @@ async function seedDocuments(
     db,
     new HeuristicReceiptExtractor(),
     documents,
-    new PurchaseDocumentsService(db, posting, audit),
+    new PurchaseDocumentsService(db, posting, new InventoryService(posting), audit),
     audit,
   );
   const auth = {

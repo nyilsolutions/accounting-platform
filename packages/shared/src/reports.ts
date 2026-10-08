@@ -33,6 +33,10 @@ export const REPORT_KEYS = [
   'sales_tax_liability',
   'budget_overview',
   'budget_vs_actuals',
+  // Phase 10
+  'inventory_valuation_summary',
+  'inventory_valuation_detail',
+  'inventory_stock_status',
   'custom',
 ] as const;
 export type ReportKey = (typeof REPORT_KEYS)[number];
@@ -67,6 +71,9 @@ export const REPORT_TITLES: Record<ReportKey, string> = {
   sales_tax_liability: 'Sales Tax Liability',
   budget_overview: 'Budget Overview',
   budget_vs_actuals: 'Budget vs. Actuals',
+  inventory_valuation_summary: 'Inventory Valuation Summary',
+  inventory_valuation_detail: 'Inventory Valuation Detail',
+  inventory_stock_status: 'Inventory Stock Status by Item',
   custom: 'Custom report',
 };
 
