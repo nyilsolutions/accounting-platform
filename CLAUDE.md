@@ -26,7 +26,8 @@ A single package: `pnpm --filter @acct/api test`, `pnpm --filter @acct/db test`,
 
 ## Layout
 
-- `apps/api`: NestJS 11 REST API (Express 5). Modules: auth, companies, members, audit, mail, health.
+- `apps/api`: NestJS 11 REST API (Express 5). Modules: auth, companies, members, audit, mail, health,
+  ledger (accounts, journal entries, posting engine, ledger settings), lists, reports.
 - `apps/web`: Next.js 16 (App Router) + TanStack Query + Tailwind 4. Calls the API only via `/api/*`.
 - `packages/db`: plain-SQL migrations, migrator, Kysely types, `withTenant()`, `createTestDatabase()`.
 - `packages/crypto`: server-only: argon2id, TOTP, AES-256-GCM field encryption, tokens.
@@ -46,7 +47,9 @@ A single package: `pnpm --filter @acct/api test`, `pnpm --filter @acct/db test`,
    Store them encrypted with `FieldEncryptor` using an AAD that binds the value to its row.
 5. **Migrations are append-only.** Never edit an applied migration (the migrator rejects checksum
    changes). Add `NNNN_description.sql`.
-6. Posted accounting entries are never hard-deleted (void/reverse + audit) from Phase 1 on.
+6. **Everything that affects the books posts through `PostingService`** (ADR 0007). Never write to
+   `transactions`/`journal_lines` directly. Lines are append-only and versioned. Reports read only
+   `line.version = txn.version AND status = 'posted'`. Void and delete keep the record.
 7. Tax rates, wage bases and tables live in `/tax-data/<year>/` with a source citation, never in code.
 8. Validation schemas live in `packages/shared` and are used by both the API (`ZodPipe`) and web.
 9. Routes require a session with completed MFA by default. Use `@Public()` / `@AllowPendingMfa()` only
@@ -61,11 +64,17 @@ A single package: `pnpm --filter @acct/api test`, `pnpm --filter @acct/db test`,
 - API errors: Nest HTTP exceptions; validation errors are `400 { message, errors: [{ path, message }] }`.
 - Web: client components with TanStack Query. Query keys are in `apps/web/src/lib/queries.ts`.
 - Keyboard shortcuts: `apps/web/src/components/shell/nav.ts` (`g <key>`), `Ctrl/⌘+K` palette, `?` help.
+- Money: `@acct/shared` `parseMoney`/`moneyToString`/`formatMoney` (bigint, 1/10,000 units). Dates:
+  `YYYY-MM-DD` strings (`@acct/shared` dates helpers), never JS `Date`, for accounting dates.
+- Report layout: pure functions in `apps/api/src/reports/report-builder.ts`; the API returns rows
+  and the web renders them generically (`components/reports/report-view.tsx`).
+- Database errors map to HTTP in `common/pg-error.filter.ts`; add friendly messages for new unique
+  indexes there.
 
 ## Phase status
 
 - [x] Phase 0: Foundation (monorepo, CI, auth + MFA, companies, users/roles, RLS, audit log, app shell)
-- [ ] Phase 1: Ledger core (chart of accounts, lists, journal entries, posting engine, TB/GL/P&L/BS)
+- [x] Phase 1: Ledger core (chart of accounts, lists, journal entries, posting engine, TB/GL/P&L/BS)
 - [ ] Phase 2: Sales & A/R
 - [ ] Phase 3: Purchases & A/P
 - [ ] Phase 4: Banking (registers, reconciliation, file imports, Plaid)

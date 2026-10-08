@@ -15,6 +15,7 @@ import type { companyInputSchema, companyUpdateSchema } from '@acct/shared';
 import { AuditService, diff } from '../audit/audit.service';
 import type { AuthContext, CompanyContext, RequestMeta } from '../common/request';
 import { DB, FIELD_ENCRYPTOR } from '../db/db.module';
+import { LedgerSetupService } from '../ledger/ledger-setup.service';
 
 type CompanyInput = z.output<typeof companyInputSchema>;
 type CompanyPatch = z.output<typeof companyUpdateSchema>;
@@ -25,6 +26,7 @@ export class CompaniesService {
     @Inject(DB) private readonly db: Db,
     @Inject(FIELD_ENCRYPTOR) private readonly encryptor: FieldEncryptor,
     private readonly audit: AuditService,
+    private readonly ledgerSetup: LedgerSetupService,
   ) {}
 
   listForUser(userId: string): Promise<CompanySummaryDto[]> {
@@ -57,6 +59,8 @@ export class CompaniesService {
         .insertInto('memberships')
         .values({ company_id: id, user_id: auth.userId, role: 'owner', created_by: auth.userId })
         .execute();
+      // Every new company starts with a chart of accounts, terms and payment methods.
+      await this.ledgerSetup.seedDefaults(tx, id, auth.userId, input.taxForm);
       const dto = toDto(company);
       await this.audit.record(
         tx,

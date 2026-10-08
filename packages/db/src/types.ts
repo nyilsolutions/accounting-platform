@@ -2,6 +2,10 @@ import type { ColumnType, Generated, Insertable, Selectable, Updateable } from '
 
 type Timestamp = ColumnType<Date, Date | string | undefined, Date | string>;
 type Json = ColumnType<unknown, string | null, string | null>;
+/** `date` columns are parsed as 'YYYY-MM-DD' strings (see client.ts), never JS Dates. */
+type DateCol = string;
+/** `numeric` columns are strings; money math uses the decimal helpers in @acct/shared. */
+type Numeric = ColumnType<string, string | number, string | number>;
 
 export interface UsersTable {
   id: Generated<string>;
@@ -55,6 +59,9 @@ export interface CompaniesTable {
   fiscal_year_start_month: Generated<number>;
   tax_form: Generated<string>;
   accounting_basis: Generated<string>;
+  use_account_numbers: Generated<boolean>;
+  closing_date: DateCol | null;
+  closing_password_hash: string | null;
   created_by: string | null;
   updated_by: string | null;
   created_at: Generated<Date>;
@@ -101,6 +108,140 @@ export interface AuditLogTable {
   created_at: Generated<Date>;
 }
 
+interface Audited {
+  created_by: string | null;
+  updated_by: string | null;
+  created_at: Generated<Date>;
+  updated_at: Generated<Date>;
+}
+
+export interface AccountsTable extends Audited {
+  id: Generated<string>;
+  company_id: string;
+  number: string | null;
+  name: string;
+  account_type: string;
+  detail_type: string | null;
+  parent_id: string | null;
+  description: string | null;
+  system_role: string | null;
+  is_active: Generated<boolean>;
+}
+
+export interface TermsTable {
+  id: Generated<string>;
+  company_id: string;
+  name: string;
+  due_days: Generated<number>;
+  discount_percent: ColumnType<string, string | number | undefined, string | number>;
+  discount_days: Generated<number>;
+  is_active: Generated<boolean>;
+  created_at: Generated<Date>;
+  updated_at: Generated<Date>;
+}
+
+export interface SimpleListTable {
+  id: Generated<string>;
+  company_id: string;
+  name: string;
+  is_active: Generated<boolean>;
+  created_at: Generated<Date>;
+  updated_at: Generated<Date>;
+}
+
+export interface HierarchicalListTable extends SimpleListTable {
+  parent_id: string | null;
+}
+
+interface ContactColumns {
+  company_name: string | null;
+  first_name: string | null;
+  last_name: string | null;
+  email: string | null;
+  phone: string | null;
+  address_line1: string | null;
+  address_line2: string | null;
+  city: string | null;
+  state: string | null;
+  postal_code: string | null;
+  country: Generated<string>;
+  terms_id: string | null;
+  notes: string | null;
+  is_active: Generated<boolean>;
+}
+
+export interface CustomersTable extends Audited, ContactColumns {
+  id: Generated<string>;
+  company_id: string;
+  display_name: string;
+  parent_id: string | null;
+  tax_exempt: Generated<boolean>;
+}
+
+export interface VendorsTable extends Audited, ContactColumns {
+  id: Generated<string>;
+  company_id: string;
+  display_name: string;
+  account_number: string | null;
+  is_1099: Generated<boolean>;
+  tin_type: string | null;
+  tin_enc: string | null;
+  tin_last4: string | null;
+  default_expense_account_id: string | null;
+}
+
+export interface ItemsTable extends Audited {
+  id: Generated<string>;
+  company_id: string;
+  name: string;
+  sku: string | null;
+  item_type: string;
+  description: string | null;
+  sales_price: Numeric | null;
+  income_account_id: string | null;
+  purchase_description: string | null;
+  cost: Numeric | null;
+  expense_account_id: string | null;
+  taxable: Generated<boolean>;
+  is_active: Generated<boolean>;
+}
+
+export interface TransactionsTable extends Audited {
+  id: Generated<string>;
+  company_id: string;
+  txn_type: string;
+  txn_number: string | null;
+  txn_date: DateCol;
+  memo: string | null;
+  status: Generated<string>;
+  version: Generated<number>;
+  is_adjusting: Generated<boolean>;
+  reversal_of_id: string | null;
+  source: Generated<string>;
+  voided_at: Timestamp | null;
+  voided_by: string | null;
+  deleted_at: Timestamp | null;
+  deleted_by: string | null;
+}
+
+export interface JournalLinesTable {
+  id: Generated<string>;
+  company_id: string;
+  transaction_id: string;
+  version: number;
+  line_no: number;
+  txn_date: DateCol;
+  account_id: string;
+  debit: Numeric;
+  credit: Numeric;
+  description: string | null;
+  customer_id: string | null;
+  vendor_id: string | null;
+  class_id: string | null;
+  location_id: string | null;
+  created_at: Generated<Date>;
+}
+
 export interface Database {
   users: UsersTable;
   mfa_recovery_codes: MfaRecoveryCodesTable;
@@ -109,6 +250,16 @@ export interface Database {
   memberships: MembershipsTable;
   invitations: InvitationsTable;
   audit_log: AuditLogTable;
+  accounts: AccountsTable;
+  terms: TermsTable;
+  payment_methods: SimpleListTable;
+  classes: HierarchicalListTable;
+  locations: HierarchicalListTable;
+  customers: CustomersTable;
+  vendors: VendorsTable;
+  items: ItemsTable;
+  transactions: TransactionsTable;
+  journal_lines: JournalLinesTable;
 }
 
 export type User = Selectable<UsersTable>;
@@ -119,3 +270,10 @@ export type CompanyUpdateRow = Updateable<CompaniesTable>;
 export type Membership = Selectable<MembershipsTable>;
 export type Invitation = Selectable<InvitationsTable>;
 export type AuditLogRow = Selectable<AuditLogTable>;
+export type Account = Selectable<AccountsTable>;
+export type Customer = Selectable<CustomersTable>;
+export type Vendor = Selectable<VendorsTable>;
+export type Item = Selectable<ItemsTable>;
+export type Term = Selectable<TermsTable>;
+export type Transaction = Selectable<TransactionsTable>;
+export type JournalLine = Selectable<JournalLinesTable>;

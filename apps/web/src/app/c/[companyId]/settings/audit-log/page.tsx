@@ -1,7 +1,7 @@
 'use client';
 
-import { useParams } from 'next/navigation';
-import { useState, type FormEvent } from 'react';
+import { useParams, useSearchParams } from 'next/navigation';
+import { Suspense, useState, type FormEvent } from 'react';
 import { useInfiniteQuery } from '@tanstack/react-query';
 import type { AuditEntryDto, AuditPageDto } from '@acct/shared';
 import { Button, Card, PageHeader, Spinner, TextInput } from '@/components/ui';
@@ -9,14 +9,26 @@ import { api } from '@/lib/api';
 import { keys } from '@/lib/queries';
 
 interface Filters {
+  entityId?: string;
   action?: string;
   from?: string;
   to?: string;
 }
 
 export default function AuditLogPage() {
+  return (
+    <Suspense fallback={<Spinner />}>
+      <AuditLog />
+    </Suspense>
+  );
+}
+
+function AuditLog() {
   const { companyId } = useParams<{ companyId: string }>();
-  const [filters, setFilters] = useState<Filters>({});
+  const params = useSearchParams();
+  const [filters, setFilters] = useState<Filters>(() =>
+    params.get('entity') ? { entityId: params.get('entity')! } : {},
+  );
 
   const log = useInfiniteQuery({
     queryKey: keys.audit(companyId, filters),
@@ -48,6 +60,14 @@ export default function AuditLogPage() {
         title="Audit log"
         description="Every change to this company, who made it, and when. Entries cannot be edited or deleted."
       />
+      {filters.entityId && (
+        <p className="mb-3 text-sm text-gray-600">
+          Showing the history of one record.{' '}
+          <button className="text-brand-700 hover:underline" onClick={() => setFilters({})}>
+            Show all
+          </button>
+        </p>
+      )}
       <Card className="mb-4 p-4">
         <form
           onSubmit={applyFilters}

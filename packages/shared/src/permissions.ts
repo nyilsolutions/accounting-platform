@@ -58,6 +58,7 @@ const TRANSACTIONS: readonly Permission[] = [
   'time.manage',
   'documents.view',
   'documents.manage',
+  'reports.view',
 ];
 
 export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {

@@ -6,8 +6,10 @@ attachments), and supports bank feeds and IRS payroll forms (941, 940, W-2, 1099
 
 > Working name. The product name is still to be decided (see `docs/open-questions.md`).
 
-**Status:** Phase 0 (foundation) is complete. See [`docs/phase-0.md`](docs/phase-0.md) and the full
-plan in [`docs/master-plan.md`](docs/master-plan.md).
+**Status:** Phase 0 (foundation) and Phase 1 (ledger core: chart of accounts, journal entries,
+lists, P&L / Balance Sheet / Trial Balance / General Ledger) are complete. See
+[`docs/phase-0.md`](docs/phase-0.md), [`docs/phase-1.md`](docs/phase-1.md) and the full plan in
+[`docs/master-plan.md`](docs/master-plan.md).
 
 ## Quick start
 
