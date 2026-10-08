@@ -28,8 +28,12 @@ RUN API_URL=${API_URL} NEXT_OUTPUT=standalone pnpm turbo run build --filter=@acc
 RUN pnpm --filter @acct/api --prod deploy --legacy /out/api
 
 FROM ${NODE_IMAGE} AS runtime
-# The package managers in the base image aren't used at run time: remove them (and their
-# dependencies) from what runs and what scanners report.
+# Debian security updates published since the base image was built (the CI scan fails on
+# fixable high and critical findings), then the Node package managers, which nothing uses at
+# run time, are removed from what runs and what scanners report.
+RUN apt-get update \
+  && apt-get upgrade -y --no-install-recommends \
+  && rm -rf /var/lib/apt/lists/*
 RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/corepack /opt/yarn-* \
     /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack /usr/local/bin/yarn /usr/local/bin/yarnpkg
 
