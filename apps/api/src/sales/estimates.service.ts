@@ -21,6 +21,7 @@ import { AuditService } from '../audit/audit.service';
 import type { AuthContext, CompanyContext, RequestMeta } from '../common/request';
 import { DB } from '../db/db.module';
 import { MAILER, type Mailer } from '../mail/mailer';
+import { SALES_TAX_CALCULATOR, type SalesTaxCalculator } from '../sales-tax/tax-calculator';
 import { nextEstimateNumber, validationError } from './sales-common';
 import { FORBIDDEN_LINE_ACCOUNTS, SalesDocumentsService } from './sales-documents.service';
 
@@ -32,6 +33,7 @@ export class EstimatesService {
   constructor(
     @Inject(DB) private readonly db: Db,
     @Inject(MAILER) private readonly mailer: Mailer,
+    @Inject(SALES_TAX_CALCULATOR) private readonly taxCalculator: SalesTaxCalculator,
     private readonly documents: SalesDocumentsService,
     private readonly audit: AuditService,
   ) {}
@@ -92,7 +94,7 @@ export class EstimatesService {
       );
     const customer = await tx
       .selectFrom('customers')
-      .select(['is_active'])
+      .select(['is_active', 'tax_exempt'])
       .where('id', '=', input.customerId)
       .where('company_id', '=', companyId)
       .executeTakeFirst();
@@ -107,7 +109,7 @@ export class EstimatesService {
         ? (
             await tx
               .selectFrom('items')
-              .select(['id', 'is_active', 'description'])
+              .select(['id', 'is_active', 'description', 'taxable'])
               .where('company_id', '=', companyId)
               .where('id', 'in', itemIds)
               .execute()
@@ -151,10 +153,40 @@ export class EstimatesService {
         ...l,
         description: l.description ?? item?.description ?? null,
         amount: resolveLineAmount(l),
+        taxable: l.taxable ?? item?.taxable ?? false,
       };
     });
     if (errors.length) throw new BadRequestException(validationError(errors));
-    const total = lines.reduce((s, l) => s + l.amount, 0n);
+    const subtotal = lines.reduce((s, l) => s + l.amount, 0n);
+    const taxRateId = input.taxRateId === undefined ? (before?.taxRateId ?? null) : input.taxRateId;
+    let taxTotal = 0n;
+    if (taxRateId) {
+      const rate = await tx
+        .selectFrom('tax_rates')
+        .select('is_active')
+        .where('id', '=', taxRateId)
+        .where('company_id', '=', companyId)
+        .executeTakeFirst();
+      if (!rate || (!rate.is_active && taxRateId !== before?.taxRateId))
+        throw new BadRequestException(
+          validationError([{ path: 'taxRateId', message: 'Sales tax rate not found or inactive' }]),
+        );
+      const tax = await this.taxCalculator.calculate(tx, {
+        companyId,
+        txnDate: input.txnDate,
+        customerId: input.customerId,
+        exempt: customer.tax_exempt,
+        rateId: taxRateId,
+        lines: lines.map((l) => ({
+          itemId: l.itemId ?? null,
+          amount: l.amount,
+          taxable: l.taxable,
+        })),
+        override: null,
+      });
+      taxTotal = tax.total > 0n ? tax.total : 0n;
+    }
+    const total = subtotal + taxTotal;
 
     const values = {
       customer_id: input.customerId,
@@ -167,6 +199,8 @@ export class EstimatesService {
       memo: input.memo ?? null,
       status: input.status ?? before?.status ?? 'pending',
       total: moneyToString(total, 2),
+      tax_rate_id: taxRateId,
+      tax_total: moneyToString(taxTotal, 2),
       updated_by: auth.userId,
     };
     let estimateId = id;
@@ -197,7 +231,7 @@ export class EstimatesService {
           amount: moneyToString(l.amount, 2),
           class_id: l.classId ?? null,
           service_date: l.serviceDate ?? null,
-          taxable: l.taxable ?? false,
+          taxable: l.taxable,
         })),
       )
       .execute();
@@ -300,6 +334,7 @@ export class EstimatesService {
           emailTo: est.emailTo,
           customerMessage: est.customerMessage,
           memo: est.number ? `From estimate ${est.number}` : null,
+          taxRateId: est.taxRateId,
           lines: est.lines.map((l) => ({
             itemId: l.itemId,
             accountId: l.accountId,
@@ -361,6 +396,7 @@ export class EstimatesService {
           (l) => `  ${(l.itemName ?? l.description ?? '').padEnd(40)} ${l.amount.padStart(12)}`,
         ),
         '',
+        ...(est.taxRateId ? [`Subtotal: ${est.subtotal}`, `Sales tax: ${est.taxTotal}`] : []),
         `Total: ${est.total}`,
       ].join('\n');
       for (const to of input.to
@@ -422,6 +458,9 @@ export class EstimatesService {
       emailTo: e.email_to,
       customerMessage: e.customer_message,
       memo: e.memo,
+      subtotal: moneyToString(parseMoney(e.total) - parseMoney(e.tax_total)),
+      taxRateId: e.tax_rate_id,
+      taxTotal: moneyToString(parseMoney(e.tax_total)),
       total: moneyToString(parseMoney(e.total)),
       invoiceId: e.invoice_id,
       sentAt: e.sent_at?.toISOString() ?? null,

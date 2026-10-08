@@ -21,6 +21,7 @@ import {
   SalesLines,
   type LineState,
 } from './sales-lines';
+import { SalesTaxTotals, useTaxPreview } from './sales-tax-fields';
 import { billToOf, type SalesLookups } from './use-sales-lookups';
 
 export const DOC_LABELS: Record<SalesDocType, { title: string; date: string; number: string }> = {
@@ -128,9 +129,28 @@ export function SalesDocumentForm({
     if (!readOnly) base.push(emptyLine());
     return base;
   });
+  const [taxRateId, setTaxRateId] = useState(
+    initial ? (initial.taxRateId ?? '') : (defaultCustomer?.taxRateId ?? ''),
+  );
+  const [taxOverride, setTaxOverride] = useState('');
   const [error, setError] = useState<ApiError | string | null>(null);
   const [pending, setPending] = useState<SaveAction | null>(null);
   const dueTouched = useRef(!!initial?.dueDate);
+  const customer = lookups.customers.find((c) => c.id === customerId);
+  const tax = useTaxPreview(lookups, {
+    rateId: taxRateId,
+    txnDate,
+    lines,
+    exempt: customer?.taxExempt ?? false,
+    override: taxOverride,
+  });
+  // A saved document whose tax differs from today's calculation keeps its amount unless changed.
+  const overrideChecked = useRef(false);
+  useEffect(() => {
+    if (overrideChecked.current || !initial?.taxRateId || !tax.rate) return;
+    overrideChecked.current = true;
+    if (parseMoney(initial.taxTotal) !== tax.calculated) setTaxOverride(initial.taxTotal);
+  }, [initial, tax.rate, tax.calculated]);
 
   useEffect(() => {
     if (!initial && suggestedNumber && !number) setNumber(suggestedNumber);
@@ -150,11 +170,14 @@ export function SalesDocumentForm({
     setEmailTo(c.email ?? '');
     setBillTo(billToOf(c));
     if (type === 'invoice' && c.termsId) setTermsId(c.termsId);
+    if (!initial && c.taxRateId) setTaxRateId(c.taxRateId);
   }
 
   const fieldError = (path: string) =>
     error instanceof ApiError ? error.fieldError(path) : undefined;
-  const total = linesTotal(lines);
+  const subtotal = linesTotal(lines);
+  const total = subtotal + tax.total;
+  const showTax = tax.rates.length > 0 || !!initial?.taxRateId;
 
   async function save(action: SaveAction) {
     setError(null);
@@ -174,6 +197,8 @@ export function SalesDocumentForm({
           paymentMethodId: isReceipt ? paymentMethodId || null : null,
           reference: isReceipt ? reference : null,
           depositAccountId: isReceipt ? depositAccountId || null : null,
+          taxRateId: taxRateId || null,
+          taxAmount: taxRateId && taxOverride.trim() ? taxOverride.trim() : null,
           lines: linesToInput(lines),
           version: initial?.version,
         },
@@ -334,6 +359,7 @@ export function SalesDocumentForm({
           lookups={lookups}
           readOnly={readOnly}
           fieldError={fieldError}
+          showTax={showTax}
         />
 
         <div className="grid gap-6 md:grid-cols-3">
@@ -354,6 +380,27 @@ export function SalesDocumentForm({
             />
           </Labeled>
           <dl className="space-y-1 text-sm" data-testid="document-totals">
+            {showTax && (
+              <>
+                <div className="flex justify-between text-gray-700">
+                  <dt>Subtotal</dt>
+                  <dd className="tabular-nums">{formatMoney(subtotal)}</dd>
+                </div>
+                <SalesTaxTotals
+                  preview={tax}
+                  rateId={taxRateId}
+                  onRate={(id) => {
+                    setTaxRateId(id);
+                    setTaxOverride('');
+                  }}
+                  override={taxOverride}
+                  onOverride={setTaxOverride}
+                  exempt={customer?.taxExempt ?? false}
+                  readOnly={readOnly}
+                  fieldError={fieldError}
+                />
+              </>
+            )}
             <div className="flex justify-between text-base font-semibold">
               <dt>Total</dt>
               <dd className="tabular-nums">${formatMoney(total)}</dd>

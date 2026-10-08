@@ -33,7 +33,9 @@ export type PostingTxnType =
   | 'check'
   | 'expense'
   | 'cc_credit'
-  | 'transfer';
+  | 'transfer'
+  | 'sales_tax_payment'
+  | 'sales_tax_adjustment';
 
 /** Document fields stored on the transaction header (sales and purchase documents). */
 export interface DocumentDetails {
@@ -52,6 +54,10 @@ export interface DocumentDetails {
   paymentAccountId?: string | null;
   printStatus?: 'to_print' | 'printed' | null;
   mailingAddress?: string | null;
+  /** Sales documents: the sales tax rate charged. */
+  taxRateId?: string | null;
+  /** Sales tax payments and adjustments: the agency. */
+  taxAgencyId?: string | null;
 }
 
 function detailColumns(d: DocumentDetails | undefined) {
@@ -72,6 +78,8 @@ function detailColumns(d: DocumentDetails | undefined) {
     ['paymentAccountId', 'payment_account_id'],
     ['printStatus', 'print_status'],
     ['mailingAddress', 'mailing_address'],
+    ['taxRateId', 'tax_rate_id'],
+    ['taxAgencyId', 'tax_agency_id'],
   ];
   for (const [key, column] of map) if (d[key] !== undefined) out[column] = d[key] ?? null;
   return out;

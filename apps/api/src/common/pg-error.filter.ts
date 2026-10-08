@@ -25,6 +25,11 @@ const UNIQUE_MESSAGES: Record<string, string> = {
   bank_feed_connections_item_key: 'This bank login is already connected',
   bank_rules_name_key: 'A bank rule with this name already exists',
   bank_feed_transactions_account_id_external_id_key: 'This bank transaction was already imported',
+  tax_agencies_name_key: 'A sales tax agency with this name already exists',
+  tax_rates_name_key: 'A sales tax rate with this name already exists',
+  budgets_name_key: 'A budget with this name already exists',
+  budget_amounts_key: 'An account is listed twice in the budget',
+  memorized_reports_name_key: 'You already have a memorized report with this name',
 };
 
 /**

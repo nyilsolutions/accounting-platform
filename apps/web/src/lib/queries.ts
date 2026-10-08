@@ -13,6 +13,8 @@ import type {
   Permission,
   SimpleList,
   SimpleListItemDto,
+  TaxAgencyDto,
+  TaxRateDto,
   TermDto,
   VendorDto,
 } from '@acct/shared';
@@ -48,6 +50,10 @@ export const keys = {
   documents: (id: string) => ['company', id, 'documents'] as const,
   /** QuickBooks migrations: status, staged records, the Migration Report, attachments. */
   migrations: (id: string) => ['company', id, 'migrations'] as const,
+  /** Sales tax: agencies, rates, what is owed, payments and adjustments. */
+  salesTax: (id: string) => ['company', id, 'sales-tax'] as const,
+  budgets: (id: string) => ['company', id, 'budgets'] as const,
+  memorized: (id: string) => ['company', id, 'memorized-reports'] as const,
 };
 
 /** Invalidates everything derived from the ledger (balances, lists of entries, reports). */
@@ -60,6 +66,8 @@ export function ledgerKeys(id: string) {
     ['company', id, 'banking'],
     ['company', id, 'documents'],
     ['company', id, 'migrations'],
+    ['company', id, 'sales-tax'],
+    ['company', id, 'budgets'],
   ] as const;
 }
 
@@ -154,5 +162,24 @@ export function useSimpleList(id: string, list: SimpleList, includeInactive = fa
     queryKey: keys.simpleList(id, list, includeInactive),
     queryFn: () =>
       api<SimpleListItemDto[]>(`/companies/${id}/lists/${list}${inactiveQs(includeInactive)}`),
+  });
+}
+
+/** Sales tax rates, with each rate's percentage on `date` (today by default). */
+export function useTaxRates(id: string, date?: string, enabled = true) {
+  return useQuery({
+    queryKey: [...keys.salesTax(id), 'rates', date ?? 'today'],
+    queryFn: () =>
+      api<TaxRateDto[]>(`/companies/${id}/sales-tax/rates${date ? `?date=${date}` : ''}`),
+    enabled,
+    placeholderData: (prev) => prev,
+  });
+}
+
+export function useTaxAgencies(id: string, enabled = true) {
+  return useQuery({
+    queryKey: [...keys.salesTax(id), 'agencies'],
+    queryFn: () => api<TaxAgencyDto[]>(`/companies/${id}/sales-tax/agencies`),
+    enabled,
   });
 }

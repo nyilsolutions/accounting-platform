@@ -76,6 +76,8 @@ const envSchema = z.object({
   QBO_MINOR_VERSION: z.coerce.number().int().min(1).default(75),
   /** Days a Desktop agent pairing key stays valid. */
   MIGRATION_AGENT_KEY_DAYS: z.coerce.number().int().min(1).max(30).default(7),
+  /** Emails scheduled reports (checks for due schedules every minute). 'off' in tests. */
+  REPORT_SCHEDULER: z.enum(['on', 'off']).default('on'),
 });
 
 export type AppConfig = z.infer<typeof envSchema>;

@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { decimalPlaces, parseMoney, tryParseMoney } from './money';
 import { US_STATES } from './company';
+import { EXEMPTION_REASONS, type ExemptionReason } from './sales-tax';
 
 const optText = (max: number) =>
   z
@@ -57,6 +58,10 @@ export const customerInputSchema = z.object({
   displayName: listName(200),
   parentId: z.uuid().nullable().optional(),
   taxExempt: z.boolean().optional(),
+  /** Sales tax rate new invoices for this customer start with. */
+  taxRateId: z.uuid().nullable().optional(),
+  taxExemptionReason: z.enum(EXEMPTION_REASONS).nullable().optional(),
+  taxExemptionNumber: optText(50),
   ...contactFields,
 });
 export type CustomerInput = z.input<typeof customerInputSchema>;
@@ -87,6 +92,9 @@ export interface CustomerDto extends ContactDto {
   parentId: string | null;
   depth: number;
   taxExempt: boolean;
+  taxRateId: string | null;
+  taxExemptionReason: ExemptionReason | null;
+  taxExemptionNumber: string | null;
 }
 
 // ---- Vendors ----------------------------------------------------------------------------------

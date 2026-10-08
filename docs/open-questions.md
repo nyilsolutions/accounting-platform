@@ -122,10 +122,11 @@ Add new questions here instead of guessing.
 34. **What isn't brought over yet:**
     - inventory quantities and average cost (Phase 10; inventory items arrive as non-inventory,
       and their cost of goods sold is kept per transaction);
-    - sales tax agencies and rates (Phase 7; tax amounts go to the sales tax liability account);
+    - sales tax agencies and rates (Phase 7 added sales tax, but imported tax still goes to the
+      sales tax liability account without an agency; see question 41);
     - payroll items and year-to-date by employee (Phase 8; paychecks arrive as journal entries);
-    - budgets (Phase 7), time activities (Phase 10), memorized transactions, price levels and
-      custom fields.
+    - budgets (Phase 7 added budgets, but QuickBooks budgets aren't imported yet), time
+      activities (Phase 10), memorized transactions, price levels and custom fields.
 
     Which of these must be in place before your first client migrates?
 
@@ -139,3 +140,27 @@ Add new questions here instead of guessing.
 37. **Duplicate numbers:** invoice and sales receipt numbers must be unique here. A QuickBooks
     duplicate is imported with a suffix (`1001-2`) and a warning. Is that acceptable, or should
     duplicates be allowed for imported history?
+
+## Reports, sales tax and budgets (Phase 7)
+
+38. **Where your clients file sales tax:**
+    - Which states and local jurisdictions?
+    - Do any file on a cash basis (tax owed when collected)? Today the liability is accrual:
+      owed when charged.
+    - Should rates be looked up by ship-to address through an external service (Avalara, TaxJar
+      or another)? If so, which one? The calculator interface is ready for it.
+39. **Rounding:** tax is rounded per component (state, county, city), as QuickBooks does. A few
+    states compute on the combined rate and split the result. Do any of your clients' states
+    require that?
+40. **Scheduled report recipients:** anyone who can see reports can email them to any address
+    (at most 20, audited). Should recipients be limited to people in the company, or to
+    approved domains?
+41. **Sales tax from QuickBooks:** imported invoices carry their tax as an amount without an
+    agency. It shows as "not assigned" on the liability report, and the report still ties.
+    Should the import map QuickBooks tax codes and agencies to rates here (a Phase 6 follow-up)?
+42. **Budgets:**
+    - Are budgets for balance sheet accounts needed?
+    - Budgets by class and customer at the same time?
+    - Budgets longer than twelve months?
+43. **Branded report PDFs:** exports use a plain layout with the company name. Should PDFs carry
+    the company logo (the same question as item 14 for invoices)?

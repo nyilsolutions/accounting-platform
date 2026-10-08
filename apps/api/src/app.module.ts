@@ -13,10 +13,12 @@ import { MailModule } from './mail/mail.module';
 import { MembersModule } from './members/members.module';
 import { MigrationModule } from './migration/migration.module';
 import { BankingModule } from './banking/banking.module';
+import { BudgetsModule } from './budgets/budgets.module';
 import { DocumentsModule } from './documents/documents.module';
 import { PurchasesModule } from './purchases/purchases.module';
 import { ReportsModule } from './reports/reports.module';
 import { SalesModule } from './sales/sales.module';
+import { SalesTaxModule } from './sales-tax/sales-tax.module';
 
 @Module({})
 export class AppModule {
@@ -41,6 +43,8 @@ export class AppModule {
         ListsModule,
         ReportsModule,
         SalesModule,
+        SalesTaxModule,
+        BudgetsModule,
         PurchasesModule,
         BankingModule,
         DocumentsModule,

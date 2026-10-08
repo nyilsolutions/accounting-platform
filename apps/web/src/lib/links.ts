@@ -27,6 +27,9 @@ export function txnHref(companyId: string, txnType: string, id: string): string 
       return `${base}/expenses/purchase-orders/${id}`;
     case 'transfer':
       return `${base}/banking/transfers/${id}`;
+    case 'sales_tax_payment':
+    case 'sales_tax_adjustment':
+      return `${base}/sales-tax`;
     default:
       return `${base}/accounting/journal-entries/${id}`;
   }

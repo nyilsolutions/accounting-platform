@@ -53,11 +53,14 @@ export function allocate(values: Money[], total: Money, portion: Money): Money[]
   return shares;
 }
 
+/** Dimension filters take an id, or 'none' for lines without one. */
 export interface CashFilter {
   from?: string | null;
   to: string;
   classId?: string;
   locationId?: string;
+  customerId?: string;
+  vendorId?: string;
 }
 
 interface Application {
@@ -74,6 +77,8 @@ interface TargetLine {
   net: string;
   class_id: string | null;
   location_id: string | null;
+  customer_id: string | null;
+  vendor_id: string | null;
   is_control: boolean;
 }
 
@@ -88,6 +93,8 @@ export interface Recognition {
   paymentId: string;
   classId: string | null;
   locationId: string | null;
+  customerId: string | null;
+  vendorId: string | null;
 }
 
 /**
@@ -118,7 +125,7 @@ export async function recognitions(
   const targetIds = [...new Set(apps.rows.map((a) => a.target_id))];
   const lines = await sql<TargetLine>`
     select l.transaction_id, l.account_id, (l.debit - l.credit) as net, l.class_id, l.location_id,
-           a.account_type in ('accounts_receivable', 'accounts_payable') as is_control
+           l.customer_id, l.vendor_id, a.account_type in ('accounts_receivable', 'accounts_payable') as is_control
     from journal_lines l
     join transactions t on t.id = l.transaction_id and t.version = l.version
     join accounts a on a.id = l.account_id
@@ -164,6 +171,8 @@ export async function recognitions(
               amount: v,
               classId: l.class_id,
               locationId: l.location_id,
+              customerId: l.customer_id,
+              vendorId: l.vendor_id,
             });
         });
         if (control) {
@@ -173,6 +182,8 @@ export async function recognitions(
             amount: -sign * parseMoney(a.amount),
             classId: control.class_id,
             locationId: control.location_id,
+            customerId: control.customer_id,
+            vendorId: control.vendor_id,
           });
         }
       }
@@ -189,9 +200,13 @@ export async function cashRecognition(
   f: CashFilter,
 ): Promise<Map<string, Money>> {
   const out = new Map<string, Money>();
+  const matches = (want: string | undefined, have: string | null) =>
+    !want || (want === 'none' ? have === null : have === want);
   for (const r of await recognitions(tx, companyId, f)) {
-    if (f.classId && r.classId !== f.classId) continue;
-    if (f.locationId && r.locationId !== f.locationId) continue;
+    if (!matches(f.classId, r.classId)) continue;
+    if (!matches(f.locationId, r.locationId)) continue;
+    if (!matches(f.customerId, r.customerId)) continue;
+    if (!matches(f.vendorId, r.vendorId)) continue;
     out.set(r.accountId, (out.get(r.accountId) ?? 0n) + r.amount);
   }
   return out;

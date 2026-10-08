@@ -14,6 +14,7 @@ import {
   SalesLines,
   type LineState,
 } from './sales-lines';
+import { SalesTaxTotals, useTaxPreview } from './sales-tax-fields';
 import { billToOf, type SalesLookups } from './use-sales-lookups';
 
 const inputClass = 'block w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm';
@@ -51,8 +52,19 @@ export function EstimateForm({
     if (!readOnly) base.push(emptyLine());
     return base;
   });
+  const [taxRateId, setTaxRateId] = useState(
+    initial ? (initial.taxRateId ?? '') : (defaultCustomer?.taxRateId ?? ''),
+  );
   const [error, setError] = useState<ApiError | string | null>(null);
   const [pending, setPending] = useState<'close' | 'new' | null>(null);
+  const customer = lookups.customers.find((c) => c.id === customerId);
+  const tax = useTaxPreview(lookups, {
+    rateId: taxRateId,
+    txnDate,
+    lines,
+    exempt: customer?.taxExempt ?? false,
+  });
+  const showTax = tax.rates.length > 0 || !!initial?.taxRateId;
 
   useEffect(() => {
     if (!initial && suggestedNumber && !number) setNumber(suggestedNumber);
@@ -64,6 +76,7 @@ export function EstimateForm({
     if (c) {
       setEmailTo(c.email ?? '');
       setBillTo(billToOf(c));
+      if (!initial && c.taxRateId) setTaxRateId(c.taxRateId);
     }
   }
 
@@ -84,6 +97,7 @@ export function EstimateForm({
           emailTo,
           customerMessage: message,
           memo,
+          taxRateId: taxRateId || null,
           lines: linesToInput(lines),
         },
         andNew,
@@ -174,6 +188,7 @@ export function EstimateForm({
           lookups={lookups}
           readOnly={readOnly}
           fieldError={fieldError}
+          showTax={showTax}
         />
         <div className="grid gap-6 md:grid-cols-3">
           <label className="block text-sm">
@@ -196,9 +211,29 @@ export function EstimateForm({
               className={inputClass}
             />
           </label>
-          <div className="flex justify-between text-base font-semibold">
-            <span>Total</span>
-            <span className="tabular-nums">${formatMoney(linesTotal(lines))}</span>
+          <div className="space-y-1 text-sm">
+            {showTax && (
+              <>
+                <div className="flex justify-between text-gray-700">
+                  <span>Subtotal</span>
+                  <span className="tabular-nums">{formatMoney(linesTotal(lines))}</span>
+                </div>
+                <SalesTaxTotals
+                  preview={tax}
+                  rateId={taxRateId}
+                  onRate={setTaxRateId}
+                  exempt={customer?.taxExempt ?? false}
+                  readOnly={readOnly}
+                  fieldError={fieldError}
+                />
+              </>
+            )}
+            <div className="flex justify-between text-base font-semibold">
+              <span>Total</span>
+              <span className="tabular-nums">
+                ${formatMoney(linesTotal(lines) + (tax.total > 0n ? tax.total : 0n))}
+              </span>
+            </div>
           </div>
         </div>
       </fieldset>

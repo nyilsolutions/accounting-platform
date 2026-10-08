@@ -2,10 +2,17 @@ import { Logger } from '@nestjs/common';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
+export interface MailAttachment {
+  filename: string;
+  contentType: string;
+  content: Buffer;
+}
+
 export interface MailMessage {
   to: string;
   subject: string;
   text: string;
+  attachments?: MailAttachment[];
 }
 
 export interface Mailer {
@@ -18,7 +25,12 @@ export const MAILER = Symbol('MAILER');
 export class ConsoleMailer implements Mailer {
   private readonly logger = new Logger('Mail');
   async send(message: MailMessage): Promise<void> {
-    this.logger.log(`\nTo: ${message.to}\nSubject: ${message.subject}\n\n${message.text}\n`);
+    const files = (message.attachments ?? [])
+      .map((a) => `\nAttached: ${a.filename} (${a.contentType}, ${a.content.length} bytes)`)
+      .join('');
+    this.logger.log(
+      `\nTo: ${message.to}\nSubject: ${message.subject}\n\n${message.text}\n${files}`,
+    );
   }
 }
 
@@ -37,6 +49,11 @@ export class FileMailer implements Mailer {
   }
   async send(message: MailMessage): Promise<void> {
     const name = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.json`;
-    writeFileSync(join(this.dir, name), JSON.stringify(message, null, 2));
+    const attachments = message.attachments?.map((a) => ({
+      filename: a.filename,
+      contentType: a.contentType,
+      contentBase64: a.content.toString('base64'),
+    }));
+    writeFileSync(join(this.dir, name), JSON.stringify({ ...message, attachments }, null, 2));
   }
 }

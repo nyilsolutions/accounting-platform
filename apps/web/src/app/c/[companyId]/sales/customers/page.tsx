@@ -7,6 +7,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { formatMoney, type CustomerBalanceDto, type CustomerDto } from '@acct/shared';
 import { ContactFields, contactFromForm } from '@/components/lists/contact-fields';
 import { ListTable } from '@/components/lists/list-table';
+import { CustomerTaxFields } from '@/components/sales-tax/customer-tax-fields';
 import { OptionSelect } from '@/components/ledger/pickers';
 import { Alert, Button, Dialog, Field, Spinner, TextInput } from '@/components/ui';
 import { api, ApiError, errorMessage } from '@/lib/api';
@@ -51,6 +52,9 @@ export default function CustomersPage() {
       displayName: String(f.get('displayName')),
       parentId: String(f.get('parentId') ?? '') || null,
       taxExempt: f.get('taxExempt') === 'on',
+      taxRateId: String(f.get('taxRateId') ?? '') || null,
+      taxExemptionReason: String(f.get('taxExemptionReason') ?? '') || null,
+      taxExemptionNumber: String(f.get('taxExemptionNumber') ?? ''),
       ...contactFromForm(f),
     };
     setError(null);
@@ -155,10 +159,7 @@ export default function CustomersPage() {
             </Field>
           </div>
           <ContactFields initial={current} terms={terms.data ?? []} error={error} />
-          <label className="flex items-center gap-2 text-sm">
-            <input type="checkbox" name="taxExempt" defaultChecked={current?.taxExempt} /> Tax
-            exempt
-          </label>
+          <CustomerTaxFields companyId={companyId} current={current} />
           <div className="flex justify-end gap-2">
             <Button type="button" variant="secondary" onClick={() => setEditing(null)}>
               Cancel
