@@ -413,6 +413,11 @@ describe('a paycheck', () => {
     expect(str(line(r, 'social_security_employee').amount)).toBe('11315.00');
     expect(str(line(r, 'futa').taxableWages)).toBe('5000.00');
     expect(str(line(r, 'state_unemployment').taxableWages)).toBe('5000.00');
+    // The wages subject to each tax before its wage base, for the quarterly and annual forms.
+    expect(str(line(r, 'social_security_employee').subjectWages)).toBe('190000.00');
+    expect(str(line(r, 'futa').subjectWages)).toBe('190000.00');
+    expect(str(line(r, 'state_unemployment').subjectWages)).toBe('190000.00');
+    expect(str(line(r, 'medicare_employee').subjectWages)).toBe('190000.00');
     // Nothing is left under the base on the next paycheck.
     const next = calculatePaycheckTaxes(data, {
       ...baseInput('FL'),

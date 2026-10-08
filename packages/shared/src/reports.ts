@@ -184,7 +184,7 @@ export interface ReportRow {
 
 export interface ReportDto {
   /** Payroll reports are served by payroll (payroll permission), not the reports hub. */
-  key: Exclude<ReportKey, LedgerReportKey> | PayrollReportKey;
+  key: Exclude<ReportKey, LedgerReportKey> | PayrollReportKey | 'w2_worksheet';
   /** Headers for the leading text `cells` of tabular (detail) reports. */
   textColumns?: string[];
   title: string;

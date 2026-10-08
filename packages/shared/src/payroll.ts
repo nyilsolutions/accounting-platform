@@ -656,6 +656,22 @@ export const employeeInputSchema = z
     overtimeExempt: z.boolean().default(false),
     /** New York: filed Form DB-130 (receiving social security), so no DBL contribution. */
     nyDblExempt: z.boolean().default(false),
+    /** Form W-2 box 14b: up to two Treasury tipped occupation codes, e.g. "101" or "101 203". */
+    tippedOccupationCodes: z
+      .union([
+        z.literal('').transform(() => null),
+        z
+          .string()
+          .trim()
+          .transform((v) => v.replace(/[,\s]+/g, ' '))
+          .pipe(
+            z
+              .string()
+              .regex(/^[0-9]{3}( [0-9]{3})?$/, 'Enter one or two three-digit codes, e.g. 101 203'),
+          ),
+      ])
+      .nullable()
+      .optional(),
     workersCompClassId: z.uuid().nullable().optional(),
     classId: z.uuid().nullable().optional(),
     locationId: z.uuid().nullable().optional(),
@@ -725,6 +741,7 @@ export interface EmployeeDto extends EmployeeSummaryDto {
   defaultHours: string | null;
   overtimeExempt: boolean;
   nyDblExempt: boolean;
+  tippedOccupationCodes: string | null;
   workersCompClassId: string | null;
   classId: string | null;
   locationId: string | null;
@@ -1428,3 +1445,400 @@ export const payrollReportQuerySchema = z
     message: 'The start date is after the end date',
     path: ['from'],
   });
+
+// ---------------------------------------------------------------------------------------------
+// Prior payroll (Phase 9): pay from before payroll started here
+// ---------------------------------------------------------------------------------------------
+/** Who pays each tax. */
+export const PAYROLL_TAX_PAYERS: Record<PayrollTaxCode, 'employee' | 'employer'> = {
+  federal_income: 'employee',
+  social_security_employee: 'employee',
+  social_security_employer: 'employer',
+  medicare_employee: 'employee',
+  medicare_employer: 'employer',
+  additional_medicare: 'employee',
+  futa: 'employer',
+  state_income: 'employee',
+  nyc_income: 'employee',
+  yonkers_income: 'employee',
+  state_unemployment: 'employer',
+  ny_reemployment_fund: 'employer',
+  ca_ett: 'employer',
+  ca_sdi: 'employee',
+  ny_pfl: 'employee',
+  ny_dbl: 'employee',
+};
+/** Which state a tax line names: none (federal), any work state, or one state. */
+export const PAYROLL_TAX_STATES: Record<PayrollTaxCode, 'none' | 'any' | PayrollState> = {
+  federal_income: 'none',
+  social_security_employee: 'none',
+  social_security_employer: 'none',
+  medicare_employee: 'none',
+  medicare_employer: 'none',
+  additional_medicare: 'none',
+  futa: 'none',
+  state_income: 'any',
+  nyc_income: 'NY',
+  yonkers_income: 'NY',
+  state_unemployment: 'any',
+  ny_reemployment_fund: 'NY',
+  ca_ett: 'CA',
+  ca_sdi: 'CA',
+  ny_pfl: 'NY',
+  ny_dbl: 'NY',
+};
+
+export const priorPayrollInputSchema = z
+  .object({
+    employeeId: z.uuid('Choose an employee'),
+    /** The pay date, or the last pay date of the period the totals cover. */
+    payDate: isoDate,
+    memo: optText(200),
+    /** Earnings, deductions and company contributions paid, by payroll item. */
+    items: z
+      .array(z.object({ payrollItemId: z.uuid('Choose a payroll item'), amount: money }))
+      .max(100)
+      .default([]),
+    /** Taxes withheld and paid, with the wages they were figured on. */
+    taxes: z
+      .array(
+        z.object({
+          taxCode: z.enum(PAYROLL_TAX_CODES),
+          state: z.enum(PAYROLL_STATES).nullable().optional(),
+          /** Wages the tax was figured on (after any wage base). */
+          taxableWages: money,
+          /** Wages subject to the tax before any wage base; blank means the same. */
+          subjectWages: optMoney,
+          amount: money,
+        }),
+      )
+      .max(60)
+      .default([]),
+  })
+  .superRefine((v, ctx) => {
+    if (v.items.length === 0 && v.taxes.length === 0)
+      ctx.addIssue({ code: 'custom', path: ['items'], message: 'Enter the pay or the taxes' });
+    const seen = new Set<string>();
+    v.taxes.forEach((t, i) => {
+      const rule = PAYROLL_TAX_STATES[t.taxCode];
+      const state = rule === 'none' || rule === 'any' ? (t.state ?? null) : rule;
+      if (rule === 'none' && t.state)
+        ctx.addIssue({
+          code: 'custom',
+          path: ['taxes', i, 'state'],
+          message: 'A federal tax has no state',
+        });
+      if (rule === 'any' && !t.state)
+        ctx.addIssue({ code: 'custom', path: ['taxes', i, 'state'], message: 'Choose the state' });
+      if (rule !== 'none' && rule !== 'any' && t.state && t.state !== rule)
+        ctx.addIssue({
+          code: 'custom',
+          path: ['taxes', i, 'state'],
+          message: `This tax is ${rule}'s`,
+        });
+      const key = `${t.taxCode}|${state ?? ''}`;
+      if (seen.has(key))
+        ctx.addIssue({
+          code: 'custom',
+          path: ['taxes', i, 'taxCode'],
+          message: 'This tax is entered twice',
+        });
+      seen.add(key);
+      if (t.subjectWages && parseMoney(t.subjectWages) < parseMoney(t.taxableWages))
+        ctx.addIssue({
+          code: 'custom',
+          path: ['taxes', i, 'subjectWages'],
+          message: 'Wages before the wage base cannot be less than the taxable wages',
+        });
+    });
+    const items = new Set<string>();
+    v.items.forEach((it, i) => {
+      if (items.has(it.payrollItemId))
+        ctx.addIssue({
+          code: 'custom',
+          path: ['items', i, 'payrollItemId'],
+          message: 'This item is entered twice',
+        });
+      items.add(it.payrollItemId);
+    });
+  });
+export type PriorPayrollInput = z.input<typeof priorPayrollInputSchema>;
+
+export interface PriorPayrollDto {
+  id: string;
+  employeeId: string;
+  employeeName: string;
+  payDate: string;
+  memo: string | null;
+  items: {
+    payrollItemId: string;
+    name: string;
+    kind: PayrollItemKind;
+    category: PayrollItemCategory;
+    amount: string;
+  }[];
+  taxes: {
+    taxCode: PayrollTaxCode;
+    state: PayrollState | null;
+    payer: 'employee' | 'employer';
+    taxableWages: string;
+    subjectWages: string;
+    amount: string;
+  }[];
+  grossPay: string;
+  employeeTaxes: string;
+  employerTaxes: string;
+  /** Why it can't change (a filed form covers its period), or null. */
+  lockedBy: string | null;
+}
+
+// ---------------------------------------------------------------------------------------------
+// Payroll tax forms (Phase 9)
+// ---------------------------------------------------------------------------------------------
+export const TAX_FILING_FORMS = ['form_941', 'form_940', 'w2', 'state_quarterly'] as const;
+export type TaxFilingForm = (typeof TAX_FILING_FORMS)[number];
+export const TAX_FILING_FORM_LABELS: Record<TaxFilingForm, string> = {
+  form_941: 'Form 941',
+  form_940: 'Form 940',
+  w2: 'Forms W-2 and W-3',
+  state_quarterly: 'State quarterly reports',
+};
+export const TAX_FILING_METHODS = ['electronic', 'paper', 'provider'] as const;
+export type TaxFilingMethod = (typeof TAX_FILING_METHODS)[number];
+export const TAX_FILING_METHOD_LABELS: Record<TaxFilingMethod, string> = {
+  electronic: 'Filed electronically',
+  paper: 'Mailed on paper',
+  provider: 'Filed by a payroll provider',
+};
+
+export const taxFilingInputSchema = z
+  .object({
+    form: z.enum(TAX_FILING_FORMS),
+    taxYear: z.number().int().min(2000).max(2199),
+    quarter: z.number().int().min(1).max(4).nullable().optional(),
+    state: z.enum(PAYROLL_STATES).nullable().optional(),
+    filedOn: isoDate,
+    method: z.enum(TAX_FILING_METHODS),
+    confirmation: optText(60),
+  })
+  .superRefine((v, ctx) => {
+    const quarterly = v.form === 'form_941' || v.form === 'state_quarterly';
+    if (quarterly && !v.quarter)
+      ctx.addIssue({ code: 'custom', path: ['quarter'], message: 'Choose the quarter' });
+    if (!quarterly && v.quarter)
+      ctx.addIssue({ code: 'custom', path: ['quarter'], message: 'This form is annual' });
+    if ((v.form === 'state_quarterly') !== !!v.state)
+      ctx.addIssue({
+        code: 'custom',
+        path: ['state'],
+        message: v.state ? 'Only state reports name a state' : 'Choose the state',
+      });
+  });
+export type TaxFilingInput = z.input<typeof taxFilingInputSchema>;
+
+export interface TaxFilingDto {
+  id: string;
+  form: TaxFilingForm;
+  label: string;
+  taxYear: number;
+  quarter: number | null;
+  state: PayrollState | null;
+  filedOn: string;
+  method: TaxFilingMethod;
+  confirmation: string | null;
+  status: 'filed' | 'void';
+  createdAt: string;
+  voidedAt: string | null;
+}
+
+/** What a form shows about its filing: the filing, and what changed since (a correction). */
+export interface FormFilingState {
+  filing: TaxFilingDto | null;
+  /** Figures that differ from what was filed, e.g. "Box 2: filed 1,200.00, now 1,150.00". */
+  changedSinceFiled: string[];
+}
+
+export interface W2Dto {
+  employeeId: string;
+  employeeName: string;
+  ssnMasked: string | null;
+  address: string | null;
+  box1: string;
+  box2: string;
+  box3: string;
+  box4: string;
+  box5: string;
+  box6: string;
+  box7: string;
+  box10: string;
+  box12: { code: string; amount: string }[];
+  retirementPlan: boolean;
+  box14a: { label: string; amount: string }[];
+  box14b: string | null;
+  states: { state: string; employerStateId: string | null; wages: string; tax: string }[];
+  localities: { state: string; locality: string; wages: string; tax: string }[];
+  /** Must be fixed before filing (e.g. a missing SSN, box 5 less than boxes 3 and 7). */
+  problems: string[];
+  /** Good to know (e.g. more than four box 12 items needs a second Copy A). */
+  notes: string[];
+}
+
+export interface W3Dto {
+  kindOfPayer: '941' | '944';
+  kindOfEmployer: string;
+  count: number;
+  employerName: string;
+  einLast4: string | null;
+  box1: string;
+  box2: string;
+  box3: string;
+  box4: string;
+  box5: string;
+  box6: string;
+  box7: string;
+  box10: string;
+  box12a: string;
+  /** The state, or "X" when the W-2s cover more than one. */
+  state: string | null;
+  employerStateId: string | null;
+  box16: string;
+  box17: string;
+  box18: string;
+  box19: string;
+  problems: string[];
+}
+
+export interface W2FormsDto extends FormFilingState {
+  taxYear: number;
+  dueDate: string | null;
+  w2s: W2Dto[];
+  w3: W3Dto;
+  /** Boxes 2, 3, 5 and 7 by quarter, to reconcile with Forms 941. */
+  reconciliation: {
+    quarter: number;
+    box2: string;
+    box3: string;
+    box5: string;
+    box7: string;
+    filed941: boolean;
+    differences: string[];
+  }[];
+}
+
+export interface FederalQuarterDto extends FormFilingState {
+  taxYear: number;
+  quarter: number;
+  depositSchedule: 'monthly' | 'semiweekly';
+  employeesPaid: number;
+  wages: string;
+  federalIncomeTax: string;
+  socialSecurityWages: string;
+  socialSecurityTips: string;
+  medicareWagesAndTips: string;
+  additionalMedicareWages: string;
+  socialSecurityTax: string;
+  medicareTax: string;
+  additionalMedicareTax: string;
+  totalTaxes: string;
+  /** Social security and Medicare figured on the quarter's wages at the full rates. */
+  taxAtRates: string;
+  /** Withheld and paid minus taxAtRates (fractions of cents across paychecks). */
+  roundingDifference: string;
+  monthlyLiability: string[];
+  dailyLiability: { date: string; amount: string }[];
+  /** All deposits for the quarter: recorded here plus those made before payroll started here. */
+  deposits: string;
+  /** The part of deposits made before payroll started here (Prior payroll). */
+  priorDeposits: string;
+  balanceDue: string;
+  notes: string[];
+}
+
+export interface FutaAnnualDto extends FormFilingState {
+  taxYear: number;
+  subjectWages: string;
+  wagesOverBase: string;
+  taxableWages: string;
+  tax: string;
+  byState: { state: string; taxableWages: string }[];
+  quarterlyLiability: string[];
+  deposits: string;
+  priorDeposits: string;
+  balanceDue: string;
+  notes: string[];
+}
+
+export interface StateQuarterDto extends FormFilingState {
+  taxYear: number;
+  quarter: number;
+  state: PayrollState;
+  stateName: string;
+  /** The state's quarterly return, when tax-data names it (e.g. RT-6, DE 9). */
+  form: string | null;
+  dueDate: string | null;
+  withholding: { code: PayrollTaxCode; label: string; wages: string; tax: string }[];
+  unemployment: {
+    employees: {
+      employeeId: string;
+      name: string;
+      ssnMasked: string | null;
+      subjectWages: string;
+      excessWages: string;
+      taxableWages: string;
+      tax: string;
+    }[];
+    subjectWages: string;
+    excessWages: string;
+    taxableWages: string;
+    tax: string;
+  };
+  otherEmployerTaxes: {
+    code: PayrollTaxCode;
+    label: string;
+    taxableWages: string;
+    amount: string;
+  }[];
+  notes: string[];
+}
+
+/** Which form period to show: a year, and a quarter and state where the form needs them. */
+export const taxFormQuerySchema = z.object({
+  year: z.coerce.number().int().min(2000).max(2199),
+  quarter: z.coerce.number().int().min(1).max(4).optional(),
+  state: z.enum(PAYROLL_STATES).optional(),
+});
+export type TaxFormQuery = z.input<typeof taxFormQuerySchema>;
+
+// ---------------------------------------------------------------------------------------------
+// Deposits made before payroll started here (Phase 9, open question 59)
+// ---------------------------------------------------------------------------------------------
+export const PRIOR_DEPOSIT_AGENCIES = ['federal_941', 'federal_940'] as const;
+export type PriorDepositAgency = (typeof PRIOR_DEPOSIT_AGENCIES)[number];
+export const PRIOR_DEPOSIT_AGENCY_LABELS: Record<PriorDepositAgency, string> = {
+  federal_941: 'Form 941 taxes',
+  federal_940: 'FUTA (Form 940)',
+};
+
+export const priorTaxDepositInputSchema = z.object({
+  agency: z.enum(PRIOR_DEPOSIT_AGENCIES),
+  taxYear: z.number().int().min(2000).max(2199),
+  /** The quarter the deposit paid tax for. */
+  quarter: z.number().int().min(1).max(4),
+  paymentDate: isoDate,
+  amount: money.refine((v) => parseMoney(v) > 0n, 'Enter the amount deposited'),
+  memo: optText(200),
+});
+export type PriorTaxDepositInput = z.input<typeof priorTaxDepositInputSchema>;
+
+export interface PriorTaxDepositDto {
+  id: string;
+  agency: PriorDepositAgency;
+  agencyLabel: string;
+  taxYear: number;
+  quarter: number;
+  paymentDate: string;
+  amount: string;
+  memo: string | null;
+  /** Why it can't change (a filed form covers its period), or null. */
+  lockedBy: string | null;
+}

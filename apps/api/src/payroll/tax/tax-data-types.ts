@@ -53,6 +53,8 @@ export interface FederalTaxData {
     depositDue: Record<'Q1' | 'Q2' | 'Q3' | 'Q4', string>;
   };
   deposits: DepositRules;
+  /** Form rules and due dates (Phase 9). */
+  forms?: { w2: { fileAndFurnishBy: string; socialSecurityWagesAndTipsMax: string } };
   supplementalWages: {
     optionalFlatRatePercent: string;
     mandatoryRatePercent: string;

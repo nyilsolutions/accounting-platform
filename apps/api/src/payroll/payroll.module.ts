@@ -7,17 +7,27 @@ import { PayRunsController } from './pay-runs.controller';
 import { PayRunsService } from './pay-runs.service';
 import { NachaFileRail, PAYMENT_RAIL } from './payment-rail';
 import { PayrollController } from './payroll.controller';
+import { PayrollFormsController } from './payroll-forms.controller';
 import { PayrollLookupsService } from './payroll-lookups.service';
 import { PayrollSetupService } from './payroll-setup.service';
+import { PriorPayrollService } from './prior-payroll.service';
+import { TaxFormsService } from './tax-forms.service';
 
 @Module({
-  controllers: [PayrollController, PayRunsController, PayrollLiabilitiesController],
+  controllers: [
+    PayrollController,
+    PayRunsController,
+    PayrollLiabilitiesController,
+    PayrollFormsController,
+  ],
   providers: [
     PayrollSetupService,
     EmployeesService,
     PayrollLookupsService,
     PayRunsService,
     PayrollLiabilitiesService,
+    PriorPayrollService,
+    TaxFormsService,
     { provide: EFTPS_PROVIDER, useClass: ManualEftpsProvider },
     { provide: PAYMENT_RAIL, useClass: NachaFileRail },
   ],
