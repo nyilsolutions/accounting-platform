@@ -1,0 +1,24 @@
+{
+  "name": "@acct/db",
+  "version": "0.0.0",
+  "private": true,
+  "main": "dist/src/index.js",
+  "types": "dist/src/index.d.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint src scripts",
+    "setup": "node --env-file-if-exists=../../.env dist/scripts/setup.js",
+    "migrate": "node --env-file-if-exists=../../.env dist/scripts/migrate.js",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "kysely": "^0.28.17",
+    "pg": "^8.23.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.4",
+    "@types/pg": "^8.15.6",
+    "vitest": "^4.1.11"
+  }
+}

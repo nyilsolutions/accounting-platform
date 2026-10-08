@@ -1,0 +1,21 @@
+{
+  "name": "@acct/crypto",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Server-only security primitives: password hashing, TOTP, field encryption, tokens.",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint src",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@node-rs/argon2": "^2.2.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.4",
+    "vitest": "^4.1.11"
+  }
+}
