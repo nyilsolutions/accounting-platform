@@ -51,7 +51,20 @@ export class LedgerSettingsService {
     input: LedgerSettingsInput,
     meta: RequestMeta,
   ): Promise<LedgerSettingsDto> {
-    return withTenant(this.db, { userId: auth.userId, companyId: ctx.companyId }, async (tx) => {
+    return withTenant(this.db, { userId: auth.userId, companyId: ctx.companyId }, (tx) =>
+      this.updateInTx(tx, auth, ctx, input, meta),
+    );
+  }
+
+  /** Also used by the month-end close (ADR 0021), inside its own transaction. */
+  async updateInTx(
+    tx: Tx,
+    auth: AuthContext,
+    ctx: CompanyContext,
+    input: LedgerSettingsInput,
+    meta: RequestMeta,
+  ): Promise<LedgerSettingsDto> {
+    {
       const c = await tx
         .selectFrom('companies')
         .select([
@@ -161,7 +174,7 @@ export class LedgerSettingsService {
         }
       }
       return this.dto(tx, ctx.companyId);
-    });
+    }
   }
 }
 

@@ -101,6 +101,20 @@ export const NAV: NavItem[] = [
     section: 'main',
   },
   {
+    key: 'accountant-tools',
+    label: 'Accountant tools',
+    path: '/accounting/tools',
+    permission: 'ledger.view',
+    section: 'hidden',
+  },
+  {
+    key: 'close-books',
+    label: 'Close the books (month-end checklist)',
+    path: '/accounting/tools/close',
+    permission: 'ledger.view',
+    section: 'hidden',
+  },
+  {
     key: 'currencies',
     label: 'Exchange rates and revaluation',
     path: '/accounting/currencies',
