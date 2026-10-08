@@ -33,3 +33,11 @@ kbd {
   padding: 0 0.3rem;
   background: #fff;
 }
+
+/* Printed documents (invoices, statements, reports) use plain white paper. */
+@media print {
+  html,
+  body {
+    background: white;
+  }
+}

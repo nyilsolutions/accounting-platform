@@ -17,21 +17,64 @@ import { OptionSelect } from '@/components/ledger/pickers';
 import { LedgerView, StatementView, toCsv } from '@/components/reports/report-view';
 import { Alert, Button, Card, Spinner } from '@/components/ui';
 import { api, errorMessage } from '@/lib/api';
-import { keys, useAccounts, useCompany, useSimpleList } from '@/lib/queries';
+import { customerHref, txnHref } from '@/lib/links';
+import { keys, useAccounts, useCompany, useCustomers, useSimpleList } from '@/lib/queries';
 
-const REPORTS: Record<
-  string,
-  { pointInTime: boolean; filters: boolean; defaultPreset: DatePreset }
-> = {
+interface ReportConfig {
+  pointInTime: boolean;
+  /** Class and location filters. */
+  filters: boolean;
+  defaultPreset: DatePreset;
+  /** Accrual / cash toggle. */
+  basis?: boolean;
+  /** Customer filter. */
+  customer?: boolean;
+}
+
+const REPORTS: Record<string, ReportConfig> = {
   'profit-and-loss': {
     pointInTime: false,
     filters: true,
     defaultPreset: 'this_fiscal_year_to_date',
+    basis: true,
   },
-  'balance-sheet': { pointInTime: true, filters: false, defaultPreset: 'this_fiscal_year_to_date' },
-  'trial-balance': { pointInTime: true, filters: false, defaultPreset: 'this_fiscal_year_to_date' },
+  'balance-sheet': {
+    pointInTime: true,
+    filters: false,
+    defaultPreset: 'this_fiscal_year_to_date',
+    basis: true,
+  },
+  'trial-balance': {
+    pointInTime: true,
+    filters: false,
+    defaultPreset: 'this_fiscal_year_to_date',
+    basis: true,
+  },
   'general-ledger': { pointInTime: false, filters: true, defaultPreset: 'this_month' },
+  'ar-aging-summary': { pointInTime: true, filters: false, defaultPreset: 'today', customer: true },
+  'ar-aging-detail': { pointInTime: true, filters: false, defaultPreset: 'today', customer: true },
+  'open-invoices': { pointInTime: true, filters: false, defaultPreset: 'today', customer: true },
+  'customer-balance-summary': {
+    pointInTime: true,
+    filters: false,
+    defaultPreset: 'today',
+    customer: true,
+  },
+  'sales-by-customer': {
+    pointInTime: false,
+    filters: true,
+    defaultPreset: 'this_fiscal_year_to_date',
+    customer: true,
+  },
+  'sales-by-item': {
+    pointInTime: false,
+    filters: true,
+    defaultPreset: 'this_fiscal_year_to_date',
+    customer: true,
+  },
 };
+
+const FILTER_KEYS = ['classId', 'locationId', 'accountId', 'customerId', 'basis'];
 
 function ReportPage() {
   const { companyId, key } = useParams<{ companyId: string; key: string }>();
@@ -43,6 +86,7 @@ function ReportPage() {
   const classes = useSimpleList(companyId, 'classes');
   const locations = useSimpleList(companyId, 'locations');
   const accounts = useAccounts(companyId, true);
+  const customers = useCustomers(companyId, true, !!cfg?.customer);
   if (!cfg) notFound();
 
   const fyStart = company.data?.fiscalYearStartMonth ?? 1;
@@ -50,7 +94,7 @@ function ReportPage() {
   const query = useMemo(() => {
     const q: Record<string, string> = { to: params.get('to') ?? defaults.to };
     if (!cfg.pointInTime) q.from = params.get('from') ?? defaults.from;
-    for (const k of ['classId', 'locationId', 'accountId']) {
+    for (const k of FILTER_KEYS) {
       const v = params.get(k);
       if (v) q[k] = v;
     }
@@ -70,7 +114,7 @@ function ReportPage() {
     e.preventDefault();
     const f = new FormData(e.currentTarget);
     const next = new URLSearchParams();
-    for (const k of ['from', 'to', 'classId', 'locationId', 'accountId']) {
+    for (const k of ['from', 'to', ...FILTER_KEYS]) {
       const v = String(f.get(k) ?? '');
       if (v) next.set(k, v);
     }
@@ -182,6 +226,39 @@ function ReportPage() {
               />
             </label>
           )}
+          {cfg.customer && (
+            <label>
+              <span className="mb-1 block font-medium text-gray-700">Customer</span>
+              <OptionSelect
+                name="customerId"
+                defaultValue={query.customerId ?? ''}
+                placeholder="All customers"
+                options={(customers.data ?? []).map((c) => ({
+                  id: c.id,
+                  label: c.displayName,
+                  depth: c.depth,
+                }))}
+                className="w-56"
+              />
+            </label>
+          )}
+          {cfg.basis && (
+            <label>
+              <span className="mb-1 block font-medium text-gray-700">Accounting method</span>
+              <select
+                name="basis"
+                aria-label="Accounting method"
+                defaultValue={query.basis ?? ''}
+                className="rounded-md border border-gray-300 px-2 py-1.5"
+              >
+                <option value="">
+                  Company default ({company.data?.accountingBasis === 'cash' ? 'cash' : 'accrual'})
+                </option>
+                <option value="accrual">Accrual</option>
+                <option value="cash">Cash</option>
+              </select>
+            </label>
+          )}
           {key === 'general-ledger' && (
             <label>
               <span className="mb-1 block font-medium text-gray-700">Account</span>
@@ -215,15 +292,18 @@ function ReportPage() {
         ) : !report.data ? (
           <Spinner />
         ) : report.data.key === 'general_ledger' ? (
-          <LedgerView
-            report={report.data}
-            txnHref={(_type, id) => `/c/${companyId}/accounting/journal-entries/${id}`}
-          />
+          <LedgerView report={report.data} txnHref={(type, id) => txnHref(companyId, type, id)} />
         ) : (
           <StatementView
             report={report.data}
             drillHref={(row) =>
-              glHref(row.accountId!, (report.data as ReportDto).drillFrom, query.to!)
+              row.txnId && row.txnType
+                ? txnHref(companyId, row.txnType, row.txnId)
+                : row.customerId
+                  ? customerHref(companyId, row.customerId)
+                  : row.accountId
+                    ? glHref(row.accountId, (report.data as ReportDto).drillFrom, query.to!)
+                    : null
             }
           />
         )}

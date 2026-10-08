@@ -15,6 +15,10 @@ const UNIQUE_MESSAGES: Record<string, string> = {
   classes_name_key: 'A class with this name already exists at this level',
   locations_name_key: 'A location with this name already exists at this level',
   payment_methods_name_key: 'A payment method with this name already exists',
+  transactions_doc_number_key: 'This number is already used by another document of this type',
+  estimates_number_key: 'This estimate number is already in use',
+  deposit_lines_source_key: 'This payment is already in another deposit',
+  payment_applications_payment_id_target_id_key: 'This invoice is listed twice on the payment',
 };
 
 /**

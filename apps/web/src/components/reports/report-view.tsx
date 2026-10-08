@@ -8,6 +8,7 @@ import {
   type GeneralLedgerDto,
   type ReportDto,
   type ReportRow,
+  TXN_TYPE_LABELS,
 } from '@acct/shared';
 import { cx } from '@/components/ui';
 
@@ -40,7 +41,11 @@ function ReportHeader({
   );
 }
 
-/** Statement-style report (P&L, balance sheet, trial balance). Account amounts drill down to the general ledger. */
+/**
+ * Statement-style report (P&L, balance sheet, trial balance, A/R summaries). Amounts drill down
+ * (accounts to the general ledger, customers to their page). Reports with `textColumns` (aging
+ * detail, open invoices) are tabular: each row's `cells` come before the amounts.
+ */
 export function StatementView({
   report,
   drillHref,
@@ -48,8 +53,10 @@ export function StatementView({
   report: ReportDto;
   drillHref: (row: ReportRow) => string | null;
 }) {
+  const text = report.textColumns ?? [];
+  const wide = text.length > 0 || report.columns.length > 3;
   return (
-    <div className="mx-auto max-w-3xl">
+    <div className={cx('mx-auto', wide ? 'max-w-6xl overflow-x-auto' : 'max-w-3xl')}>
       <ReportHeader
         companyName={report.companyName}
         title={report.title}
@@ -59,10 +66,18 @@ export function StatementView({
       />
       <table className="w-full text-sm" data-testid="report-table">
         <thead>
-          <tr className="border-b border-gray-300 text-xs uppercase tracking-wide text-gray-500">
-            <th />
+          <tr className="border-b border-gray-300 text-left text-xs uppercase tracking-wide text-gray-500">
+            {text.length ? (
+              text.map((c) => (
+                <th key={c} className="px-2 py-1">
+                  {c}
+                </th>
+              ))
+            ) : (
+              <th />
+            )}
             {report.columns.map((c) => (
-              <th key={c} className="w-36 px-2 py-1 text-right">
+              <th key={c} className="w-32 px-2 py-1 text-right">
                 {c}
               </th>
             ))}
@@ -70,7 +85,9 @@ export function StatementView({
         </thead>
         <tbody>
           {report.rows.map((row, i) => {
-            const href = row.accountId && row.kind !== 'section' ? drillHref(row) : null;
+            const drillable = row.accountId || row.customerId || row.txnId;
+            const href = drillable && row.kind !== 'section' ? drillHref(row) : null;
+            const tabular = text.length > 0 && row.cells;
             return (
               <tr
                 key={i}
@@ -82,9 +99,32 @@ export function StatementView({
                     'border-t-2 border-b-4 border-double border-gray-800 font-bold',
                 )}
               >
-                <td className="py-1 pr-2" style={{ paddingLeft: `${row.depth * 1.25 + 0.25}rem` }}>
-                  {row.label}
-                </td>
+                {tabular ? (
+                  row.cells!.map((c, j) => (
+                    <td key={j} className={cx('whitespace-nowrap px-2 py-1', j === 0 && 'pl-6')}>
+                      {j === 0 && href && c ? (
+                        <Link
+                          href={href}
+                          className="text-brand-700 hover:underline print:text-inherit"
+                        >
+                          {formatDate(c)}
+                        </Link>
+                      ) : c && /^\d{4}-\d{2}-\d{2}$/.test(c) ? (
+                        formatDate(c)
+                      ) : (
+                        c
+                      )}
+                    </td>
+                  ))
+                ) : (
+                  <td
+                    className="py-1 pr-2"
+                    colSpan={Math.max(text.length, 1)}
+                    style={{ paddingLeft: `${row.depth * 1.25 + 0.25}rem` }}
+                  >
+                    {row.label}
+                  </td>
+                )}
                 {row.amounts.map((a, j) => (
                   <td
                     key={j}
@@ -117,7 +157,7 @@ export function StatementView({
   );
 }
 
-const TXN_LABELS: Record<string, string> = { journal_entry: 'Journal Entry' };
+const TXN_LABELS = TXN_TYPE_LABELS;
 
 export function LedgerView({
   report,
@@ -277,9 +317,15 @@ export function toCsv(report: ReportDto | GeneralLedgerDto): string {
       ]);
     }
   } else {
-    lines.push(['', ...report.columns]);
-    for (const r of report.rows)
-      lines.push([`${'  '.repeat(r.depth)}${r.label}`, ...r.amounts.map((a) => a ?? '')]);
+    const text = report.textColumns ?? [];
+    lines.push(text.length ? [...text, ...report.columns] : ['', ...report.columns]);
+    for (const r of report.rows) {
+      const lead =
+        text.length && r.cells
+          ? r.cells.map((c) => c ?? '')
+          : [`${'  '.repeat(r.depth)}${r.label}`, ...text.slice(1).map(() => '')];
+      lines.push([...lead, ...r.amounts.map((a) => a ?? '')]);
+    }
   }
   return lines.map((l) => l.map(esc).join(',')).join('\r\n');
 }

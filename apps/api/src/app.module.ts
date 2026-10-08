@@ -12,6 +12,7 @@ import { ListsModule } from './lists/lists.module';
 import { MailModule } from './mail/mail.module';
 import { MembersModule } from './members/members.module';
 import { ReportsModule } from './reports/reports.module';
+import { SalesModule } from './sales/sales.module';
 
 @Module({})
 export class AppModule {
@@ -35,6 +36,7 @@ export class AppModule {
         LedgerModule,
         ListsModule,
         ReportsModule,
+        SalesModule,
       ],
       controllers: [HealthController],
       providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],

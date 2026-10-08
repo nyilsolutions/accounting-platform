@@ -52,4 +52,58 @@ export class ReportsController {
   ): Promise<GeneralLedgerDto> {
     return this.reports.generalLedger(a, c, q);
   }
+
+  @Get('ar-aging-summary')
+  arAgingSummary(
+    @CurrentAuth() a: AuthContext,
+    @CurrentCompany() c: CompanyContext,
+    @Query(new ZodPipe(reportQuerySchema)) q: ReportQuery,
+  ): Promise<ReportDto> {
+    return this.reports.arAgingSummary(a, c, q);
+  }
+
+  @Get('ar-aging-detail')
+  arAgingDetail(
+    @CurrentAuth() a: AuthContext,
+    @CurrentCompany() c: CompanyContext,
+    @Query(new ZodPipe(reportQuerySchema)) q: ReportQuery,
+  ): Promise<ReportDto> {
+    return this.reports.arAgingDetail(a, c, q);
+  }
+
+  @Get('open-invoices')
+  openInvoices(
+    @CurrentAuth() a: AuthContext,
+    @CurrentCompany() c: CompanyContext,
+    @Query(new ZodPipe(reportQuerySchema)) q: ReportQuery,
+  ): Promise<ReportDto> {
+    return this.reports.openInvoices(a, c, q);
+  }
+
+  @Get('customer-balance-summary')
+  customerBalanceSummary(
+    @CurrentAuth() a: AuthContext,
+    @CurrentCompany() c: CompanyContext,
+    @Query(new ZodPipe(reportQuerySchema)) q: ReportQuery,
+  ): Promise<ReportDto> {
+    return this.reports.customerBalanceSummary(a, c, q);
+  }
+
+  @Get('sales-by-customer')
+  salesByCustomer(
+    @CurrentAuth() a: AuthContext,
+    @CurrentCompany() c: CompanyContext,
+    @Query(new ZodPipe(reportQuerySchema)) q: ReportQuery,
+  ): Promise<ReportDto> {
+    return this.reports.salesByCustomer(a, c, q);
+  }
+
+  @Get('sales-by-item')
+  salesByItem(
+    @CurrentAuth() a: AuthContext,
+    @CurrentCompany() c: CompanyContext,
+    @Query(new ZodPipe(reportQuerySchema)) q: ReportQuery,
+  ): Promise<ReportDto> {
+    return this.reports.salesByItem(a, c, q);
+  }
 }

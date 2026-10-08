@@ -113,6 +113,7 @@ test('ledger: chart of accounts, journal entries, reports with drill-down, closi
 
   // --- Lists: customer, vendor with encrypted TIN, class ------------------------------------
   await go(page, 's');
+  await page.getByRole('link', { name: 'Customers', exact: true }).click();
   await page.getByRole('button', { name: 'New customer' }).click();
   await page.getByLabel('Customer display name').fill('Acme Corp');
   await page.getByLabel('Email').fill('ap@acme.test');

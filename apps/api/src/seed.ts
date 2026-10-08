@@ -5,11 +5,18 @@
  */
 import { randomUUID } from 'node:crypto';
 import { generateTotp, generateTotpSecret, hashPassword, LocalAesGcmEncryptor } from '@acct/crypto';
-import { createDb, withTenant, type Tx } from '@acct/db';
+import { createDb, withTenant, type Db, type Tx } from '@acct/db';
 import { parseMoney } from '@acct/shared';
-import { loadConfig } from './config';
+import { AuditService } from './audit/audit.service';
+import type { AuthContext, CompanyContext } from './common/request';
+import { loadConfig, type AppConfig } from './config';
 import { LedgerSetupService } from './ledger/ledger-setup.service';
 import { PostingService } from './ledger/posting.service';
+import type { Mailer } from './mail/mailer';
+import { DepositsService } from './sales/deposits.service';
+import { EstimatesService } from './sales/estimates.service';
+import { PaymentsService } from './sales/payments.service';
+import { SalesDocumentsService } from './sales/sales-documents.service';
 
 const DEMO_EMAIL = 'demo@example.com';
 const DEMO_PASSWORD = 'demo-password-change-me';
@@ -107,6 +114,15 @@ async function main(): Promise<void> {
         .executeTakeFirst();
       if (!hasAccounts) await seedLedger(tx, companyId!, userId);
     });
+    const hasSales = await withTenant(db, { userId, companyId }, (tx) =>
+      tx
+        .selectFrom('transactions')
+        .select('id')
+        .where('company_id', '=', companyId!)
+        .where('txn_type', '=', 'invoice')
+        .executeTakeFirst(),
+    );
+    if (!hasSales) await seedSales(db, config, userId, companyId!);
 
     console.log(
       [
@@ -146,19 +162,16 @@ async function seedLedger(tx: Tx, companyId: string, userId: string): Promise<vo
         ).id,
     ),
   );
-  const customer = (
-    await tx
-      .insertInto('customers')
-      .values({
-        company_id: companyId,
-        display_name: 'Hillside HOA',
-        email: 'board@hillside.example',
-        created_by: userId,
-        updated_by: userId,
-      })
-      .returning('id')
-      .executeTakeFirstOrThrow()
-  ).id;
+  await tx
+    .insertInto('customers')
+    .values({
+      company_id: companyId,
+      display_name: 'Hillside HOA',
+      email: 'board@hillside.example',
+      created_by: userId,
+      updated_by: userId,
+    })
+    .execute();
   await tx
     .insertInto('vendors')
     .values({
@@ -186,18 +199,18 @@ async function seedLedger(tx: Tx, companyId: string, userId: string): Promise<vo
   const entry = async (
     date: string,
     memo: string,
-    lines: Array<[string, 'Dr' | 'Cr', string, string?, string?]>,
+    lines: Array<[string, 'Dr' | 'Cr', string, string?]>,
   ) =>
     posting.create(
       tx,
       { companyId, userId },
       { txnType: 'journal_entry', txnDate: date, number: null, memo, isAdjusting: false },
-      lines.map(([account, side, amount, classId, customerId]) => ({
+      lines.map(([account, side, amount, classId]) => ({
         accountId: acct(account),
         debit: side === 'Dr' ? parseMoney(amount) : 0n,
         credit: side === 'Cr' ? parseMoney(amount) : 0n,
         description: null,
-        customerId: customerId ?? null,
+        customerId: null,
         vendorId: null,
         classId: classId ?? null,
         locationId: null,
@@ -228,10 +241,163 @@ async function seedLedger(tx: Tx, companyId: string, userId: string): Promise<vo
       ['Credit Card', 'Cr', '1360'],
     ]);
   }
-  await entry(`${year}-03-31`, 'Invoice to Hillside HOA (pre-invoicing demo)', [
-    ['Accounts Receivable (A/R)', 'Dr', '1200', residential, customer],
-    ['Services', 'Cr', '1200', residential, customer],
+}
+
+/**
+ * Demo sales: invoices (paid, partly paid, overdue), a deposit and an open estimate, created
+ * through the same services the API uses, so postings and audit rows are real.
+ */
+async function seedSales(
+  db: Db,
+  config: AppConfig,
+  userId: string,
+  companyId: string,
+): Promise<void> {
+  const audit = new AuditService(db);
+  const posting = new PostingService();
+  const noMail: Mailer = { send: async () => undefined };
+  const documents = new SalesDocumentsService(db, config, noMail, posting, audit);
+  const payments = new PaymentsService(db, posting, audit);
+  const deposits = new DepositsService(db, posting, audit);
+  const estimates = new EstimatesService(db, noMail, documents, audit);
+  const auth = {
+    userId,
+    sessionId: 'seed',
+    email: DEMO_EMAIL,
+    fullName: 'Demo Owner',
+    mfaEnrolled: true,
+    mfaVerified: true,
+  } as AuthContext;
+  const ctx = { companyId, role: 'owner', permissions: [] } as unknown as CompanyContext;
+  const meta = { ip: null, userAgent: 'seed', requestId: null };
+
+  const { customers, items, accounts } = await withTenant(
+    db,
+    { userId, companyId },
+    async (tx) => ({
+      customers: await tx
+        .selectFrom('customers')
+        .select(['id', 'display_name'])
+        .where('company_id', '=', companyId)
+        .execute(),
+      items: await tx
+        .selectFrom('items')
+        .select(['id', 'name'])
+        .where('company_id', '=', companyId)
+        .execute(),
+      accounts: await tx
+        .selectFrom('accounts')
+        .select(['id', 'name'])
+        .where('company_id', '=', companyId)
+        .execute(),
+    }),
+  );
+  const hillside = customers.find((c) => c.display_name === 'Hillside HOA')!.id;
+  const lawn = items.find((i) => i.name === 'Weekly lawn service')!.id;
+  const acct = (name: string) => accounts.find((a) => a.name === name)!.id;
+  const oakwood = await withTenant(
+    db,
+    { userId, companyId },
+    async (tx) =>
+      (
+        await tx
+          .insertInto('customers')
+          .values({
+            company_id: companyId,
+            display_name: 'Oakwood Dental',
+            email: 'office@oakwood.example',
+            created_by: userId,
+            updated_by: userId,
+          })
+          .returning('id')
+          .executeTakeFirstOrThrow()
+      ).id,
+  );
+
+  const year = new Date().getFullYear();
+  const invoice = (
+    customerId: string,
+    date: string,
+    due: string,
+    lines: Array<Record<string, unknown>>,
+  ) =>
+    documents.save(
+      auth,
+      ctx,
+      'invoice',
+      null,
+      { customerId, txnDate: date, dueDate: due, lines },
+      meta,
+    );
+
+  const jan = await invoice(hillside, `${year}-01-31`, `${year}-03-02`, [
+    { itemId: lawn, quantity: '4', rate: '85' },
+    { accountId: acct('Services'), description: 'Spring cleanup', amount: '450' },
   ]);
+  const feb = await invoice(oakwood, `${year}-02-28`, `${year}-03-30`, [
+    { itemId: lawn, quantity: '4', rate: '85' },
+  ]);
+  await invoice(hillside, `${year}-03-31`, `${year}-04-30`, [
+    { itemId: lawn, quantity: '5', rate: '85' },
+    { accountId: acct('Services'), description: 'Irrigation repair', amount: '275' },
+  ]);
+
+  const p1 = await payments.save(
+    auth,
+    ctx,
+    null,
+    {
+      customerId: hillside,
+      txnDate: `${year}-02-20`,
+      amount: jan.total,
+      reference: '2231',
+      applications: [{ targetId: jan.id, amount: jan.total }],
+    },
+    meta,
+  );
+  const p2 = await payments.save(
+    auth,
+    ctx,
+    null,
+    {
+      customerId: oakwood,
+      txnDate: `${year}-03-25`,
+      amount: '200',
+      reference: '8817',
+      applications: [{ targetId: feb.id, amount: '200' }],
+    },
+    meta,
+  );
+  await deposits.save(
+    auth,
+    ctx,
+    null,
+    {
+      txnDate: `${year}-03-26`,
+      depositAccountId: acct('Checking'),
+      lines: [{ sourceTxnId: p1.id }, { sourceTxnId: p2.id }],
+    },
+    meta,
+  );
+
+  await estimates.save(
+    auth,
+    ctx,
+    null,
+    {
+      customerId: oakwood,
+      txnDate: `${year}-04-02`,
+      expirationDate: `${year}-05-02`,
+      lines: [
+        {
+          accountId: acct('Services'),
+          description: 'Front bed redesign and planting',
+          amount: '1850',
+        },
+      ],
+    },
+    meta,
+  );
 }
 
 main().catch((err) => {
