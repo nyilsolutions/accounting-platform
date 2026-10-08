@@ -28,6 +28,7 @@ import {
   type EftpsPaymentUpdate,
 } from './eftps-batch';
 import { StandInEftpsBatch } from './stand-in-eftps';
+import { einAad, enrollmentAad } from '../../security/aad';
 
 type EnrollInput = z.output<typeof eftpsEnrollSchema>;
 type PaymentInput = z.output<typeof payrollLiabilityPaymentSchema>;
@@ -41,7 +42,7 @@ export const PARTNER_META: RequestMeta = {
   requestId: null,
 };
 
-export const enrollmentAad = (id: string) => `eftps_enrollment:${id}:account_number`;
+export { enrollmentAad };
 
 /**
  * The platform as the company's EFTPS batch provider (ADR 0025). A company enrolls once with
@@ -161,9 +162,7 @@ export class EftpsService {
         meta,
       );
       return {
-        ein: this.encryptor
-          .decrypt(company.ein_enc, `company:${ctx.companyId}:ein`)
-          .replace(/\D/g, ''),
+        ein: this.encryptor.decrypt(company.ein_enc, einAad(ctx.companyId)).replace(/\D/g, ''),
         name: company.legal_name,
         routingNumber: input.routingNumber,
         accountNumber: input.accountNumber,
@@ -293,9 +292,7 @@ export class EftpsService {
         .executeTakeFirstOrThrow();
       return {
         payment,
-        ein: this.encryptor
-          .decrypt(company.ein_enc!, `company:${ctx.companyId}:ein`)
-          .replace(/\D/g, ''),
+        ein: this.encryptor.decrypt(company.ein_enc!, einAad(ctx.companyId)).replace(/\D/g, ''),
       };
     });
     const { payment } = prepared;

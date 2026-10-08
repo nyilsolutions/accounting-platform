@@ -4,7 +4,8 @@
  * Refuses to run in production.
  */
 import { randomUUID } from 'node:crypto';
-import { generateTotp, generateTotpSecret, hashPassword, LocalAesGcmEncryptor } from '@acct/crypto';
+import { loadFieldEncryptor } from './security/field-keys';
+import { generateTotp, generateTotpSecret, hashPassword, type FieldEncryptor } from '@acct/crypto';
 import { createDb, withTenant, type Db, type Tx } from '@acct/db';
 import { addDays, parseMoney } from '@acct/shared';
 import { JobQueue } from './jobs/job-queue.service';
@@ -43,6 +44,7 @@ import {
   seedPhase10e,
   seedPhase10f,
 } from './seed-phase10';
+import { einAad, mfaAad } from './security/aad';
 
 const DEMO_EMAIL = 'demo@example.com';
 const DEMO_PASSWORD = 'demo-password-change-me';
@@ -52,7 +54,7 @@ async function main(): Promise<void> {
   const config = loadConfig();
   if (config.NODE_ENV === 'production') throw new Error('Refusing to seed a production database');
   const db = createDb(config.DATABASE_URL, 1);
-  const enc = new LocalAesGcmEncryptor({ 1: config.FIELD_ENCRYPTION_KEY }, 1);
+  const enc = await loadFieldEncryptor(config, db);
   try {
     let user = await db
       .selectFrom('users')
@@ -61,7 +63,7 @@ async function main(): Promise<void> {
       .executeTakeFirst();
     let secret: string;
     if (user) {
-      secret = enc.decrypt(user.mfa_secret_enc!, `user:${user.id}:mfa`);
+      secret = enc.decrypt(user.mfa_secret_enc!, mfaAad(user.id));
     } else {
       secret = generateTotpSecret();
       const id = randomUUID();
@@ -72,7 +74,7 @@ async function main(): Promise<void> {
           email: DEMO_EMAIL,
           full_name: 'Demo Owner',
           password_hash: await hashPassword(DEMO_PASSWORD),
-          mfa_secret_enc: enc.encrypt(secret, `user:${id}:mfa`),
+          mfa_secret_enc: enc.encrypt(secret, mfaAad(id)),
           mfa_enabled_at: new Date(),
         })
         .returningAll()
@@ -97,7 +99,7 @@ async function main(): Promise<void> {
             id: companyId!,
             legal_name: DEMO_COMPANY,
             dba_name: 'Sample Landscaping',
-            ein_enc: enc.encrypt('12-3456789', `company:${companyId}:ein`),
+            ein_enc: enc.encrypt('12-3456789', einAad(companyId!)),
             ein_last4: '6789',
             address_line1: '100 Main St',
             city: 'Austin',
@@ -758,7 +760,7 @@ async function seedBanking(db: Db, userId: string, companyId: string): Promise<v
 async function seedDocuments(
   db: Db,
   config: AppConfig,
-  enc: LocalAesGcmEncryptor,
+  enc: FieldEncryptor,
   userId: string,
   companyId: string,
 ): Promise<void> {

@@ -56,6 +56,21 @@ export function verifyTotp(
   return null;
 }
 
+/**
+ * Whether a code that `verifyTotp` refused was valid but already used (a replay, which suggests
+ * the code or the secret was seen by someone else) rather than simply wrong.
+ */
+export function isReplayedTotp(
+  secretBase32: string,
+  code: string,
+  lastUsedStep: number | null,
+  opts: { nowMs?: number; window?: number } = {},
+): boolean {
+  if (lastUsedStep === null) return false;
+  const step = verifyTotp(secretBase32, code, opts);
+  return step !== null && step <= lastUsedStep;
+}
+
 export function otpauthUrl(params: {
   secret: string;
   accountName: string;

@@ -67,7 +67,11 @@ describe('registration and MFA enrollment', () => {
 describe('sign-in', () => {
   it('requires a second factor and rejects TOTP replay', async () => {
     const u = await signUp(ctx.app, 'signin@example.com');
-    await u.agent.post('/auth/logout').expect(204);
+    const me = await u.agent.get('/auth/me').expect(200);
+    expect(me.headers['cache-control']).toBe('no-store');
+    expect(me.headers['content-disposition']).toBe('attachment; filename="api.json"');
+    const out = await u.agent.post('/auth/logout').expect(204);
+    expect(out.headers['clear-site-data']).toBe('"cache", "cookies"');
     await u.agent.get('/auth/me').expect(401);
 
     const a = agent(ctx.app);

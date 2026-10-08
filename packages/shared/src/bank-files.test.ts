@@ -154,6 +154,13 @@ describe('OFX, QFX and QBO', () => {
     expect(parseOfxDate(null)).toBeNull();
   });
 
+  it('reads a crafted file of unclosed blocks in linear time', () => {
+    const crafted = `<OFX><STMTRS>${'<STMTTRN>'.repeat(100_000)}</STMTRS></OFX>`;
+    const started = performance.now();
+    expect(() => parseOfx(crafted)).not.toThrow(RangeError);
+    expect(performance.now() - started).toBeLessThan(1_000);
+  });
+
   it('reads an OFX 1.x (SGML) bank statement', () => {
     const { statements, issues } = parseOfx(OFX_SGML);
     expect(issues).toEqual([]);

@@ -1,21 +1,26 @@
-import { Body, Controller, Get, HttpCode, Post, Res } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, Param, Post, Res } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import type { Response } from 'express';
 import {
+  changePasswordSchema,
   loginSchema,
   mfaVerifySchema,
   registerSchema,
   totpCodeSchema,
   type LoginInput,
   type MeDto,
+  type ChangePasswordInput,
   type MfaEnableDto,
   type MfaSetupDto,
   type RegisterInput,
+  type SessionDto,
 } from '@acct/shared';
 import { AllowPendingMfa, CurrentAuth, Meta, Public } from '../common/decorators';
 import type { AuthContext, RequestMeta } from '../common/request';
+import { UuidPipe } from '../common/uuid.pipe';
 import { ZodPipe } from '../common/zod.pipe';
 import { AuthService } from './auth.service';
+import { RequireRecentMfa } from './recent-mfa.guard';
 import { SessionService } from './session.service';
 
 // Stricter per-IP limit on credential endpoints (in addition to account lockout).
@@ -67,6 +72,8 @@ export class AuthController {
   ): Promise<void> {
     await this.auth.logout(auth, meta);
     this.sessions.clearCookie(res);
+    // The browser drops anything it kept from the session (ASVS 8.2.3).
+    res.setHeader('clear-site-data', '"cache", "cookies"');
   }
 
   @AllowPendingMfa()
@@ -109,5 +116,63 @@ export class AuthController {
   ): Promise<void> {
     const token = await this.auth.verifyMfa(auth, body.code, meta);
     this.sessions.setCookie(res, token);
+  }
+
+  /** A fresh code for a sensitive action (step-up, ADR 0029). */
+  @Throttle(AUTH_THROTTLE)
+  @Post('step-up')
+  @HttpCode(204)
+  stepUp(
+    @CurrentAuth() auth: AuthContext,
+    @Body(new ZodPipe(totpCodeSchema)) body: { code: string },
+    @Meta() meta: RequestMeta,
+  ): Promise<void> {
+    return this.auth.stepUp(auth, body.code, meta);
+  }
+
+  @Throttle(AUTH_THROTTLE)
+  @RequireRecentMfa()
+  @Post('password')
+  @HttpCode(204)
+  changePassword(
+    @CurrentAuth() auth: AuthContext,
+    @Body(new ZodPipe(changePasswordSchema)) body: ChangePasswordInput,
+    @Meta() meta: RequestMeta,
+  ): Promise<void> {
+    return this.auth.changePassword(auth, body, meta);
+  }
+
+  @RequireRecentMfa()
+  @Post('mfa/recovery-codes')
+  @HttpCode(200)
+  regenerateRecoveryCodes(
+    @CurrentAuth() auth: AuthContext,
+    @Meta() meta: RequestMeta,
+  ): Promise<MfaEnableDto> {
+    return this.auth.regenerateRecoveryCodes(auth, meta);
+  }
+
+  @Get('sessions')
+  sessionsList(@CurrentAuth() auth: AuthContext): Promise<SessionDto[]> {
+    return this.auth.listSessions(auth);
+  }
+
+  @Post('sessions/sign-out-others')
+  @HttpCode(200)
+  signOutOthers(
+    @CurrentAuth() auth: AuthContext,
+    @Meta() meta: RequestMeta,
+  ): Promise<{ signedOut: number }> {
+    return this.auth.signOutOthers(auth, meta);
+  }
+
+  @Delete('sessions/:id')
+  @HttpCode(204)
+  revokeSession(
+    @CurrentAuth() auth: AuthContext,
+    @Param('id', UuidPipe) id: string,
+    @Meta() meta: RequestMeta,
+  ): Promise<void> {
+    return this.auth.revokeSession(auth, id, meta);
   }
 }

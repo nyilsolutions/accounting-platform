@@ -64,14 +64,14 @@ import {
 } from './tax/state-tax-engine';
 import { loadPayrollTaxData } from './tax/tax-data-types';
 import { NO_YTD, type StateCertificateFacts, type W4Facts, type YtdWages } from './tax/tax-engine';
+import { employeeAccountAad } from '../security/aad';
 
 type CreateInput = z.output<typeof createPayRunSchema>;
 type PaycheckInput = z.output<typeof paycheckInputSchema>;
 type DepositFileInput = z.output<typeof payrollDepositFileSchema>;
 type VoidInput = z.output<typeof voidPaycheckSchema>;
 
-const accountAad = (bankAccountId: string) =>
-  `employee_bank_account:${bankAccountId}:account_number`;
+const accountAad = employeeAccountAad;
 
 /** Regular pay comes from the employee's pay type, not from recurring items. */
 const REGULAR_EARNINGS: PayrollItemKind[] = ['hourly', 'salary'];

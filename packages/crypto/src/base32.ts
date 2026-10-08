@@ -17,7 +17,10 @@ export function base32Encode(buf: Uint8Array): string {
 }
 
 export function base32Decode(input: string): Buffer {
-  const clean = input.toUpperCase().replace(/=+$/, '').replace(/\s/g, '');
+  // Trailing padding removed with a loop: a regex like /=+$/ is quadratic on long runs of '='.
+  let end = input.length;
+  while (end > 0 && input[end - 1] === '=') end--;
+  const clean = input.slice(0, end).toUpperCase().replace(/\s/g, '');
   let bits = 0;
   let value = 0;
   const out: number[] = [];

@@ -1,6 +1,7 @@
+import { DatabaseError } from 'pg';
 import { describe, expect, it } from 'vitest';
 import { openingEntry } from '../agent.service';
-import { withoutSensitive } from '../migration-common';
+import { describeError, withoutSensitive } from '../migration-common';
 import { csvToCanonical } from './csv';
 import {
   parseDesktopAging,
@@ -103,6 +104,25 @@ describe('IIF', () => {
     expect(parsed.lists.ACCNT?.map((a) => a.NAME)).toContain('Accounts Receivable');
     expect(parsed.transactions).toHaveLength(2);
     expect(parsed.errors).toEqual([{ row: 20, message: 'SPL outside a transaction' }]);
+  });
+
+  it('reads addresses, and a crafted long address line in linear time', () => {
+    const long = `x${' '.repeat(50_000)}x`;
+    const withAddress = [
+      '!CUST\tNAME\tBADDR1\tBADDR2\tBADDR3',
+      'CUST\tAcme\tAcme\t12 Main St\tSpringfield, IL 62701',
+      `CUST\tCrafted\t${long}\t\t`,
+    ].join('\r\n');
+    const started = performance.now();
+    const r = iifToCanonical(parseIif(withAddress), known(), 'f');
+    expect(performance.now() - started).toBeLessThan(1_000);
+    const acme = r.records.find((x) => x.entityType === 'customer' && x.sourceId.includes('Acme'));
+    expect(acme?.payload).toMatchObject({
+      addressLine1: '12 Main St',
+      city: 'Springfield',
+      state: 'IL',
+      postalCode: '62701',
+    });
   });
 
   it('keeps an invoice an invoice, with inventory cost left to the true-up', () => {
@@ -305,6 +325,51 @@ describe('QuickBooks Online', () => {
     expect(ar.rows).toContainEqual({ ref: '3', name: 'Pine Street Cafe:Patio', amount: '320.00' });
   });
 
+  it('downloads attachments only from QuickBooks file hosts, up to the size limit', async () => {
+    const fetched: string[] = [];
+    let link = 'https://intuit-qbo-prod-30.s3.amazonaws.com/file.pdf';
+    const body = (n: number) =>
+      new ReadableStream<Uint8Array>({
+        start(c) {
+          // A stream without a stated length: only counting while reading catches it.
+          for (let i = 0; i < n; i++) c.enqueue(new Uint8Array(1024));
+          c.close();
+        },
+      });
+    let size = 4;
+    const fetchImpl: typeof fetch = async (input) => {
+      const url = String(input);
+      fetched.push(url);
+      if (url.includes('/download/')) return new Response(link);
+      return new Response(body(size));
+    };
+    const api = new IntuitQboApi({
+      environment: 'production',
+      clientId: 'id',
+      clientSecret: 'secret',
+      redirectUri: 'https://app.example/api/migration/qbo/callback',
+      minorVersion: 75,
+      maxDownloadBytes: 8 * 1024,
+      fetch: fetchImpl,
+      sleep: async () => {},
+    });
+    const auth = { realmId: '1', accessToken: 't' };
+    expect(await api.download(auth, { Id: '7' })).toHaveLength(4 * 1024);
+    size = 9;
+    await expect(api.download(auth, { Id: '7' })).rejects.toThrow(/larger than/);
+    for (const bad of [
+      'http://intuit-qbo-prod-30.s3.amazonaws.com/file.pdf',
+      'https://169.254.169.254/latest/meta-data/',
+      'https://internal.example/file.pdf',
+      'https://s3.amazonaws.com.evil.example/file.pdf',
+    ]) {
+      link = bad;
+      fetched.length = 0;
+      await expect(api.download(auth, { Id: '7' })).rejects.toThrow(/unexpected address/);
+      expect(fetched.some((u) => u.startsWith(bad))).toBe(false);
+    }
+  });
+
   it('maps bundles, discounts, sales tax, card credits and inventory purchases', () => {
     const co = mockQboCompany();
     const raw = Object.entries(co.entities).flatMap(([entity, list]) =>
@@ -497,5 +562,35 @@ describe('balances brought forward (Desktop, from a later year)', () => {
       expect.objectContaining({ account: 'A8', credit: '1100' }),
     ]);
     expect(entry.warnings).toBeUndefined();
+  });
+});
+
+describe('describeError', () => {
+  const pg = (code: string, message: string) => {
+    const e = new DatabaseError(message, 0, 'error');
+    e.code = code;
+    return e;
+  };
+
+  it('shows people messages meant for them, not internal ones', () => {
+    expect(describeError(pg('P0001', 'The books are closed through 2024-12-31'))).toBe(
+      'The books are closed through 2024-12-31',
+    );
+    expect(
+      describeError(pg('22P02', 'invalid input syntax for type uuid: "x" at relation accounts')),
+    ).toBe("The record couldn't be saved (database error 22P02).");
+    expect(describeError(pg('23514', 'new row for relation "items" violates check'))).toBe(
+      "The record couldn't be saved (database error 23514).",
+    );
+    const network = Object.assign(new Error('connect ECONNREFUSED 10.0.3.7:443'), {
+      syscall: 'connect',
+    });
+    expect(describeError(network)).toBe('A network error interrupted this step. Try again.');
+    expect(describeError(new TypeError('fetch failed', { cause: network }))).toBe(
+      'A network error interrupted this step. Try again.',
+    );
+    expect(describeError(new Error('QuickBooks returned no download link'))).toBe(
+      'QuickBooks returned no download link',
+    );
   });
 });

@@ -6,7 +6,7 @@ import { Suspense, useState, type FormEvent } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { PASSWORD_MIN_LENGTH, type MeDto } from '@acct/shared';
 import { AuthCard } from '@/components/auth/auth-card';
-import { Alert, Button, TextInput } from '@/components/ui';
+import { Alert, Button, PasswordInput, TextInput } from '@/components/ui';
 import { api, ApiError, errorMessage } from '@/lib/api';
 import { keys } from '@/lib/queries';
 
@@ -16,6 +16,8 @@ function RegisterForm() {
   const qc = useQueryClient();
   const [error, setError] = useState<ApiError | string | null>(null);
   const [pending, setPending] = useState(false);
+  // The name and email, so the strength meter can count them against the password.
+  const [who, setWho] = useState<string[]>([]);
 
   async function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -48,7 +50,14 @@ function RegisterForm() {
     error instanceof ApiError ? error.fieldError(path) : undefined;
 
   return (
-    <form onSubmit={onSubmit} className="space-y-4">
+    <form
+      onSubmit={onSubmit}
+      className="space-y-4"
+      onChange={(e) => {
+        const f = new FormData(e.currentTarget);
+        setWho([String(f.get('fullName') ?? ''), String(f.get('email') ?? '')]);
+      }}
+    >
       {error && <Alert>{typeof error === 'string' ? error : error.message}</Alert>}
       <TextInput
         label="Full name"
@@ -66,23 +75,17 @@ function RegisterForm() {
         required
         error={fieldError('email')}
       />
-      <TextInput
+      <PasswordInput
         label="Password"
         name="password"
-        type="password"
         autoComplete="new-password"
         minLength={PASSWORD_MIN_LENGTH}
         required
         hint={`At least ${PASSWORD_MIN_LENGTH} characters. A passphrase is easiest to remember.`}
         error={fieldError('password')}
+        strengthFor={who}
       />
-      <TextInput
-        label="Confirm password"
-        name="confirm"
-        type="password"
-        autoComplete="new-password"
-        required
-      />
+      <PasswordInput label="Confirm password" name="confirm" autoComplete="new-password" required />
       <Button type="submit" className="w-full" loading={pending}>
         Create account
       </Button>

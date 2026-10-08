@@ -333,6 +333,35 @@ describe('closing date', () => {
       .expect(200);
     expect(JSON.stringify(audit.body)).not.toContain('close-jan-2026');
   });
+
+  it('stops guessing the closing password after 5 wrong ones, and records each', async () => {
+    await owner.agent
+      .patch(`${base()}/ledger-settings`)
+      .send({ closingDate: '2025-12-31', closingPassword: 'close-2025-books' })
+      .expect(200);
+    const lines = [
+      { accountId: acct('Checking'), debit: '1' },
+      { accountId: acct('Sales'), credit: '1' },
+    ];
+    const post = (closingPassword: string) =>
+      owner.agent
+        .post(`${base()}/journal-entries`)
+        .send({ txnDate: '2025-12-15', lines, closingPassword });
+    // One wrong guess was made in the test above (January's password).
+    for (let i = 0; i < 4; i++) expect((await post(`guess-${i}`)).status).toBe(409);
+    const locked = await post('close-2025-books').expect(429);
+    expect(locked.body.code).toBe('CLOSING_PASSWORD_LOCKED');
+    // Changing the closing date is refused too while locked.
+    await owner.agent
+      .patch(`${base()}/ledger-settings`)
+      .send({ closingDate: null, currentClosingPassword: 'close-2025-books' })
+      .expect(429);
+    const audit = await owner.agent
+      .get(`${base()}/audit-log?action=ledger.closing_password_failed`)
+      .expect(200);
+    expect(audit.body.entries).toHaveLength(5);
+    expect(JSON.stringify(audit.body)).not.toContain('guess-');
+  });
 });
 
 describe('lists', () => {

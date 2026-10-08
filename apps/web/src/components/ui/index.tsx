@@ -1,9 +1,11 @@
 'use client';
 
+import { PASSWORD_STRENGTH_LABELS, passwordStrength } from '@acct/shared';
 import {
   forwardRef,
   useEffect,
   useId,
+  useState,
   type ButtonHTMLAttributes,
   type HTMLAttributes,
   type InputHTMLAttributes,
@@ -111,6 +113,78 @@ export const TextInput = forwardRef<
         className={cx(inputClass, error && 'border-red-400', className)}
         {...rest}
       />
+    </Field>
+  );
+});
+
+/**
+ * A password field with Show/Hide (ASVS 2.1.12) and, when `strengthFor` is given, a strength
+ * meter that counts the person's name and email against the password (ASVS 2.1.8).
+ */
+export const PasswordInput = forwardRef<
+  HTMLInputElement,
+  Omit<InputHTMLAttributes<HTMLInputElement>, 'type'> & {
+    label: string;
+    error?: string;
+    hint?: string;
+    strengthFor?: string[];
+  }
+>(function PasswordInput(
+  { label, error, hint, id, className, strengthFor, onChange, ...rest },
+  ref,
+) {
+  const autoId = useId();
+  const inputId = id ?? autoId;
+  const [shown, setShown] = useState(false);
+  const [value, setValue] = useState('');
+  const strength = strengthFor ? passwordStrength(value, strengthFor) : null;
+  return (
+    <Field label={label} error={error} hint={hint} htmlFor={inputId}>
+      <div className="relative">
+        <input
+          ref={ref}
+          id={inputId}
+          type={shown ? 'text' : 'password'}
+          aria-invalid={error ? true : undefined}
+          className={cx(inputClass, 'pr-16', error && 'border-red-400', className)}
+          onChange={(e) => {
+            setValue(e.target.value);
+            onChange?.(e);
+          }}
+          {...rest}
+        />
+        <button
+          type="button"
+          onClick={() => setShown((v) => !v)}
+          className="absolute inset-y-0 right-0 px-3 text-xs font-medium text-gray-600 hover:text-gray-900"
+          aria-pressed={shown}
+          aria-controls={inputId}
+        >
+          {shown ? 'Hide' : 'Show'}
+        </button>
+      </div>
+      {strength !== null && value && (
+        <div className="flex items-center gap-2 pt-1" data-testid="password-strength">
+          <div className="flex flex-1 gap-1" aria-hidden>
+            {[1, 2, 3, 4].map((n) => (
+              <span
+                key={n}
+                className={cx(
+                  'h-1.5 flex-1 rounded',
+                  n <= strength
+                    ? strength <= 1
+                      ? 'bg-red-500'
+                      : strength === 2
+                        ? 'bg-amber-500'
+                        : 'bg-green-600'
+                    : 'bg-gray-200',
+                )}
+              />
+            ))}
+          </div>
+          <span className="text-xs text-gray-600">{PASSWORD_STRENGTH_LABELS[strength]}</span>
+        </div>
+      )}
     </Field>
   );
 });

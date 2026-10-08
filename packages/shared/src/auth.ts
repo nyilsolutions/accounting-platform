@@ -36,9 +36,37 @@ export const totpCodeSchema = z.object({
     .regex(/^\d{6}$/, 'Enter the 6-digit code from your authenticator app'),
 });
 
+/** A 6-digit code, or a recovery code (`XXXX-XXXX-XXXX-XXXX-XXXX-XXXX`, or an older shorter one). */
 export const mfaVerifySchema = z.object({
-  code: z.string().trim().min(6).max(20),
+  code: z.string().trim().min(6).max(40),
 });
+
+/** Changing the password needs the current one; the session must have passed MFA recently. */
+export const changePasswordSchema = z
+  .object({
+    currentPassword: z.string().min(1).max(PASSWORD_MAX_LENGTH),
+    newPassword: passwordSchema,
+  })
+  .refine((v) => v.newPassword !== v.currentPassword, {
+    message: 'Choose a password different from the current one',
+    path: ['newPassword'],
+  });
+export type ChangePasswordInput = z.input<typeof changePasswordSchema>;
+
+/** An error code the API returns (403) when an action needs a fresh MFA code (step-up). */
+export const STEP_UP_REQUIRED = 'STEP_UP_REQUIRED';
+/** An error code the API returns (400) when a new password appears in known data breaches. */
+export const PASSWORD_BREACHED = 'PASSWORD_BREACHED';
+
+/** One of the signed-in user's sessions (Settings > Security). */
+export interface SessionDto {
+  id: string;
+  current: boolean;
+  ip: string | null;
+  userAgent: string | null;
+  createdAt: string;
+  lastSeenAt: string;
+}
 
 export interface MeDto {
   user: { id: string; email: string; fullName: string };

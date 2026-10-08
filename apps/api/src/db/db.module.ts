@@ -1,8 +1,9 @@
 import { Global, Inject, Module, type OnApplicationShutdown } from '@nestjs/common';
 import { createDb, type Db } from '@acct/db';
-import { LocalAesGcmEncryptor, type FieldEncryptor } from '@acct/crypto';
+import type { FieldEncryptor } from '@acct/crypto';
 import { inflightRequests } from '../common/inflight';
 import { APP_CONFIG, type AppConfig } from '../config';
+import { loadFieldEncryptor } from '../security/field-keys';
 
 export const DB = Symbol('DB');
 export const FIELD_ENCRYPTOR = Symbol('FIELD_ENCRYPTOR');
@@ -29,9 +30,10 @@ class DbShutdown implements OnApplicationShutdown {
     },
     {
       provide: FIELD_ENCRYPTOR,
-      inject: [APP_CONFIG],
-      useFactory: (config: AppConfig): FieldEncryptor =>
-        new LocalAesGcmEncryptor({ 1: config.FIELD_ENCRYPTION_KEY }, 1),
+      inject: [APP_CONFIG, DB],
+      // ADR 0029: the env key in development, or the keyring unwrapped once by KMS.
+      useFactory: (config: AppConfig, db: Db): Promise<FieldEncryptor> =>
+        loadFieldEncryptor(config, db),
     },
     DbShutdown,
   ],

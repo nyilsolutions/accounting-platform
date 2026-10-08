@@ -1,0 +1,7 @@
+# Known findings that are not secrets (ADR 0029): test fixtures and the development-only
+# key in .env.example. Add an entry only for a value that is not a real secret.
+51890da84843e8795d3e240021002652932cd132:packages/db/src/migration.test.ts:generic-api-key:139
+63b852bb26672303dde71ebcc2b4b387580bfa3a:apps/api/test/ledger.test.ts:generic-api-key:292
+63b852bb26672303dde71ebcc2b4b387580bfa3a:apps/api/test/ledger.test.ts:generic-api-key:316
+63b852bb26672303dde71ebcc2b4b387580bfa3a:apps/api/test/ledger.test.ts:generic-api-key:327
+f1b27d1891d8aadea7f14cfca42ca83b801f20cb:.env.example:generic-api-key:12

@@ -19,7 +19,8 @@
 - **Sessions:**
   - Opaque 256-bit tokens in an `HttpOnly`, `SameSite=Lax` cookie, with the `__Host-` prefix and
     `Secure` flag in production. Only the SHA-256 hash is stored.
-  - Idle timeout of 60 minutes and absolute timeout of 12 hours (configurable).
+  - Idle timeout of 60 minutes and absolute timeout of 12 hours (configurable). Updated by ADR
+    0029: 30 minutes idle by default, and at most 30 minutes and 12 hours in production.
   - The token is **rotated when MFA completes**, which prevents session fixation.
 - **Lockout:** 10 failed password/MFA attempts lock the account for 15 minutes. Auth endpoints also
   have per-IP rate limits.
@@ -30,5 +31,5 @@
 
 ## Future
 
-WebAuthn/passkeys, SSO (SAML/OIDC) for accounting firms, "remember this device", breached-password
-checks, and session management UI (list and revoke sessions).
+WebAuthn/passkeys (question 89), SSO (SAML/OIDC) for accounting firms and "remember this device".
+Breached-password checks and listing and revoking sessions were added in ADR 0029.

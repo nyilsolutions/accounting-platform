@@ -12,7 +12,12 @@ export default function CustomerSignInPage() {
   const [expired, setExpired] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  useEffect(() => setExpired(new URLSearchParams(location.search).has('expired')), []);
+  useEffect(() => {
+    const q = new URLSearchParams(location.search);
+    setExpired(q.has('expired'));
+    // An invitation opens this page with the customer's address filled in.
+    setEmail(q.get('email') ?? '');
+  }, []);
 
   return (
     <AuthCard
@@ -24,7 +29,7 @@ export default function CustomerSignInPage() {
           <p className="font-medium text-gray-900">Check your email</p>
           <p>
             If {email} is on file with a business here, we sent a link to sign in. It works once and
-            expires in 15 minutes.
+            expires in 10 minutes.
           </p>
         </div>
       ) : (

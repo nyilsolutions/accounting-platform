@@ -24,12 +24,13 @@ import {
   type DocumentUrlDto,
   type FolderDto,
   type UploadQuery,
+  withSafeExtension,
 } from '@acct/shared';
 import type { z } from 'zod';
 import type { documentSettingsSchema, folderInputSchema, updateDocumentSchema } from '@acct/shared';
 import { AuditService } from '../audit/audit.service';
 import type { AuthContext, CompanyContext, RequestMeta } from '../common/request';
-import { APP_CONFIG, type AppConfig } from '../config';
+import { APP_CONFIG, signingKey, type AppConfig } from '../config';
 import { DB } from '../db/db.module';
 import { JobQueue } from '../jobs/job-queue.service';
 import {
@@ -41,7 +42,12 @@ import {
   versionAad,
 } from './documents-common';
 import { FILE_URL_TTL_SECONDS, FileTokens } from './file-tokens';
-import { OBJECT_STORE, contentDisposition, type ObjectStore } from './storage/object-store';
+import {
+  OBJECT_STORE,
+  contentDisposition,
+  withCharset,
+  type ObjectStore,
+} from './storage/object-store';
 import { VIRUS_SCANNER, type VirusScanner } from './scanning/virus-scanner';
 import { extractText } from './text-extraction';
 
@@ -89,7 +95,7 @@ export class DocumentsService implements OnModuleInit {
     private readonly audit: AuditService,
     private readonly jobs: JobQueue,
   ) {
-    this.tokens = new FileTokens(config.FIELD_ENCRYPTION_KEY);
+    this.tokens = new FileTokens(signingKey(config));
   }
 
   /** The daily 'documents.purge' job (ADR 0027): every company with deleted documents. */
@@ -875,6 +881,40 @@ export class DocumentsService implements OnModuleInit {
               due.rows.map((r) => r.id),
             )
             .execute();
+          // What was read from the files, and the text search built from them, go too
+          // (ASVS 8.3.8). The name, the history and the audit trail stay.
+          const docIds = [...new Set(due.rows.map((r) => r.document_id))];
+          await tx
+            .updateTable('document_extractions')
+            .set({ result: null })
+            .where('company_id', '=', ctx.companyId)
+            .where('document_id', 'in', docIds)
+            .where(({ exists, selectFrom }) =>
+              exists(
+                selectFrom('document_versions as v')
+                  .select('v.id')
+                  .whereRef('v.document_id', '=', 'document_extractions.document_id')
+                  .whereRef('v.version', '=', 'document_extractions.version')
+                  .where('v.purged_at', 'is not', null),
+              ),
+            )
+            .execute();
+          await tx
+            .updateTable('documents')
+            .set({ search_vector: sql`null`, email_from: null, email_subject: null })
+            .where('company_id', '=', ctx.companyId)
+            .where('id', 'in', docIds)
+            .where(({ not, exists, selectFrom }) =>
+              not(
+                exists(
+                  selectFrom('document_versions as v')
+                    .select('v.id')
+                    .whereRef('v.document_id', '=', 'documents.id')
+                    .where('v.purged_at', 'is', null),
+                ),
+              ),
+            )
+            .execute();
         }
         // The daily job leaves no trace when nothing was due; an admin's run always does.
         if (!due.rows.length && !userId) return;
@@ -930,16 +970,17 @@ export class DocumentsService implements OnModuleInit {
         },
         meta,
       );
+      const fileName = withSafeExtension(v.file_name, v.content_type);
       const direct = this.store.presignGet(v.storage_key, {
         expiresIn: FILE_URL_TTL_SECONDS,
-        fileName: v.file_name,
+        fileName,
         contentType: v.content_type,
         disposition: inline,
       });
       return {
         url:
           direct ??
-          `/api/files/${this.tokens.sign({ companyId: ctx.companyId, versionId: v.id, disposition: inline, exp })}/${encodeURIComponent(v.file_name)}`,
+          `/api/files/${this.tokens.sign({ companyId: ctx.companyId, versionId: v.id, disposition: inline, exp })}/${encodeURIComponent(fileName)}`,
         expiresAt: new Date(exp * 1000).toISOString(),
       };
     });
@@ -962,9 +1003,12 @@ export class DocumentsService implements OnModuleInit {
     return {
       data,
       headers: {
-        'content-type': v.content_type,
+        'content-type': withCharset(v.content_type),
         'content-length': String(data.length),
-        'content-disposition': contentDisposition(t.disposition, v.file_name),
+        'content-disposition': contentDisposition(
+          t.disposition,
+          withSafeExtension(v.file_name, v.content_type),
+        ),
         'cache-control': 'private, no-store',
         'x-content-type-options': 'nosniff',
         // Files never run script, even if a browser were tricked into rendering one.
@@ -1000,6 +1044,7 @@ export class DocumentsService implements OnModuleInit {
           'v.scan_status',
           'v.purged_at',
           'v.file_name',
+          'v.content_type',
         ])
         .where('d.company_id', '=', ctx.companyId)
         .where('d.id', 'in', ids)
@@ -1023,9 +1068,9 @@ export class DocumentsService implements OnModuleInit {
         keyEnc: r.key_enc,
         aad: versionAad(r.version_id),
       });
-      files[uniqueName(r.name, used)] = [
+      files[uniqueName(withSafeExtension(r.name, r.content_type), used)] = [
         new Uint8Array(data),
-        { level: /\.(pdf|jpe?g|png|gif|webp|zip|docx|xlsx|pptx|heic)$/i.test(r.file_name) ? 0 : 6 },
+        { level: r.content_type.startsWith('text/') ? 6 : 0 },
       ];
     }
     await withTenant(this.db, actor, (tx) =>

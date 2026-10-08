@@ -35,6 +35,7 @@ import { CompanyAccessGuard } from '../companies/company-access.guard';
 import { renderReport } from '../reports/export/render';
 import { PriorPayrollService } from './prior-payroll.service';
 import { TaxFormsService } from './tax-forms.service';
+import { RequireRecentMfa } from '../auth/recent-mfa.guard';
 
 type Parsed<T extends { parse: (v: unknown) => unknown }> = ReturnType<T['parse']>;
 type FormQuery = Parsed<typeof taxFormQuerySchema>;
@@ -224,6 +225,7 @@ export class PayrollFormsController {
   }
 
   /** The state wage detail with full SSNs, as CSV. Never stored; the export is audited. */
+  @RequireRecentMfa()
   @Post('forms/state-quarterly/wage-detail')
   @RequirePermission('payroll.sensitive.reveal')
   async wageDetail(

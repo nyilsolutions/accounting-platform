@@ -430,6 +430,20 @@ describe('customers paying invoices', () => {
     expect(recorded.paymentTxnId).not.toBeNull();
   });
 
+  it('limits how many checkouts one link starts in an hour', async () => {
+    const inv = await invoice('15', 'INV-15');
+    const { url } = await call<{ url: string }>(
+      owner,
+      'post',
+      `/sales/invoices/${inv.id}/pay-link`,
+      {},
+      200,
+    );
+    const token = url.split('/pay/')[1]!;
+    for (let i = 0; i < 10; i++) await checkout(token);
+    await checkout(token, 429);
+  });
+
   it('refuses foreign-currency invoices and stops links when Stripe is disconnected', async () => {
     const inv = await invoice('20', 'INV-20');
     const { url } = await call<{ url: string }>(

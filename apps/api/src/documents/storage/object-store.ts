@@ -35,6 +35,11 @@ export interface ObjectStore {
   ): string | null;
 }
 
+/** Text is served as UTF-8 so a browser never guesses another charset (ASVS 14.4.1). */
+export function withCharset(contentType: string): string {
+  return contentType.startsWith('text/') ? `${contentType}; charset=utf-8` : contentType;
+}
+
 /** RFC 6266 Content-Disposition with an ASCII fallback and the UTF-8 name. */
 export function contentDisposition(disposition: 'inline' | 'attachment', fileName: string): string {
   const ascii = fileName.replace(/[^\x20-\x7e]/g, '_').replace(/["\\]/g, '_');
@@ -208,7 +213,7 @@ export class S3ObjectStore implements ObjectStore {
       'response-content-disposition',
       contentDisposition(opts.disposition, opts.fileName),
     );
-    url.searchParams.set('response-content-type', opts.contentType);
+    url.searchParams.set('response-content-type', withCharset(opts.contentType));
     return presignUrl({
       method: 'GET',
       url,

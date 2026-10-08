@@ -47,6 +47,7 @@ import { CompanyAccessGuard } from '../companies/company-access.guard';
 import { EmployeesService } from './employees.service';
 import { PayrollLookupsService } from './payroll-lookups.service';
 import { PayrollSetupService } from './payroll-setup.service';
+import { RequireRecentMfa } from '../auth/recent-mfa.guard';
 
 type Parsed<T extends { parse: (v: unknown) => unknown }> = ReturnType<T['parse']>;
 
@@ -344,6 +345,7 @@ export class PayrollController {
     return this.employees.save(a, c, id, body, meta);
   }
 
+  @RequireRecentMfa()
   @Post('employees/:id/reveal-ssn')
   @RequirePermission('payroll.sensitive.reveal')
   revealSsn(
@@ -404,6 +406,7 @@ export class PayrollController {
     return this.employees.removeStateCertificate(a, c, id, certificateId, meta);
   }
 
+  @RequireRecentMfa()
   @Put('employees/:id/bank-accounts')
   @RequirePermission('payroll.manage')
   setBankAccounts(

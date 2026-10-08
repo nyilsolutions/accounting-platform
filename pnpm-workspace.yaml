@@ -5,3 +5,8 @@ packages:
 onlyBuiltDependencies:
   - '@swc/core'
   - '@nestjs/core'
+
+# Patched versions of transitive dependencies with advisories (pnpm audit in CI, ADR 0029).
+overrides:
+  source-map-js: '>=1.2.2'
+  hyperid>uuid: '^11.1.1'

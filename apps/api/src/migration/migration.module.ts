@@ -29,6 +29,7 @@ export function createQboApi(config: AppConfig): QboApi | null {
       clientSecret: 'mock',
       redirectUri,
       minorVersion: config.QBO_MINOR_VERSION,
+      maxDownloadBytes: config.MAX_UPLOAD_MB * 1024 * 1024,
       fetch: mockIntuitFetch(mockQboCompany()),
       sleep: () => Promise.resolve(),
       mockRealmId: MOCK_REALM_ID,
@@ -40,6 +41,7 @@ export function createQboApi(config: AppConfig): QboApi | null {
     clientSecret: config.QBO_CLIENT_SECRET!,
     redirectUri,
     minorVersion: config.QBO_MINOR_VERSION,
+    maxDownloadBytes: config.MAX_UPLOAD_MB * 1024 * 1024,
   });
 }
 

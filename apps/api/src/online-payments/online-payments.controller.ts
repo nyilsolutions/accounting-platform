@@ -33,6 +33,7 @@ import { CompanyAccessGuard } from '../companies/company-access.guard';
 import { OnlinePaymentsService } from './online-payments.service';
 import { PaymentEventsService } from './payment-events.service';
 import { PublicPayService } from './public-pay.service';
+import { RequireRecentMfa } from '../auth/recent-mfa.guard';
 
 type Parsed<T extends { parse: (v: unknown) => unknown }> = ReturnType<T['parse']>;
 
@@ -56,6 +57,7 @@ export class OnlinePaymentsController {
     return this.service.settings(a, c);
   }
 
+  @RequireRecentMfa()
   @Post('online-payments/connect')
   @HttpCode(200)
   @RequirePermission('company.settings.manage')

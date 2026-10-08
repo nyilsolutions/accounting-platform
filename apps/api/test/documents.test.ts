@@ -165,6 +165,15 @@ describe('downloading', () => {
     expect(res.headers['cache-control']).toBe('private, no-store');
   });
 
+  it('downloads a file only under an extension matching its type, text as UTF-8', async () => {
+    const hta = await upload(owner, 'Invoice.hta', Buffer.from('<b>not a page</b> just text'));
+    const link = (await owner.agent.get(`${base()}/documents/${hta.id}/url`).expect(200)).body;
+    expect(link.url).toMatch(/\/Invoice\.hta\.txt$/);
+    const res = await request(server()).get(apiPath(link.url)).expect(200);
+    expect(res.headers['content-type']).toBe('text/plain; charset=utf-8');
+    expect(res.headers['content-disposition']).toMatch(/^attachment; filename="Invoice\.hta\.txt"/);
+  });
+
   it('rejects forged links and other companies', async () => {
     const link = (await owner.agent.get(`${base()}/documents/${doc.id}/url`).expect(200)).body;
     const forged = apiPath(link.url).replace(/\/files\/([^/]+)/, (_m, t: string) => `/files/${t}x`);
@@ -520,6 +529,9 @@ describe('deleting and retention', () => {
     await owner.agent.post(`${base()}/documents/${doc.id}/restore`).expect(204);
     await owner.agent.delete(`${base()}/documents/${doc.id}`).expect(204);
 
+    const found = async () =>
+      (await list({ deleted: 'true', search: 'Old receipt' })).documents.map((d) => d.id);
+    expect(await found()).toContain(doc.id);
     // Nothing is purged inside the retention period…
     expect((await owner.agent.post(`${base()}/documents/purge`).expect(200)).body).toEqual({
       purged: 0,
@@ -542,6 +554,8 @@ describe('deleting and retention', () => {
     const purged: DocumentDto = (await owner.agent.get(`${base()}/documents/${doc.id}`).expect(200))
       .body;
     expect(purged.current.purged).toBe(true);
+    // The text read from it can't be searched any more either.
+    expect(await found()).not.toContain(doc.id);
     await owner.agent.post(`${base()}/documents/${doc.id}/restore`).expect(409);
     const audit = await owner.agent.get(`${base()}/audit-log?action=document.deleted`).expect(200);
     expect(audit.body.entries.length).toBeGreaterThanOrEqual(2);

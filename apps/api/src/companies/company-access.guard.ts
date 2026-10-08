@@ -13,6 +13,7 @@ import { REQUIRED_PERMISSION } from '../common/decorators';
 import type { AppRequest } from '../common/request';
 import { isUuid } from '../common/uuid.pipe';
 import { DB } from '../db/db.module';
+import { securityEvent } from '../observability/security-log';
 
 /**
  * Resolves `:companyId`, checks the signed-in user is a member, and enforces @RequirePermission.
@@ -38,7 +39,10 @@ export class CompanyAccessGuard implements CanActivate {
         .where('user_id', '=', req.auth!.userId)
         .executeTakeFirst(),
     );
-    if (!membership) throw new NotFoundException('Company not found');
+    if (!membership) {
+      securityEvent('access.not_member', { companyId, path: req.route?.path ?? null });
+      throw new NotFoundException('Company not found');
+    }
 
     const role = membership.role as Role;
     req.company = { companyId: companyId.toLowerCase(), role, permissions: ROLE_PERMISSIONS[role] };
@@ -48,6 +52,12 @@ export class CompanyAccessGuard implements CanActivate {
       [context.getHandler(), context.getClass()],
     );
     if (required && !required.some((p) => req.company!.permissions.includes(p))) {
+      securityEvent('access.forbidden', {
+        companyId,
+        role,
+        needs: required.join('|'),
+        path: req.route?.path ?? null,
+      });
       throw new ForbiddenException('You do not have permission to do this');
     }
     return true;

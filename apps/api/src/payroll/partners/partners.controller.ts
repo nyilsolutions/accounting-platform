@@ -26,6 +26,7 @@ import { PayRunsService } from '../pay-runs.service';
 import { DepositPartnerService } from './deposit-partner.service';
 import { EftpsService } from './eftps.service';
 import { PartnersPollerService } from './partners-poller.service';
+import { RequireRecentMfa } from '../../auth/recent-mfa.guard';
 
 type Parsed<T extends { parse: (v: unknown) => unknown }> = ReturnType<T['parse']>;
 
@@ -77,6 +78,7 @@ export class PayrollPartnersController {
   }
 
   // --- EFTPS ------------------------------------------------------------------------------------
+  @RequireRecentMfa()
   @Post('eftps/enrollment')
   @RequirePermission('payroll.manage')
   enroll(

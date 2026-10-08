@@ -1,6 +1,7 @@
 import type { FieldEncryptor } from '@acct/crypto';
 import type { Tx } from '@acct/db';
 import { bad } from './payroll-common';
+import { einAad } from '../security/aad';
 
 /** The origination details for ACH files: the ODFI and the company as the bank knows it. */
 export async function achOrigin(tx: Tx, companyId: string, encryptor: FieldEncryptor) {
@@ -26,7 +27,7 @@ export async function achOrigin(tx: Tx, companyId: string, encryptor: FieldEncry
     if (!s.ein_enc) {
       throw bad('achCompanyId', 'Enter the company ID your bank assigned, or the company EIN');
     }
-    const ein = encryptor.decrypt(s.ein_enc, `company:${companyId}:ein`);
+    const ein = encryptor.decrypt(s.ein_enc, einAad(companyId));
     companyAchId = `1${ein.replace(/-/g, '')}`;
   }
   const companyName = s.ach_company_name ?? s.legal_name;

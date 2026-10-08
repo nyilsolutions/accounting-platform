@@ -12,6 +12,7 @@ import { UuidPipe } from '../common/uuid.pipe';
 import { ZodPipe } from '../common/zod.pipe';
 import { CompaniesService } from './companies.service';
 import { CompanyAccessGuard } from './company-access.guard';
+import { RequireRecentMfa } from '../auth/recent-mfa.guard';
 
 @Controller('companies')
 export class CompaniesController {
@@ -68,6 +69,7 @@ export class CompaniesController {
     return this.companies.update(auth, company, body, meta);
   }
 
+  @RequireRecentMfa()
   @Post(':companyId/reveal-ein')
   @HttpCode(200)
   @UseGuards(CompanyAccessGuard)

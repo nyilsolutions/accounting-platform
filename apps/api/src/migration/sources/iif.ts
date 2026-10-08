@@ -97,7 +97,8 @@ function address(r: Record<string, string>, prefix: string, name: string, compan
   let postalCode: string | null = null;
   const street: string[] = [];
   for (const l of lines) {
-    const m = /^(.*?),?\s+([A-Za-z]{2})\s+(\d{5}(?:-\d{4})?)$/.exec(l);
+    // Address lines are short; a long one is street text (and the regex stays cheap).
+    const m = l.length <= 200 ? /^(.*?),?\s+([A-Za-z]{2})\s+(\d{5}(?:-\d{4})?)$/.exec(l) : null;
     if (m && !city) {
       city = m[1]!.replace(/,$/, '').trim();
       state = m[2]!.toUpperCase();

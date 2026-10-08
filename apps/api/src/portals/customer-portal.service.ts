@@ -38,12 +38,14 @@ export interface CustomerSession {
   customerId: string;
 }
 
-const LINK_MINUTES = 15;
+/** Sign-in links last 10 minutes (ASVS 2.7.2) and are sent at most once a minute per customer. */
+const LINK_MINUTES = 10;
+const LINK_COOLDOWN_SECONDS = 60;
 const SESSION_HOURS = 12;
 
 /**
  * The customer portal (ADR 0023). Customers sign in with a one-time link emailed to the address
- * on their customer record (15 minutes, single use), which opens a session for that customer
+ * on their customer record (10 minutes, single use), which opens a session for that customer
  * only (its own cookie, never the staff session). They see their invoices and statement, pay
  * online through 10e's pay links, and accept or decline estimates sent to them.
  */
@@ -78,32 +80,48 @@ export class CustomerPortalService {
     const links: string[] = [];
     for (const c of found.rows) {
       const token = generateToken();
-      await withTenant(this.db, { userId: null, companyId: c.company_id }, async (tx) => {
-        await tx
-          .insertInto('customer_portal_tokens')
-          .values({
-            company_id: c.company_id,
-            customer_id: c.customer_id,
-            token_hash: sha256(token),
-            expires_at: new Date(Date.now() + LINK_MINUTES * 60_000),
-          })
-          .execute();
-        await this.audit.record(
-          tx,
-          {
-            companyId: c.company_id,
-            actorUserId: null,
-            action: 'customer_portal.link_sent',
-            entityType: 'customer',
-            entityId: c.customer_id,
-          },
-          meta,
-        );
-      });
+      const sent = await withTenant(
+        this.db,
+        { userId: null, companyId: c.company_id },
+        async (tx) => {
+          // Asking again within a minute sends nothing, so the form can't flood an inbox.
+          const recent = await tx
+            .selectFrom('customer_portal_tokens')
+            .select('id')
+            .where('company_id', '=', c.company_id)
+            .where('customer_id', '=', c.customer_id)
+            .where('created_at', '>', new Date(Date.now() - LINK_COOLDOWN_SECONDS * 1000))
+            .executeTakeFirst();
+          if (recent) return false;
+          await tx
+            .insertInto('customer_portal_tokens')
+            .values({
+              company_id: c.company_id,
+              customer_id: c.customer_id,
+              token_hash: sha256(token),
+              expires_at: new Date(Date.now() + LINK_MINUTES * 60_000),
+            })
+            .execute();
+          await this.audit.record(
+            tx,
+            {
+              companyId: c.company_id,
+              actorUserId: null,
+              action: 'customer_portal.link_sent',
+              entityType: 'customer',
+              entityId: c.customer_id,
+            },
+            meta,
+          );
+          return true;
+        },
+      );
+      if (!sent) continue;
       links.push(
         `${c.company_name}${found.rows.length > 1 ? ` (${c.customer_name})` : ''}: ${this.config.WEB_ORIGIN}/portal/customer/sign-in/${token}`,
       );
     }
+    if (links.length === 0) return;
     await this.mailer.send({
       to: email,
       subject: `Your sign-in link for ${found.rows.length === 1 ? found.rows[0]!.company_name : 'your accounts'}`,
@@ -117,14 +135,17 @@ export class CustomerPortalService {
     });
   }
 
-  /** The business emails a customer a sign-in link to its portal (from the customer's page). */
+  /**
+   * The business invites a customer to its portal (from the customer's page). The email carries
+   * no credential: it opens the sign-in page for the customer's address, which sends a 10-minute
+   * link (ASVS 2.7.2), so a forwarded or old invitation opens nothing by itself.
+   */
   async inviteCustomer(
     auth: { userId: string; fullName: string },
     companyId: string,
     customerId: string,
     meta: RequestMeta,
   ): Promise<{ email: string }> {
-    const token = generateToken();
     const { email, companyName } = await withTenant(
       this.db,
       { userId: auth.userId, companyId },
@@ -136,17 +157,8 @@ export class CustomerPortalService {
           .where('id', '=', customerId)
           .executeTakeFirst();
         if (!c) throw new NotFoundException('Customer not found');
+        if (!c.is_active) throw new ConflictException('This customer is inactive.');
         if (!c.email) throw new ConflictException("Add the customer's email first.");
-        await tx
-          .insertInto('customer_portal_tokens')
-          .values({
-            company_id: companyId,
-            customer_id: customerId,
-            token_hash: sha256(token),
-            // An invitation is good for a week; links the customer asks for, 15 minutes.
-            expires_at: new Date(Date.now() + 7 * 86_400_000),
-          })
-          .execute();
         await this.audit.record(
           tx,
           {
@@ -173,9 +185,9 @@ export class CustomerPortalService {
       text: [
         `${companyName} invited you to see your invoices, statement and estimates online, and to pay invoices by card or bank transfer.`,
         '',
-        `Open your account: ${this.config.WEB_ORIGIN}/portal/customer/sign-in/${token}`,
+        `Open your account: ${this.config.WEB_ORIGIN}/portal/customer?email=${encodeURIComponent(email)}`,
         '',
-        `This link works once and expires in 7 days. Later, ask for a new link at ${this.config.WEB_ORIGIN}/portal/customer with this email address.`,
+        `We'll email a sign-in link to ${email}; it works once, for ${LINK_MINUTES} minutes.`,
       ].join('\n'),
     });
     return { email };

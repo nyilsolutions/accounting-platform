@@ -2,11 +2,13 @@ import {
   BadRequestException,
   ConflictException,
   Injectable,
+  Optional,
   NotFoundException,
 } from '@nestjs/common';
 import { verifyPassword } from '@acct/crypto';
 import { sql, type Tx } from '@acct/db';
 import { moneyToString, parseMoney, type Money } from '@acct/shared';
+import { ClosingPasswordAttempts } from './closing-password-attempts';
 
 export interface PostingLine {
   accountId: string;
@@ -169,6 +171,9 @@ function rowToLine(r: {
  */
 @Injectable()
 export class PostingService {
+  /** Absent only where the seed builds the service by hand. */
+  constructor(@Optional() private readonly attempts?: ClosingPasswordAttempts) {}
+
   async create(
     tx: Tx,
     ctx: PostingContext,
@@ -461,10 +466,12 @@ export class PostingService {
         closingDate: company.closing_date,
       });
     }
+    await this.attempts?.assertNotLocked(ctx.companyId, ctx.userId);
     if (
       !company.closing_password_hash ||
       !(await verifyPassword(company.closing_password_hash, ctx.closingPassword))
     ) {
+      await this.attempts?.recordFailure(ctx.companyId, ctx.userId);
       throw new ConflictException({
         statusCode: 409,
         message: 'The closing date password is incorrect.',

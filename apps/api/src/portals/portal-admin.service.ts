@@ -156,6 +156,13 @@ export class PortalAdminService {
   }
 
   links(auth: AuthContext, ctx: CompanyContext): Promise<PortalLinkDto[]> {
+    // Employee access is a payroll matter and contractor access a purchases one: each list shows
+    // only the people the caller may see (ASVS 4.1.3).
+    const kinds = [
+      ...(ctx.permissions.includes('payroll.view') ? (['employee'] as const) : []),
+      ...(ctx.permissions.includes('purchases.view') ? (['contractor'] as const) : []),
+    ];
+    if (kinds.length === 0) return Promise.resolve([]);
     return withTenant(this.db, { userId: auth.userId, companyId: ctx.companyId }, async (tx) => {
       const rows = await tx
         .selectFrom('portal_links as l')
@@ -178,6 +185,7 @@ export class PortalAdminService {
           'u.full_name',
         ])
         .where('l.company_id', '=', ctx.companyId)
+        .where('l.kind', 'in', kinds)
         .orderBy('l.created_at', 'desc')
         .limit(500)
         .execute();

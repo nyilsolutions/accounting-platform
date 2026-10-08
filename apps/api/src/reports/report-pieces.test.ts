@@ -148,6 +148,8 @@ describe('exports', () => {
     const csv = reportToCsv(report);
     expect(csv).toContain(`"  '=cmd|""/c calc""",1234.50,12.50`);
     expect(csv).toContain('Net Income,-1234.50,');
+    // A memorized report's name is the title: it is people's text too.
+    expect(reportToCsv({ ...report, title: '@SUM(1+1)' }).split('\r\n')[1]).toBe("'@SUM(1+1)");
     expect(csv).toContain('"A note, with ""quotes"""');
   });
 

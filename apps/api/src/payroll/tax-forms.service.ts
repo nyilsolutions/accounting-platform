@@ -20,6 +20,7 @@ import {
   type Vendor1099SummaryDto,
   type W2FormsDto,
   type taxFilingInputSchema,
+  safeCell,
 } from '@acct/shared';
 import type { z } from 'zod';
 import { AuditService } from '../audit/audit.service';
@@ -137,7 +138,11 @@ export class TaxFormsService {
         for (const r of rows)
           ssns.set(r.id, r.ssn_enc ? this.encryptor.decrypt(r.ssn_enc, ssnAad(r.id)) : null);
       }
-      const cell = (v: string) => (/[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v);
+      // Names come from people: no spreadsheet formulas (safeCell), then CSV quoting.
+      const cell = (raw: string) => {
+        const v = safeCell(raw);
+        return /[",\r\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v;
+      };
       const lines = [
         ['SSN', 'Employee', 'Total wages', 'Excess wages', 'Taxable wages', 'Tax'].join(','),
         ...dto.unemployment.employees.map((e) =>

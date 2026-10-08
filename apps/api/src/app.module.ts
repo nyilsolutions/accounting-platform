@@ -28,6 +28,7 @@ import { ReportsModule } from './reports/reports.module';
 import { SalesModule } from './sales/sales.module';
 import { SalesTaxModule } from './sales-tax/sales-tax.module';
 import { TimeModule } from './time/time.module';
+import { DataExportModule } from './data-export/data-export.module';
 
 @Module({})
 export class AppModule {
@@ -69,6 +70,7 @@ export class AppModule {
         DocumentsModule,
         MigrationModule,
         PayrollModule,
+        DataExportModule,
       ],
       controllers: [HealthController],
       providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],

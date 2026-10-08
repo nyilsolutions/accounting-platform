@@ -8,6 +8,8 @@ export interface AuthContext {
   fullName: string;
   mfaEnrolled: boolean;
   mfaVerified: boolean;
+  /** When this session last passed an MFA code (sign-in or step-up), for sensitive actions. */
+  mfaVerifiedAt?: Date | null;
 }
 
 export interface CompanyContext {

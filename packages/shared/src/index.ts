@@ -28,3 +28,6 @@ export * from './online-payments';
 export * from './portals';
 export * from './efile';
 export * from './payroll-partners';
+export * from './redirect';
+export * from './password-strength';
+export * from './data-export';

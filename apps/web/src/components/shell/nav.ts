@@ -320,6 +320,13 @@ export const NAV: NavItem[] = [
     permission: 'audit.view',
     section: 'settings',
   },
+  {
+    key: 'data-export',
+    label: 'Export all data',
+    path: '/settings/data-export',
+    permission: 'company.settings.manage',
+    section: 'settings',
+  },
 ];
 
 /** Placeholder content for modules delivered in later phases (see CLAUDE.md phase plan). */

@@ -195,10 +195,21 @@ function leaf(block: string, tag: string): string | null {
   return v === '' ? null : v;
 }
 
+/**
+ * The contents of each `<TAG>…</TAG>`. A linear scan: a lazy regex rescans to the end of the file
+ * for every opening tag without a close, which a crafted file can make quadratic.
+ */
 function blocks(content: string, tag: string): string[] {
   const out: string[] = [];
-  const re = new RegExp(`<${tag}>([\\s\\S]*?)</${tag}>`, 'gi');
-  for (let m = re.exec(content); m; m = re.exec(content)) out.push(m[1]!);
+  const open = new RegExp(`<${tag}>`, 'gi');
+  const close = new RegExp(`</${tag}>`, 'gi');
+  for (let m = open.exec(content); m; m = open.exec(content)) {
+    close.lastIndex = open.lastIndex;
+    const end = close.exec(content);
+    if (!end) break;
+    out.push(content.slice(open.lastIndex, end.index));
+    open.lastIndex = close.lastIndex;
+  }
   return out;
 }
 
