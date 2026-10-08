@@ -224,6 +224,7 @@ export const ACCOUNT_TYPE_INFO: Record<AccountType, AccountTypeInfo> = {
       'Depreciation',
       'Amortization',
       'Penalties & Settlements',
+      'Exchange Gain or Loss',
       'Other Miscellaneous Expense',
     ],
   },
@@ -243,6 +244,7 @@ export const SYSTEM_ROLES = [
   'payroll_expenses',
   'cost_of_goods_sold',
   'inventory_asset',
+  'exchange_gain_loss',
 ] as const;
 export type SystemRole = (typeof SYSTEM_ROLES)[number];
 
@@ -306,6 +308,9 @@ export interface AccountDto {
   /** Balance as of today for balance-sheet accounts (normal-balance sign); null for P&L accounts. */
   balance: string | null;
   hasTransactions: boolean;
+  /** Foreign-currency A/R and A/P accounts (ADR 0020): the currency and the balance in it. */
+  currency: string | null;
+  foreignBalance: string | null;
 }
 
 // ---------------------------------------------------------------------------------------------

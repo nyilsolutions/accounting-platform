@@ -22,3 +22,4 @@ export * from './report-export';
 export * from './payroll';
 export * from './inventory';
 export * from './time';
+export * from './currency';

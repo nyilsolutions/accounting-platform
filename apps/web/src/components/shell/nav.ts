@@ -101,6 +101,13 @@ export const NAV: NavItem[] = [
     section: 'main',
   },
   {
+    key: 'currencies',
+    label: 'Exchange rates and revaluation',
+    path: '/accounting/currencies',
+    permission: 'ledger.view',
+    section: 'hidden',
+  },
+  {
     key: 'journal',
     label: 'New journal entry',
     path: '/accounting/journal-entries/new',

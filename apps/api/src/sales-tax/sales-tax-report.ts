@@ -63,7 +63,9 @@ export async function salesTaxLiabilityReport(
         and t.txn_type in ('invoice', 'sales_receipt', 'credit_memo', 'refund_receipt')
         and t.txn_date between ${from} and ${q.to}
     )
-    select (select sum(d.sign * sl.amount) from docs d join sales_lines sl on sl.transaction_id = d.id) as total,
+    select (select sum(d.sign * round(sl.amount * coalesce(t.exchange_rate, 1), 2))
+            from docs d join sales_lines sl on sl.transaction_id = d.id
+            join transactions t on t.id = d.id) as total,
            (select sum(x.taxable) from (
               select distinct on (stl.transaction_id) stl.taxable_amount as taxable
               from sales_tax_lines stl join docs d on d.id = stl.transaction_id

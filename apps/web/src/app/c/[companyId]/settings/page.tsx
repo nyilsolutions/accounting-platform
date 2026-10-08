@@ -4,6 +4,7 @@ import { useParams } from 'next/navigation';
 import { useQueryClient } from '@tanstack/react-query';
 import type { CompanyDto } from '@acct/shared';
 import { CompanyForm } from '@/components/company/company-form';
+import { CurrencySettingsCard } from '@/components/currency/currency-settings-card';
 import { DocumentSettingsCard } from '@/components/documents/document-settings-card';
 import { LedgerSettingsCard } from '@/components/ledger/ledger-settings-card';
 import { Card, PageHeader, Spinner } from '@/components/ui';
@@ -57,6 +58,9 @@ export default function CompanySettingsPage() {
       </Card>
       <div className="mt-6">
         <LedgerSettingsCard companyId={companyId} canEdit={canEdit} />
+      </div>
+      <div className="mt-6">
+        <CurrencySettingsCard companyId={companyId} canEdit={canEdit} />
       </div>
       {access.can('documents.view') && (
         <div className="mt-6">

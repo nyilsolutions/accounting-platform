@@ -4,7 +4,14 @@ import Link from 'next/link';
 import { useParams, useSearchParams } from 'next/navigation';
 import { Suspense, useEffect, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { formatMoney, todayIso, type BillPaymentDto, type OpenBillDto } from '@acct/shared';
+import {
+  formatCurrency,
+  formatMoney,
+  tryParseMoney,
+  todayIso,
+  type BillPaymentDto,
+  type OpenBillDto,
+} from '@acct/shared';
 import { useClosingPassword } from '@/components/ledger/closing-password';
 import { AccountSelect, OptionSelect } from '@/components/ledger/pickers';
 import {
@@ -75,6 +82,16 @@ function PayBills() {
   if (!ready) return <Spinner />;
   const items = open.data ?? [];
   const { total, byVendor } = paymentTotals(items, applied);
+  // Foreign-currency bills (ADR 0020) are paid at the rate on file for the payment date; the
+  // total is shown per currency.
+  const byCurrency = new Map<string, bigint>();
+  for (const i of items) {
+    const v = tryParseMoney(applied[i.id] ?? '') ?? 0n;
+    if (!v) continue;
+    const c = i.currency ?? 'USD';
+    byCurrency.set(c, (byCurrency.get(c) ?? 0n) + (i.txnType === 'bill' ? v : -v));
+  }
+  const mixed = [...byCurrency.keys()].some((c) => c !== 'USD');
 
   async function submit() {
     setError(null);
@@ -199,8 +216,17 @@ function PayBills() {
         <div className="text-sm text-gray-600">
           {byVendor.size > 0 && `${byVendor.size} payment${byVendor.size === 1 ? '' : 's'} · `}
           <span className="font-semibold text-gray-900" data-testid="pay-bills-total">
-            Total payment ${formatMoney(total)}
+            {mixed
+              ? `Total payment ${[...byCurrency.entries()]
+                  .map(([c, v]) => formatCurrency(v, c === 'USD' ? null : c))
+                  .join(' + ')}`
+              : `Total payment $${formatMoney(total)}`}
           </span>
+          {mixed && (
+            <span className="ml-2 text-xs">
+              Foreign-currency bills are paid at the rate on file for the payment date.
+            </span>
+          )}
         </div>
         <Button
           onClick={submit}

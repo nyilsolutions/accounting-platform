@@ -4,7 +4,9 @@ import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 
 import { useQuery } from '@tanstack/react-query';
 import {
   dueDateFromTerms,
+  formatCurrency,
   formatMoney,
+  moneyToString,
   parseMoney,
   todayIso,
   type AccountType,
@@ -12,6 +14,7 @@ import {
   type PurchaseDocumentDto,
   type PurchaseDocumentInput,
 } from '@acct/shared';
+import { CurrencyTag, ExchangeRateField } from '@/components/currency/currency-fields';
 import { AccountSelect, OptionSelect } from '@/components/ledger/pickers';
 import { formErrorText } from '@/components/sales/sales-document-form';
 import {
@@ -133,6 +136,7 @@ export function PurchaseDocumentForm({
   );
 
   const [vendorId, setVendorId] = useState(initial?.vendorId ?? defaultVendor?.id ?? '');
+  const [exchangeRate, setExchangeRate] = useState(initial?.exchangeRate ?? '');
   const [termsId, setTermsId] = useState(initial?.termsId ?? defaultVendor?.termsId ?? '');
   const [txnDate, setTxnDate] = useState(initial?.txnDate ?? prefill?.txnDate ?? todayIso());
   const [dueDate, setDueDate] = useState(initial?.dueDate ?? prefill?.dueDate ?? '');
@@ -207,6 +211,11 @@ export function PurchaseDocumentForm({
   const fieldError = (path: string) =>
     error instanceof ApiError ? error.fieldError(path) : undefined;
   const total = linesTotal(lines);
+  // Foreign-currency vendors (ADR 0020): amounts are in their currency.
+  const currency =
+    lookups.vendors.find((v) => v.id === vendorId)?.currency ?? initial?.currency ?? null;
+  const money = (m: bigint | string) =>
+    currency ? formatCurrency(m, currency) : `$${formatMoney(m)}`;
 
   async function save(andNew: boolean) {
     setError(null);
@@ -224,6 +233,7 @@ export function PurchaseDocumentForm({
           printLater: type === 'check' ? printLater : undefined,
           mailingAddress: type === 'check' ? mailingAddress : null,
           memo,
+          exchangeRate: currency ? exchangeRate.trim() || null : null,
           lines: purchaseLinesToInput(lines),
           version: initial?.version,
         },
@@ -377,6 +387,19 @@ export function PurchaseDocumentForm({
               Print later
             </label>
           )}
+          {currency && (
+            <div className="md:col-span-2">
+              <ExchangeRateField
+                companyId={lookups.company.id}
+                currency={currency}
+                date={txnDate}
+                value={exchangeRate}
+                onChange={setExchangeRate}
+                amount={moneyToString(total)}
+                error={fieldError('exchangeRate')}
+              />
+            </div>
+          )}
         </div>
 
         <SalesLines
@@ -399,9 +422,18 @@ export function PurchaseDocumentForm({
           </Labeled>
           <dl className="space-y-1 text-sm" data-testid="document-totals">
             <div className="flex justify-between text-base font-semibold">
-              <dt>Total</dt>
-              <dd className="tabular-nums">${formatMoney(total)}</dd>
+              <dt>
+                Total
+                <CurrencyTag currency={currency} />
+              </dt>
+              <dd className="tabular-nums">{money(total)}</dd>
             </div>
+            {initial?.homeTotal && (
+              <div className="flex justify-between text-gray-600" data-testid="home-total">
+                <dt>In US dollars (at {initial.exchangeRate})</dt>
+                <dd className="tabular-nums">{formatCurrency(initial.homeTotal, null)}</dd>
+              </div>
+            )}
             {initial && type === 'bill' && (
               <>
                 <div className="flex justify-between text-gray-600">
@@ -411,7 +443,7 @@ export function PurchaseDocumentForm({
                 <div className="flex justify-between font-semibold">
                   <dt>Balance due</dt>
                   <dd className="tabular-nums" data-testid="balance-due">
-                    ${formatMoney(initial.balance)}
+                    {money(initial.balance)}
                   </dd>
                 </div>
               </>

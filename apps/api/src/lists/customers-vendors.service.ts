@@ -12,6 +12,7 @@ import type {
 import { AuditService, diff } from '../audit/audit.service';
 import type { AuthContext, CompanyContext, RequestMeta } from '../common/request';
 import { buildTree, flattenTree } from '../common/tree';
+import { assertPartyCurrency } from '../currency/fx';
 import { DB, FIELD_ENCRYPTOR } from '../db/db.module';
 
 type CustomerPatch = z.output<typeof customerUpdateSchema> | z.output<typeof customerInputSchema>;
@@ -127,9 +128,11 @@ export class CustomersService {
         ['taxRateId', 'tax_rate_id'],
         ['taxExemptionReason', 'tax_exemption_reason'],
         ['taxExemptionNumber', 'tax_exemption_number'],
+        ['currency', 'currency'],
       ]),
       updated_by: auth.userId,
     };
+    await assertPartyCurrency(tx, ctx.companyId, 'customer', id, input.currency);
     if (input.taxRateId) {
       const rate = await tx
         .selectFrom('tax_rates')
@@ -234,6 +237,7 @@ function toCustomerDto(r: Customer, fullName: string, depth: number): CustomerDt
     taxRateId: r.tax_rate_id,
     taxExemptionReason: r.tax_exemption_reason as CustomerDto['taxExemptionReason'],
     taxExemptionNumber: r.tax_exemption_number,
+    currency: r.currency,
     ...contactDto(r),
   };
 }
@@ -298,9 +302,11 @@ export class VendorsService {
         ['defaultExpenseAccountId', 'default_expense_account_id'],
         ['w9ReceivedOn', 'w9_received_on'],
         ['backupWithholding', 'backup_withholding'],
+        ['currency', 'currency'],
       ]),
       updated_by: auth.userId,
     };
+    await assertPartyCurrency(tx, ctx.companyId, 'vendor', id, input.currency);
     let before: VendorDto | null = null;
     let savedId = id;
     if (id) {
@@ -383,6 +389,7 @@ function toVendorDto(r: Vendor): VendorDto {
     defaultExpenseAccountId: r.default_expense_account_id,
     w9ReceivedOn: r.w9_received_on,
     backupWithholding: r.backup_withholding,
+    currency: r.currency,
     ...contactDto(r),
   };
 }

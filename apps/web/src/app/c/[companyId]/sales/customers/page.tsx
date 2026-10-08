@@ -4,7 +4,13 @@ import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useState, type FormEvent } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { formatMoney, type CustomerBalanceDto, type CustomerDto } from '@acct/shared';
+import {
+  formatCurrency,
+  formatMoney,
+  type CustomerBalanceDto,
+  type CustomerDto,
+} from '@acct/shared';
+import { PartyCurrencyField } from '@/components/currency/currency-fields';
 import { ContactFields, contactFromForm } from '@/components/lists/contact-fields';
 import { ListTable } from '@/components/lists/list-table';
 import { CustomerTaxFields } from '@/components/sales-tax/customer-tax-fields';
@@ -33,9 +39,7 @@ export default function CustomersPage() {
     enabled: access.can('sales.view'),
   });
   const balances = new Map(
-    (balanceQuery.data ?? [])
-      .filter((b) => b.openBalance !== '0.00')
-      .map((b) => [b.customerId, b.openBalance]),
+    (balanceQuery.data ?? []).filter((b) => b.openBalance !== '0.00').map((b) => [b.customerId, b]),
   );
 
   if (customers.isPending) return <Spinner />;
@@ -56,6 +60,7 @@ export default function CustomersPage() {
       taxExemptionReason: String(f.get('taxExemptionReason') ?? '') || null,
       taxExemptionNumber: String(f.get('taxExemptionNumber') ?? ''),
       ...contactFromForm(f),
+      ...(f.has('currency') ? { currency: String(f.get('currency')) } : {}),
     };
     setError(null);
     try {
@@ -120,7 +125,10 @@ export default function CustomersPage() {
             className: 'text-right tabular-nums',
             cell: (c) => {
               const b = balances.get(c.id);
-              return b ? formatMoney(b) : '';
+              if (!b) return '';
+              return b.currency
+                ? formatCurrency(b.openBalance, b.currency)
+                : formatMoney(b.openBalance);
             },
           },
         ]}
@@ -159,6 +167,11 @@ export default function CustomersPage() {
             </Field>
           </div>
           <ContactFields initial={current} terms={terms.data ?? []} error={error} />
+          <PartyCurrencyField
+            companyId={companyId}
+            current={current?.currency}
+            error={error?.fieldError('currency')}
+          />
           <CustomerTaxFields companyId={companyId} current={current} />
           <div className="flex justify-end gap-2">
             <Button type="button" variant="secondary" onClick={() => setEditing(null)}>

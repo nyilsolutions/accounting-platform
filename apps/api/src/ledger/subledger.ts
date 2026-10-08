@@ -11,6 +11,12 @@ import { moneyToString, parseMoney, type AgingBuckets, type Money } from '@acct/
  * An application counts from its effective date = the later of the payment and document dates.
  * With that rule the open items sum to the control account's balance on every date (tested in
  * apps/api/test/ar-reports.test.ts and ap-reports.test.ts).
+ *
+ * Foreign-currency items (ADR 0020): `amount` and `open` are always US dollars, as in the books:
+ * a document's home_total less the US dollar value of what was applied to it (home_amount, at
+ * the document's rate); a payment's control-account lines less the value of its applications.
+ * The amounts in the party's currency are in `foreignAmount` and `foreignOpen`. Revaluations
+ * and other control-account postings change only the US dollar value.
  */
 export type LedgerSide = 'ar' | 'ap';
 
@@ -51,10 +57,15 @@ export interface LedgerItem {
   partyId: string | null;
   partyName: string | null;
   dueDate: string | null;
-  /** Original signed amount. */
+  /** Original signed amount, in US dollars. */
   amount: Money;
-  /** Signed open amount as of the date. */
+  /** Signed open amount as of the date, in US dollars. */
   open: Money;
+  /** The party's currency; null for US dollars. */
+  currency: string | null;
+  /** Foreign-currency items: the signed amounts in the currency. */
+  foreignAmount: Money | null;
+  foreignOpen: Money | null;
 }
 
 export async function openItems(
@@ -78,16 +89,21 @@ export async function openItems(
     party_name: string | null;
     due_date: string | null;
     total: string;
+    currency: string | null;
+    home_total: string | null;
     applied: string;
+    applied_home: string;
   }>`
     select t.id, t.txn_type, t.txn_date, t.txn_number, ${partyCol} as party_id,
-           p.display_name as party_name, t.due_date, t.total,
-           coalesce((
-             select sum(pa.amount) from payment_applications pa
-             join transactions pm on pm.id = pa.payment_id and pm.status = 'posted'
-             where pa.target_id = t.id and greatest(pm.txn_date, t.txn_date) <= ${asOf}
-           ), 0) as applied
+           p.display_name as party_name, t.due_date, t.total, t.currency, t.home_total,
+           coalesce(ap.applied, 0) as applied, coalesce(ap.applied_home, 0) as applied_home
     from transactions t
+    left join lateral (
+      select sum(pa.amount) as applied, sum(coalesce(pa.home_amount, pa.amount)) as applied_home
+      from payment_applications pa
+      join transactions pm on pm.id = pa.payment_id and pm.status = 'posted'
+      where pa.target_id = t.id and greatest(pm.txn_date, t.txn_date) <= ${asOf}
+    ) ap on true
     left join ${partyTable} p on p.id = ${partyCol}
     where t.company_id = ${companyId} and t.status = 'posted' and t.txn_date <= ${asOf}
       and t.txn_type in (${c.document}, ${c.credit}) ${byParty}`.execute(tx);
@@ -99,17 +115,32 @@ export async function openItems(
     party_id: string | null;
     party_name: string | null;
     total: string;
+    currency: string | null;
+    control: string | null;
     net_applied: string;
+    net_applied_home: string;
   }>`
     select t.id, t.txn_date, t.txn_number, ${partyCol} as party_id, p.display_name as party_name,
-           t.total,
-           coalesce((
-             select sum(case when tt.txn_type = ${c.document} then pa.amount else -pa.amount end)
-             from payment_applications pa
-             join transactions tt on tt.id = pa.target_id and tt.status = 'posted'
-             where pa.payment_id = t.id and greatest(t.txn_date, tt.txn_date) <= ${asOf}
-           ), 0) as net_applied
+           t.total, t.currency,
+           -- Foreign payments: what the payment took off the control account, in US dollars.
+           case when t.currency is not null then (
+             select ${c.debitSign === 1n ? sql`sum(l.credit - l.debit)` : sql`sum(l.debit - l.credit)`}
+             from journal_lines l
+             join accounts a on a.id = l.account_id and a.account_type = ${c.controlType}
+             where l.transaction_id = t.id and l.version = t.version
+           ) end as control,
+           coalesce(ap.net_applied, 0) as net_applied,
+           coalesce(ap.net_applied_home, 0) as net_applied_home
     from transactions t
+    left join lateral (
+      select sum(case when tt.txn_type = ${c.document} then pa.amount else -pa.amount end)
+               as net_applied,
+             sum(case when tt.txn_type = ${c.document} then 1 else -1 end
+                 * coalesce(pa.home_amount, pa.amount)) as net_applied_home
+      from payment_applications pa
+      join transactions tt on tt.id = pa.target_id and tt.status = 'posted'
+      where pa.payment_id = t.id and greatest(t.txn_date, tt.txn_date) <= ${asOf}
+    ) ap on true
     left join ${partyTable} p on p.id = ${partyCol}
     where t.company_id = ${companyId} and t.status = 'posted' and t.txn_date <= ${asOf}
       and t.txn_type = ${c.payment} ${byParty}`.execute(tx);
@@ -122,10 +153,11 @@ export async function openItems(
     txn_number: string | null;
     party_id: string | null;
     party_name: string | null;
+    currency: string | null;
     net: string;
   }>`
     select t.id, t.txn_type, t.txn_date, t.txn_number, ${lineParty} as party_id,
-           p.display_name as party_name, sum(l.debit - l.credit) as net
+           p.display_name as party_name, a.currency, sum(l.debit - l.credit) as net
     from journal_lines l
     join transactions t on t.id = l.transaction_id and t.version = l.version
     join accounts a on a.id = l.account_id and a.account_type = ${c.controlType}
@@ -133,13 +165,15 @@ export async function openItems(
     where l.company_id = ${companyId} and t.status = 'posted' and l.txn_date <= ${asOf}
       and t.txn_type not in (${c.document}, ${c.credit}, ${c.payment})
       ${partyId ? sql`and ${lineParty} = ${partyId}` : sql``}
-    group by t.id, t.txn_type, t.txn_date, t.txn_number, ${lineParty}, p.display_name
+    group by t.id, t.txn_type, t.txn_date, t.txn_number, ${lineParty}, p.display_name, a.currency
     having sum(l.debit - l.credit) <> 0`.execute(tx);
 
   const items: LedgerItem[] = [];
   for (const d of docs.rows) {
     const total = parseMoney(d.total);
     const sign = d.txn_type === c.document ? 1n : -1n;
+    const foreign = d.currency !== null;
+    const home = foreign ? parseMoney(d.home_total ?? '0') : total;
     items.push({
       txnId: d.id,
       txnType: d.txn_type,
@@ -148,11 +182,17 @@ export async function openItems(
       partyId: d.party_id,
       partyName: d.party_name,
       dueDate: d.txn_type === c.document ? d.due_date : null,
-      amount: sign * total,
-      open: sign * (total - parseMoney(d.applied)),
+      amount: sign * home,
+      open: sign * (home - parseMoney(foreign ? d.applied_home : d.applied)),
+      currency: d.currency,
+      foreignAmount: foreign ? sign * total : null,
+      foreignOpen: foreign ? sign * (total - parseMoney(d.applied)) : null,
     });
   }
   for (const p of payments.rows) {
+    const total = parseMoney(p.total);
+    const foreign = p.currency !== null;
+    const home = foreign ? parseMoney(p.control ?? '0') : total;
     items.push({
       txnId: p.id,
       txnType: c.payment,
@@ -161,8 +201,11 @@ export async function openItems(
       partyId: p.party_id,
       partyName: p.party_name,
       dueDate: null,
-      amount: -parseMoney(p.total),
-      open: -(parseMoney(p.total) - parseMoney(p.net_applied)),
+      amount: -home,
+      open: -(home - parseMoney(foreign ? p.net_applied_home : p.net_applied)),
+      currency: p.currency,
+      foreignAmount: foreign ? -total : null,
+      foreignOpen: foreign ? -(total - parseMoney(p.net_applied)) : null,
     });
   }
   for (const o of other.rows) {
@@ -177,23 +220,46 @@ export async function openItems(
       dueDate: null,
       amount: net,
       open: net,
+      // Revaluations and other postings to a foreign-currency account change only its US dollar
+      // value.
+      currency: o.currency,
+      foreignAmount: o.currency ? 0n : null,
+      foreignOpen: o.currency ? 0n : null,
     });
   }
   return items.sort((a, b) => a.txnDate.localeCompare(b.txnDate) || a.txnId.localeCompare(b.txnId));
 }
 
-/** Open balance, overdue amount and available credit per party, as of `asOf`. */
-export function balancesOf(
-  items: LedgerItem[],
-  today: string,
-): Map<string, { open: Money; overdue: Money; credit: Money }> {
-  const by = new Map<string, { open: Money; overdue: Money; credit: Money }>();
+export interface PartyBalance {
+  /** In the party's currency. */
+  open: Money;
+  overdue: Money;
+  credit: Money;
+  /** The open balance's US dollar value in the books. */
+  homeOpen: Money;
+  currency: string | null;
+}
+
+/**
+ * Open balance, overdue amount and available credit per party, as of `asOf`, in the party's
+ * currency (a party's items all share its currency), with the US dollar value of the balance.
+ */
+export function balancesOf(items: LedgerItem[], today: string): Map<string, PartyBalance> {
+  const by = new Map<string, PartyBalance>();
   for (const i of items) {
-    if (!i.partyId || i.open === 0n) continue;
-    const b = by.get(i.partyId) ?? { open: 0n, overdue: 0n, credit: 0n };
-    b.open += i.open;
-    if (i.open > 0n && i.dueDate && i.dueDate < today) b.overdue += i.open;
-    if (i.open < 0n) b.credit += -i.open;
+    const open = i.foreignOpen ?? i.open;
+    if (!i.partyId || (open === 0n && i.open === 0n)) continue;
+    const b = by.get(i.partyId) ?? {
+      open: 0n,
+      overdue: 0n,
+      credit: 0n,
+      homeOpen: 0n,
+      currency: i.currency,
+    };
+    b.open += open;
+    b.homeOpen += i.open;
+    if (open > 0n && i.dueDate && i.dueDate < today) b.overdue += open;
+    if (open < 0n) b.credit += -open;
     by.set(i.partyId, b);
   }
   return by;

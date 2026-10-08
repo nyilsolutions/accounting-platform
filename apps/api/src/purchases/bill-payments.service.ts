@@ -10,6 +10,9 @@ import {
   amountInWords,
   moneyToString,
   parseMoney,
+  parseRate,
+  rateToString,
+  toHome,
   TXN_TYPE_LABELS,
   type BillPaymentDto,
   type CheckToPrintDto,
@@ -27,8 +30,9 @@ import type {
 import { AuditService } from '../audit/audit.service';
 import type { AuthContext, CompanyContext, RequestMeta } from '../common/request';
 import { DB } from '../db/db.module';
-import { PostingService } from '../ledger/posting.service';
-import { appliedTo, systemAccount, validationError } from '../sales/sales-common';
+import { controlAccount, documentCurrency, gainLossAccount, gainLossOf } from '../currency/fx';
+import { PostingService, type PostingLine } from '../ledger/posting.service';
+import { appliedHomeTo, appliedTo, relievedHome, validationError } from '../sales/sales-common';
 import { nextCheckNumber, usedCheckNumbers } from './purchases-common';
 
 type BillPaymentInput = z.output<typeof billPaymentInputSchema>;
@@ -43,6 +47,11 @@ type PrintChecksInput = z.output<typeof printChecksInputSchema>;
  * Ledger: Dr A/P (vendor) / Cr bank or credit card. A credit-only payment (B = C) moves no money
  * and has no journal lines. Paid from a bank, the payment is a check: numbered now, or queued to
  * print ("print later") and numbered when printed.
+ *
+ * Foreign-currency vendors (ADR 0020): B, C and the amount are in the vendor's currency. The
+ * money paid is worth the amount at the payment's rate; A/P (currency) is relieved of what each
+ * bill and credit is worth at its own rate; the difference is the realized exchange gain or loss.
+ * Checks print the US dollars paid.
  */
 @Injectable()
 export class BillPaymentsService {
@@ -72,6 +81,8 @@ export class BillPaymentsService {
           't.txn_date',
           't.due_date',
           't.total',
+          't.currency',
+          't.home_total',
         ])
         .where('t.company_id', '=', ctx.companyId)
         .where('t.txn_type', 'in', ['bill', 'vendor_credit'])
@@ -81,11 +92,9 @@ export class BillPaymentsService {
         .orderBy('v.display_name');
       if (vendorId) q = q.where('t.vendor_id', '=', vendorId);
       const docs = await q.execute();
-      const applied = await appliedTo(
-        tx,
-        docs.map((d) => d.id),
-        { excludePaymentId: paymentId },
-      );
+      const ids = docs.map((d) => d.id);
+      const applied = await appliedTo(tx, ids, { excludePaymentId: paymentId });
+      const appliedHome = await appliedHomeTo(tx, ids, { excludePaymentId: paymentId });
       return docs
         .map((d) => ({ d, open: parseMoney(d.total ?? '0') - (applied.get(d.id) ?? 0n) }))
         .filter(({ open }) => open > 0n)
@@ -99,6 +108,11 @@ export class BillPaymentsService {
           dueDate: d.due_date,
           total: moneyToString(parseMoney(d.total ?? '0')),
           open: moneyToString(open),
+          currency: d.currency,
+          homeOpen:
+            d.home_total === null
+              ? null
+              : moneyToString(parseMoney(d.home_total) - (appliedHome.get(d.id) ?? 0n)),
         }));
     });
   }
@@ -210,7 +224,7 @@ export class BillPaymentsService {
 
     const vendor = await tx
       .selectFrom('vendors')
-      .select(['id', 'is_active', 'display_name'])
+      .select(['id', 'is_active', 'display_name', 'currency'])
       .where('id', '=', input.vendorId)
       .where('company_id', '=', companyId)
       .executeTakeFirst();
@@ -233,6 +247,14 @@ export class BillPaymentsService {
       );
     }
     const isCheck = account.account_type === 'bank';
+    const fx = await documentCurrency(
+      tx,
+      companyId,
+      vendor.currency,
+      input.txnDate,
+      input.exchangeRate,
+      before,
+    );
 
     // Lock and validate every bill / credit being applied.
     const targetIds = input.applications.map((a) => a.targetId);
@@ -240,7 +262,7 @@ export class BillPaymentsService {
       (
         await tx
           .selectFrom('transactions')
-          .select(['id', 'txn_type', 'vendor_id', 'status', 'total', 'txn_number'])
+          .select(['id', 'txn_type', 'vendor_id', 'status', 'total', 'txn_number', 'home_total'])
           .where('company_id', '=', companyId)
           .where('id', 'in', targetIds)
           .forUpdate()
@@ -248,9 +270,15 @@ export class BillPaymentsService {
       ).map((t) => [t.id, t]),
     );
     const alreadyApplied = await appliedTo(tx, targetIds, { excludePaymentId: id ?? undefined });
+    const alreadyAppliedHome = fx
+      ? await appliedHomeTo(tx, targetIds, { excludePaymentId: id ?? undefined })
+      : new Map<string, Money>();
     const errors: Array<{ path: string; message: string }> = [];
     let billsPaid: Money = 0n;
     let creditsUsed: Money = 0n;
+    let billsHome: Money = 0n;
+    let creditsHome: Money = 0n;
+    const homeAmounts = new Map<string, Money>();
     input.applications.forEach((a, i) => {
       const t = targets.get(a.targetId);
       if (
@@ -276,6 +304,18 @@ export class BillPaymentsService {
       }
       if (t.txn_type === 'bill') billsPaid += value;
       else creditsUsed += value;
+      if (fx && value <= open) {
+        const home = relievedHome(
+          value,
+          open,
+          parseMoney(t.total ?? '0'),
+          parseMoney(t.home_total ?? '0'),
+          alreadyAppliedHome.get(t.id) ?? 0n,
+        );
+        homeAmounts.set(t.id, home);
+        if (t.txn_type === 'bill') billsHome += home;
+        else creditsHome += home;
+      }
     });
     if (errors.length) throw new BadRequestException(validationError(errors));
     if (billsPaid === 0n) {
@@ -309,9 +349,17 @@ export class BillPaymentsService {
           : null;
     }
 
-    const ap = await systemAccount(tx, companyId, 'accounts_payable');
-    const journal =
-      amount > 0n
+    const ap = await controlAccount(tx, companyId, 'ap', fx?.currency ?? null);
+    const paid = fx ? toHome(amount, fx.rate) : amount;
+    const journal: PostingLine[] = fx
+      ? await this.foreignJournal(tx, companyId, input.vendorId, input.paymentAccountId, ap, {
+          paid,
+          billsPaid,
+          billsHome,
+          creditsUsed,
+          creditsHome,
+        })
+      : amount > 0n
         ? [
             {
               accountId: ap,
@@ -347,6 +395,9 @@ export class BillPaymentsService {
         printStatus,
         mailingAddress: input.mailingAddress ?? null,
         total: moneyToString(amount, 2),
+        currency: fx?.currency ?? null,
+        exchangeRate: fx?.rateText ?? null,
+        homeTotal: fx ? moneyToString(paid, 2) : null,
       },
     };
     const postingCtx = { companyId, userId: auth.userId, closingPassword: input.closingPassword };
@@ -363,6 +414,7 @@ export class BillPaymentsService {
           payment_id: paymentId!,
           target_id: a.targetId,
           amount: a.amount,
+          home_amount: fx ? moneyToString(homeAmounts.get(a.targetId) ?? 0n, 4) : null,
         })),
       )
       .execute();
@@ -438,7 +490,7 @@ export class BillPaymentsService {
       const rows = await tx
         .selectFrom('transactions as t')
         .leftJoin('vendors as v', 'v.id', 't.vendor_id')
-        .select(['t.id', 't.txn_type', 't.txn_date', 'v.display_name', 't.total'])
+        .select(['t.id', 't.txn_type', 't.txn_date', 'v.display_name', 't.total', 't.home_total'])
         .where('t.company_id', '=', ctx.companyId)
         .where('t.payment_account_id', '=', paymentAccountId)
         .where('t.print_status', '=', 'to_print')
@@ -451,7 +503,8 @@ export class BillPaymentsService {
         txnType: r.txn_type as 'check' | 'bill_payment',
         txnDate: r.txn_date,
         payee: r.display_name,
-        amount: moneyToString(parseMoney(r.total ?? '0')),
+        // Checks are written in US dollars.
+        amount: moneyToString(parseMoney(r.home_total ?? r.total ?? '0')),
       }));
     });
   }
@@ -477,6 +530,8 @@ export class BillPaymentsService {
           't.txn_type',
           't.txn_date',
           't.total',
+          't.home_total',
+          't.currency',
           't.memo',
           't.mailing_address',
           't.print_status',
@@ -522,7 +577,7 @@ export class BillPaymentsService {
           id,
           numbers[i]!,
         );
-        const amount = parseMoney(r.total ?? '0');
+        const amount = parseMoney(r.home_total ?? r.total ?? '0');
         const vendorAddress = [
           r.company_name ?? r.display_name,
           r.address_line1,
@@ -540,7 +595,7 @@ export class BillPaymentsService {
           amount: moneyToString(amount),
           amountInWords: amountInWords(amount),
           memo: r.memo,
-          stub: await this.stubLines(tx, id, r.txn_type),
+          stub: await this.stubLines(tx, id, r.txn_type, r.currency),
           bankAccountName: r.bank_name,
         });
       }
@@ -560,7 +615,14 @@ export class BillPaymentsService {
     });
   }
 
-  private async stubLines(tx: Tx, id: string, txnType: string): Promise<PrintedCheckDto['stub']> {
+  private async stubLines(
+    tx: Tx,
+    id: string,
+    txnType: string,
+    currency: string | null,
+  ): Promise<PrintedCheckDto['stub']> {
+    // Foreign-currency stubs show what was paid in the vendor's currency.
+    const suffix = currency ? ` (${currency})` : '';
     if (txnType === 'bill_payment') {
       const apps = await tx
         .selectFrom('payment_applications as pa')
@@ -570,10 +632,11 @@ export class BillPaymentsService {
         .orderBy('t.txn_date')
         .execute();
       return apps.map((a) => ({
-        description: `${TXN_TYPE_LABELS[a.txn_type]} ${a.txn_number ?? ''} (${a.txn_date})`.replace(
-          '  ',
-          ' ',
-        ),
+        description:
+          `${TXN_TYPE_LABELS[a.txn_type]} ${a.txn_number ?? ''} (${a.txn_date})`.replace(
+            '  ',
+            ' ',
+          ) + suffix,
         amount: moneyToString((a.txn_type === 'bill' ? 1n : -1n) * parseMoney(a.amount)),
       }));
     }
@@ -586,9 +649,57 @@ export class BillPaymentsService {
       .orderBy('l.line_no')
       .execute();
     return lines.map((l) => ({
-      description: [l.item_name ?? l.name, l.description].filter(Boolean).join(' – '),
+      description: [l.item_name ?? l.name, l.description].filter(Boolean).join(' – ') + suffix,
       amount: moneyToString(parseMoney(l.amount)),
     }));
+  }
+
+  /** The entry for a foreign-currency bill payment (see the class comment). */
+  private async foreignJournal(
+    tx: Tx,
+    companyId: string,
+    vendorId: string,
+    paymentAccountId: string,
+    ap: string,
+    m: { paid: Money; billsPaid: Money; billsHome: Money; creditsUsed: Money; creditsHome: Money },
+  ): Promise<PostingLine[]> {
+    const base = {
+      description: null,
+      customerId: null,
+      vendorId,
+      classId: null,
+      locationId: null,
+    };
+    const lines: PostingLine[] = [];
+    if (m.billsHome > 0n)
+      lines.push({
+        ...base,
+        accountId: ap,
+        debit: m.billsHome,
+        credit: 0n,
+        foreign: { debit: m.billsPaid, credit: 0n },
+      });
+    if (m.creditsHome > 0n)
+      lines.push({
+        ...base,
+        accountId: ap,
+        debit: 0n,
+        credit: m.creditsHome,
+        foreign: { debit: 0n, credit: m.creditsUsed },
+      });
+    if (m.paid > 0n)
+      lines.push({ ...base, accountId: paymentAccountId, debit: 0n, credit: m.paid });
+    // Paying less than the payable is worth is a gain.
+    const gain = m.billsHome - m.creditsHome - m.paid;
+    if (gain !== 0n)
+      lines.push({
+        ...base,
+        accountId: await gainLossAccount(tx, companyId),
+        debit: gain < 0n ? -gain : 0n,
+        credit: gain > 0n ? gain : 0n,
+        description: `Realized exchange ${gain > 0n ? 'gain' : 'loss'}`,
+      });
+    return lines;
   }
 
   async load(tx: Tx, companyId: string, id: string): Promise<BillPaymentDto> {
@@ -606,7 +717,7 @@ export class BillPaymentsService {
     const apps = await tx
       .selectFrom('payment_applications as pa')
       .innerJoin('transactions as t', 't.id', 'pa.target_id')
-      .select(['t.id', 't.txn_type', 't.txn_number', 't.txn_date', 'pa.amount'])
+      .select(['t.id', 't.txn_type', 't.txn_number', 't.txn_date', 'pa.amount', 'pa.home_amount'])
       .where('pa.payment_id', '=', id)
       .orderBy('t.txn_date')
       .execute();
@@ -621,6 +732,10 @@ export class BillPaymentsService {
       printStatus: p.print_status as PrintStatus | null,
       mailingAddress: p.mailing_address,
       memo: p.memo,
+      currency: p.currency,
+      exchangeRate: p.exchange_rate === null ? null : rateToString(parseRate(p.exchange_rate)),
+      homeAmount: p.home_total === null ? null : moneyToString(parseMoney(p.home_total)),
+      exchangeGainLoss: p.currency ? await gainLossOf(tx, companyId, p.id, p.version) : null,
       applications: apps.map((a) => ({
         txnId: a.id,
         txnType: a.txn_type,
@@ -628,6 +743,7 @@ export class BillPaymentsService {
         number: a.txn_number,
         txnDate: a.txn_date,
         amount: moneyToString(parseMoney(a.amount)),
+        homeAmount: a.home_amount === null ? null : moneyToString(parseMoney(a.home_amount)),
       })),
       status: p.status === 'void' ? 'void' : 'posted',
       version: p.version,

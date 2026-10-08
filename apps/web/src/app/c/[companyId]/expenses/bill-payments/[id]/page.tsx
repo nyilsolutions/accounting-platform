@@ -4,8 +4,15 @@ import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { formatMoney, type BillPaymentDto, type OpenBillDto } from '@acct/shared';
+import {
+  formatCurrency,
+  formatMoney,
+  moneyToString,
+  type BillPaymentDto,
+  type OpenBillDto,
+} from '@acct/shared';
 import { useClosingPassword } from '@/components/ledger/closing-password';
+import { ExchangeRateField } from '@/components/currency/currency-fields';
 import { AccountSelect } from '@/components/ledger/pickers';
 import {
   BillApplications,
@@ -46,6 +53,7 @@ export default function BillPaymentPage() {
   const [number, setNumber] = useState('');
   const [memo, setMemo] = useState('');
   const [paymentAccountId, setPaymentAccountId] = useState('');
+  const [exchangeRate, setExchangeRate] = useState('');
   const [error, setError] = useState<ApiError | string | null>(null);
   useEffect(() => {
     if (!p) return;
@@ -54,6 +62,7 @@ export default function BillPaymentPage() {
     setNumber(p.number ?? '');
     setMemo(p.memo ?? '');
     setPaymentAccountId(p.paymentAccountId);
+    setExchangeRate(p.exchangeRate ?? '');
   }, [p]);
 
   if (payment.isError) return <Alert>{errorMessage(payment.error)}</Alert>;
@@ -79,6 +88,7 @@ export default function BillPaymentPage() {
             memo,
             mailingAddress: p!.mailingAddress,
             applications: toApplications(items, applied),
+            exchangeRate: p!.currency ? exchangeRate.trim() || null : null,
             version: p!.version,
             closingPassword,
           },
@@ -115,7 +125,17 @@ export default function BillPaymentPage() {
           ← Expenses
         </Link>
         <span className="font-medium text-gray-900">
-          Bill payment · {p.vendorName} · {formatMoney(p.amount)}
+          Bill payment · {p.vendorName} ·{' '}
+          {p.currency ? formatCurrency(p.amount, p.currency) : formatMoney(p.amount)}
+          {p.homeAmount && (
+            <>
+              {' '}
+              = {formatCurrency(p.homeAmount, null)} · exchange gain (loss){' '}
+              <span data-testid="exchange-gain-loss">
+                {formatCurrency(p.exchangeGainLoss ?? '0', null)}
+              </span>
+            </>
+          )}
         </span>
         {p.printStatus === 'to_print' && <Badge tone="amber">To print</Badge>}
         {p.status === 'void' && <Badge tone="amber">Void</Badge>}
@@ -161,6 +181,18 @@ export default function BillPaymentPage() {
             <span className="mb-1 block font-medium text-gray-700">Memo</span>
             <input value={memo} onChange={(e) => setMemo(e.target.value)} className={inputClass} />
           </label>
+          {p.currency && (
+            <div className="md:col-span-2">
+              <ExchangeRateField
+                companyId={companyId}
+                currency={p.currency}
+                date={txnDate}
+                value={exchangeRate}
+                onChange={setExchangeRate}
+                amount={moneyToString(total)}
+              />
+            </div>
+          )}
         </fieldset>
       </Card>
       <BillApplications
@@ -198,7 +230,9 @@ export default function BillPaymentPage() {
           )}
         </div>
         <div className="flex items-center gap-4">
-          <span className="font-semibold tabular-nums">Amount paid ${formatMoney(total)}</span>
+          <span className="font-semibold tabular-nums">
+            Amount paid {p.currency ? formatCurrency(total, p.currency) : `$${formatMoney(total)}`}
+          </span>
           {!readOnly && <Button onClick={save}>Save and close</Button>}
         </div>
       </div>

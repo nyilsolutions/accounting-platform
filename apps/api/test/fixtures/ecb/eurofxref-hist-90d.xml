@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Test fixture in the European Central Bank's eurofxref format. The rates are made up. -->
+<gesmes:Envelope xmlns:gesmes="http://www.gesmes.org/xml/2002-08-01" xmlns="http://www.ecb.int/vocabulary/2002-08-01/eurofxref">
+	<gesmes:subject>Reference rates</gesmes:subject>
+	<gesmes:Sender>
+		<gesmes:name>European Central Bank</gesmes:name>
+	</gesmes:Sender>
+	<Cube>
+		<Cube time="2026-09-29">
+			<Cube currency="USD" rate="1.0850"/>
+			<Cube currency="JPY" rate="162.35"/>
+			<Cube currency="GBP" rate="0.8412"/>
+		</Cube>
+		<Cube time="2026-09-26">
+			<Cube currency="USD" rate="1.0800"/>
+			<Cube currency="JPY" rate="161.20"/>
+			<Cube currency="GBP" rate="0.8400"/>
+		</Cube>
+		<Cube time="2026-09-25">
+			<Cube currency="USD" rate="1.0790"/>
+			<Cube currency="JPY" rate="160.95"/>
+			<Cube currency="GBP" rate="0.8398"/>
+		</Cube>
+	</Cube>
+</gesmes:Envelope>

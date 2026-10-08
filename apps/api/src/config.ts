@@ -76,6 +76,10 @@ const envSchema = z.object({
   QBO_MINOR_VERSION: z.coerce.number().int().min(1).default(75),
   /** Days a Desktop agent pairing key stays valid. */
   MIGRATION_AGENT_KEY_DAYS: z.coerce.number().int().min(1).max(30).default(7),
+  // Multi-currency (Phase 10c)
+  /** Exchange rates: 'ecb' (the European Central Bank's daily reference rates) or 'none'. */
+  EXCHANGE_RATE_PROVIDER: z.enum(['ecb', 'none']).default('ecb'),
+  ECB_RATES_URL: z.url().default('https://www.ecb.europa.eu/stats/eurofxref'),
   /** Emails scheduled reports (checks for due schedules every minute). 'off' in tests. */
   REPORT_SCHEDULER: z.enum(['on', 'off']).default('on'),
 });

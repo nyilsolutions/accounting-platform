@@ -10,7 +10,10 @@ import {
   dueDateFromTerms,
   moneyToString,
   parseMoney,
+  parseRate,
+  rateToString,
   resolveLineAmount,
+  toHome,
   todayIso,
   TXN_TYPE_LABELS,
   type Money,
@@ -35,6 +38,7 @@ import {
   type SalesTaxCalculator,
 } from '../sales-tax/tax-calculator';
 import { refreshEstimate } from './progress';
+import { controlAccount, documentCurrency } from '../currency/fx';
 import { depositsOf, nextDocumentNumber, systemAccount, validationError } from './sales-common';
 
 type SalesDocumentInput = z.output<typeof salesDocumentInputSchema>;
@@ -153,11 +157,18 @@ export class SalesDocumentsService {
       );
     }
     let customer:
-      { id: string; is_active: boolean; terms_id: string | null; tax_exempt: boolean } | undefined;
+      | {
+          id: string;
+          is_active: boolean;
+          terms_id: string | null;
+          tax_exempt: boolean;
+          currency: string | null;
+        }
+      | undefined;
     if (input.customerId) {
       customer = await tx
         .selectFrom('customers')
-        .select(['id', 'is_active', 'terms_id', 'tax_exempt'])
+        .select(['id', 'is_active', 'terms_id', 'tax_exempt', 'currency'])
         .where('id', '=', input.customerId)
         .where('company_id', '=', companyId)
         .executeTakeFirst();
@@ -178,6 +189,17 @@ export class SalesDocumentsService {
     }
 
     await this.assertLinks(tx, companyId, type, id, input.customerId ?? null, lines);
+
+    // --- Currency (ADR 0020): the customer's; amounts are in it, the books in US dollars -------
+    const fx = await documentCurrency(
+      tx,
+      companyId,
+      customer?.currency ?? null,
+      input.txnDate,
+      input.exchangeRate,
+      before,
+    );
+    const toBooks = (m: Money): Money => (fx ? toHome(m, fx.rate) : m);
 
     // --- Sales tax ---------------------------------------------------------------------------
     // An edit that doesn't mention the rate keeps the one the document has.
@@ -232,10 +254,20 @@ export class SalesDocumentsService {
             'The customer cannot change once payments or credits are applied.',
           );
         }
+        // What was applied is valued at the document's rate (ADR 0020).
+        if (
+          before.currency &&
+          (total !== parseMoney(before.total) || fx?.rateText !== before.exchangeRate)
+        ) {
+          throw new ConflictException(
+            `The total and exchange rate of a ${before.currency} document can't change once payments or credits are applied. Remove them from the payment first.`,
+          );
+        }
       }
       if (before.depositId) {
         if (
           total !== parseMoney(before.total) ||
+          (fx?.rateText ?? null) !== before.exchangeRate ||
           (input.depositAccountId ?? before.depositAccountId) !== before.depositAccountId
         ) {
           throw new ConflictException(
@@ -272,7 +304,7 @@ export class SalesDocumentsService {
     let totalAccount: string;
     let depositAccountId: string | null = null;
     if (totalSide.account === 'ar') {
-      totalAccount = await systemAccount(tx, companyId, 'accounts_receivable');
+      totalAccount = await controlAccount(tx, companyId, 'ar', fx?.currency ?? null);
     } else {
       depositAccountId =
         input.depositAccountId ??
@@ -308,13 +340,18 @@ export class SalesDocumentsService {
       ...extra,
     });
     const totalIsDebit = totalSide.side === 'debit';
-    const journal: PostingLine[] = [line(totalAccount, total, !totalIsDebit)];
+    // Foreign-currency documents convert line by line; the total is the sum of the converted
+    // lines, so the entry balances in US dollars.
+    const incomeLines: PostingLine[] = [];
+    let homeTotal = 0n;
     for (const l of lines) {
-      if (l.amount === 0n) continue;
+      const amount = toBooks(l.amount);
+      if (amount === 0n) continue;
+      homeTotal += amount;
       // Income side is opposite to the total; a negative line (discount) flips it again.
-      const credit = totalIsDebit ? l.amount > 0n : l.amount < 0n;
-      journal.push(
-        line(l.accountId, l.amount < 0n ? -l.amount : l.amount, credit, {
+      const credit = totalIsDebit ? amount > 0n : amount < 0n;
+      incomeLines.push(
+        line(l.accountId, amount < 0n ? -amount : amount, credit, {
           description: l.description,
           classId: l.classId,
         }),
@@ -322,13 +359,31 @@ export class SalesDocumentsService {
     }
     if (tax) {
       const stp = await systemAccount(tx, companyId, 'sales_tax_payable');
+      // In a foreign currency the tax is calculated in the currency and each agency's part is
+      // recorded in US dollars at the document's rate (ADR 0020).
       for (const c of tax.components) {
-        if (c.amount === 0n) continue;
-        journal.push(
-          line(stp, c.amount, totalIsDebit, { description: `${c.rateName} (${c.agencyName})` }),
+        const amount = toBooks(c.amount);
+        if (amount === 0n) continue;
+        homeTotal += amount;
+        incomeLines.push(
+          line(stp, amount, totalIsDebit, { description: `${c.rateName} (${c.agencyName})` }),
         );
       }
     }
+    if (homeTotal <= 0n)
+      throw new BadRequestException(
+        validationError([
+          { path: 'lines', message: 'The total is too small to convert to US dollars' },
+        ]),
+      );
+    const foreignTotal =
+      fx && totalSide.account === 'ar'
+        ? { debit: totalIsDebit ? total : 0n, credit: totalIsDebit ? 0n : total }
+        : null;
+    const journal: PostingLine[] = [
+      line(totalAccount, homeTotal, !totalIsDebit, { foreign: foreignTotal }),
+      ...incomeLines,
+    ];
 
     const header = {
       txnType: type,
@@ -352,6 +407,9 @@ export class SalesDocumentsService {
         emailTo: input.emailTo ?? null,
         total: moneyToString(total, 2),
         taxRateId,
+        currency: fx?.currency ?? null,
+        exchangeRate: fx?.rateText ?? null,
+        homeTotal: fx ? moneyToString(homeTotal, 2) : null,
       },
     };
     const postingCtx = { companyId, userId: auth.userId, closingPassword: input.closingPassword };
@@ -436,8 +494,9 @@ export class SalesDocumentsService {
         agencyId: c.agencyId,
         taxRateId: c.rateId,
         rate: c.rate,
-        taxable: sign * c.taxable,
-        amount: sign * c.amount,
+        taxable: sign * toBooks(c.taxable),
+        amount: sign * toBooks(c.amount),
+        foreign: fx ? { taxable: sign * c.taxable, amount: sign * c.amount } : null,
       })),
     );
 
@@ -615,7 +674,7 @@ export class SalesDocumentsService {
     const applied = await tx
       .selectFrom('payment_applications as pa')
       .innerJoin('transactions as p', 'p.id', 'pa.payment_id')
-      .select(['p.id', 'p.txn_type', 'p.txn_number', 'p.txn_date', 'pa.amount'])
+      .select(['p.id', 'p.txn_type', 'p.txn_number', 'p.txn_date', 'pa.amount', 'pa.home_amount'])
       .where('pa.target_id', '=', id)
       .where('p.status', '=', 'posted')
       .orderBy('p.txn_date')
@@ -632,6 +691,8 @@ export class SalesDocumentsService {
         'stl.rate',
         'stl.taxable_amount',
         'stl.amount',
+        'stl.foreign_taxable_amount',
+        'stl.foreign_amount',
       ])
       .where('stl.transaction_id', '=', id)
       .orderBy('stl.line_no')
@@ -650,13 +711,25 @@ export class SalesDocumentsService {
       const m = parseMoney(v);
       return moneyToString(m < 0n ? -m : m);
     };
+    // The document shows its tax in its own currency.
+    const docTax = (l: (typeof taxLines)[number]) => ({
+      taxable: l.foreign_taxable_amount ?? l.taxable_amount,
+      amount: l.foreign_amount ?? l.amount,
+    });
     const taxTotal = taxLines.reduce((s, l) => {
-      const m = parseMoney(l.amount);
+      const m = parseMoney(docTax(l).amount);
       return s + (m < 0n ? -m : m);
     }, 0n);
     const appliedSum = applied.reduce((s, a) => s + parseMoney(a.amount), 0n);
     const depositId = (await depositsOf(tx, [id])).get(id) ?? null;
     const balance = type === 'invoice' || type === 'credit_memo' ? total - appliedSum : 0n;
+    const homeTotal = t.home_total !== null ? parseMoney(t.home_total) : null;
+    const homeBalance =
+      homeTotal === null
+        ? null
+        : type === 'invoice' || type === 'credit_memo'
+          ? homeTotal - applied.reduce((s, a) => s + parseMoney(a.home_amount ?? a.amount), 0n)
+          : 0n;
     return {
       id: t.id,
       txnType: type,
@@ -673,6 +746,8 @@ export class SalesDocumentsService {
       paymentMethodId: t.payment_method_id,
       reference: t.reference,
       depositAccountId: t.deposit_account_id,
+      currency: t.currency,
+      exchangeRate: t.exchange_rate === null ? null : rateToString(parseRate(t.exchange_rate)),
       lines: lines.map((l) => ({
         lineNo: l.line_no,
         itemId: l.item_id,
@@ -698,12 +773,14 @@ export class SalesDocumentsService {
         taxRateId: l.tax_rate_id,
         rateName: l.rate_name,
         rate: l.rate === null ? null : trimZeros(l.rate),
-        taxable: abs(l.taxable_amount),
-        amount: abs(l.amount),
+        taxable: abs(docTax(l).taxable),
+        amount: abs(docTax(l).amount),
       })),
       taxTotal: moneyToString(taxTotal),
       total: moneyToString(total),
       balance: moneyToString(balance),
+      homeTotal: homeTotal === null ? null : moneyToString(homeTotal),
+      homeBalance: homeBalance === null ? null : moneyToString(homeBalance),
       status: t.status === 'void' ? 'void' : 'posted',
       paymentStatus: paymentStatus(type, t.status, total, balance, t.due_date, depositId),
       applied: applied.map((a) => ({
