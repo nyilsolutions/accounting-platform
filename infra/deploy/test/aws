@@ -1,0 +1,61 @@
+#!/usr/bin/env bash
+# A stand-in for the AWS CLI for ecs-deploy.test.sh: records each call in $FAKE_AWS_DIR/calls
+# and answers from canned data. FAKE_RELEASE_EXIT and FAKE_ROLLED_BACK change the answers.
+set -euo pipefail
+echo "$*" >>"$FAKE_AWS_DIR/calls"
+arg() { # value after a flag
+  local flag=$1
+  shift
+  while [ $# -gt 0 ]; do
+    if [ "$1" = "$flag" ]; then echo "$2"; return; fi
+    shift
+  done
+}
+case "$1 $2" in
+  "ecs describe-task-definition")
+    family=$(arg --task-definition "$@")
+    name=${family##*-}
+    cat <<JSON
+{"taskDefinitionArn":"arn:aws:ecs:us-east-1:1:task-definition/$family:7","family":"$family",
+ "revision":7,"status":"ACTIVE","registeredAt":"2026-10-01T00:00:00Z","registeredBy":"x",
+ "requiresAttributes":[{"name":"x"}],"compatibilities":["EC2","FARGATE"],
+ "taskRoleArn":"arn:aws:iam::1:role/app","executionRoleArn":"arn:aws:iam::1:role/exec",
+ "networkMode":"awsvpc","requiresCompatibilities":["FARGATE"],"cpu":"1024","memory":"4096",
+ "runtimePlatform":{"operatingSystemFamily":"LINUX","cpuArchitecture":"X86_64"},
+ "volumes":[{"name":"tmp"}],"placementConstraints":[],
+ "containerDefinitions":[{"name":"$name","image":"old/$name:1","environment":[{"name":"A","value":"1"}]},
+                         {"name":"clamd","image":"clamav/clamav:1.4"}]}
+JSON
+    ;;
+  "ecs register-task-definition")
+    file=$(arg --cli-input-json "$@")
+    file=${file#file://}
+    family=$(jq -r .family "$file")
+    cp "$file" "$FAKE_AWS_DIR/registered-$family.json"
+    echo "arn:aws:ecs:us-east-1:1:task-definition/$family:8"
+    ;;
+  "ecs describe-services")
+    query=$(arg --query "$@")
+    service=$(arg --services "$@")
+    case "$query" in
+      *networkConfiguration*) echo '{"awsvpcConfiguration":{"subnets":["subnet-1"],"securityGroups":["sg-1"],"assignPublicIp":"DISABLED"}}' ;;
+      *rolloutState) if [ "${FAKE_ROLLED_BACK:-}" = "$service" ]; then echo FAILED; else echo COMPLETED; fi ;;
+      *taskDefinition)
+        if [ "${FAKE_ROLLED_BACK:-}" = "$service" ]; then
+          echo "arn:aws:ecs:us-east-1:1:task-definition/acct-staging-$service:7"
+        else
+          echo "arn:aws:ecs:us-east-1:1:task-definition/acct-staging-$service:8"
+        fi
+        ;;
+      *) echo '[]' ;;
+    esac
+    ;;
+  "ecs run-task") echo "arn:aws:ecs:us-east-1:1:task/acct-staging/abc123" ;;
+  "ecs wait") exit 0 ;;
+  "ecs describe-tasks")
+    echo "{\"stoppedReason\":\"Essential container in task exited\",\"containers\":[{\"name\":\"release\",\"exitCode\":${FAKE_RELEASE_EXIT:-0}}]}"
+    ;;
+  "ecs update-service") echo "$(arg --service "$@")" ;;
+  "logs get-log-events") echo "release failed: migration 0035 failed" ;;
+  *) echo "fake aws: unexpected call: $*" >&2; exit 2 ;;
+esac

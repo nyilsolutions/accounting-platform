@@ -170,8 +170,8 @@ jobs:
           severity-cutoff: high
           output-format: table
 
-  # Infrastructure (ADR 0030): formatting, validation and the module's tests against mocked AWS
-  # (no credentials, nothing created).
+  # Infrastructure (ADR 0030): formatting, validation, the module's tests against mocked AWS and
+  # the deploy script against a fake AWS CLI (no credentials, nothing created).
   terraform:
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -185,6 +185,8 @@ jobs:
       - name: Test the platform module
         working-directory: infra/terraform/modules/platform
         run: terraform init -backend=false -input=false && terraform test
+      - name: Test the deploy script (fake AWS CLI)
+        run: bash infra/deploy/test/ecs-deploy.test.sh
       - name: Validate the environments
         run: |
           for env in staging production backup; do

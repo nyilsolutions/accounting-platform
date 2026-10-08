@@ -1,0 +1,166 @@
+name: Deploy
+
+# ADR 0030. After CI passes on main: build the images once, push them to staging's ECR, deploy
+# staging, then wait for a reviewer to approve the production environment, copy the same images
+# (by digest) to production's ECR and deploy production.
+#
+# Run by hand to redeploy or roll back: give the git SHA of an earlier build as image_tag
+# (docs/runbooks/rollback.md). Images are tagged with the commit they were built from.
+#
+# Each GitHub environment (staging, production) holds variables, not secrets:
+#   AWS_DEPLOY_ROLE_ARN  the environment's deploy role (Terraform output deploy_role_arn)
+#   AWS_ACCOUNT_ID       the environment's account
+#   APP_URL              https://<domain_name>, for the smoke check
+# and production also STAGING_ACCOUNT_ID. Production has required reviewers.
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: Git SHA of an earlier build to deploy (empty builds the selected branch)
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+# One deploy per environment at a time; a newer run waits rather than cancelling one midway.
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: us-east-1
+
+jobs:
+  build:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: staging
+    permissions:
+      contents: read
+      id-token: write
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
+    steps:
+      - name: Choose the image tag
+        id: tag
+        env:
+          INPUT_TAG: ${{ inputs.image_tag }}
+          RUN_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+        run: |
+          tag="${INPUT_TAG:-$RUN_SHA}"
+          [[ "$tag" =~ ^[0-9a-f]{40}$ ]] || { echo "image_tag must be a full git SHA"; exit 1; }
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        if: ${{ !inputs.image_tag }}
+        with:
+          ref: ${{ steps.tag.outputs.tag }}
+      - uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+      - uses: aws-actions/amazon-ecr-login@03f1aad4c6c7ffd436567f42f9384779290529bd # v2.1.7
+        id: ecr
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+        if: ${{ !inputs.image_tag }}
+      - name: Build and push the API image
+        if: ${{ !inputs.image_tag }}
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          target: api
+          push: true
+          provenance: mode=max
+          sbom: true
+          tags: ${{ steps.ecr.outputs.registry }}/acct/api:${{ steps.tag.outputs.tag }}
+          cache-from: type=gha,scope=images
+      - name: Build and push the web image
+        if: ${{ !inputs.image_tag }}
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          target: web
+          push: true
+          provenance: mode=max
+          sbom: true
+          # The API's address inside the cluster (Cloud Map), fixed at build time.
+          build-args: API_URL=http://api.acct.internal:4000
+          tags: ${{ steps.ecr.outputs.registry }}/acct/web:${{ steps.tag.outputs.tag }}
+          cache-from: type=gha,scope=images
+      - name: Check the images exist
+        env:
+          TAG: ${{ steps.tag.outputs.tag }}
+        run: |
+          for repo in acct/api acct/web; do
+            aws ecr describe-images --repository-name "$repo" --image-ids imageTag="$TAG" \
+              --query 'imageDetails[0].imageDigest' --output text
+          done
+
+  staging:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    environment:
+      name: staging
+      url: ${{ vars.APP_URL }}
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+      - name: Deploy
+        env:
+          REGISTRY: ${{ vars.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com
+          TAG: ${{ needs.build.outputs.tag }}
+          APP_URL: ${{ vars.APP_URL }}
+        run: infra/deploy/ecs-deploy.sh staging "$REGISTRY/acct/api:$TAG" "$REGISTRY/acct/web:$TAG" "$APP_URL"
+
+  production:
+    needs: [build, staging]
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    environment:
+      name: production
+      url: ${{ vars.APP_URL }}
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+      - uses: aws-actions/amazon-ecr-login@03f1aad4c6c7ffd436567f42f9384779290529bd # v2.1.7
+        with:
+          registries: ${{ vars.STAGING_ACCOUNT_ID }},${{ vars.AWS_ACCOUNT_ID }}
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - name: Copy the tested images from staging
+        env:
+          FROM: ${{ vars.STAGING_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com
+          TO: ${{ vars.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com
+          TAG: ${{ needs.build.outputs.tag }}
+        run: |
+          for repo in acct/api acct/web; do
+            if aws ecr describe-images --repository-name "$repo" --image-ids imageTag="$TAG" >/dev/null 2>&1; then
+              echo "$repo:$TAG is already in production"
+            else
+              docker buildx imagetools create --tag "$TO/$repo:$TAG" "$FROM/$repo:$TAG"
+            fi
+          done
+      - name: Deploy
+        env:
+          REGISTRY: ${{ vars.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com
+          TAG: ${{ needs.build.outputs.tag }}
+          APP_URL: ${{ vars.APP_URL }}
+        run: infra/deploy/ecs-deploy.sh production "$REGISTRY/acct/api:$TAG" "$REGISTRY/acct/web:$TAG" "$APP_URL"
