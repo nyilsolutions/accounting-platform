@@ -87,7 +87,7 @@ export async function seedPhase10(
   const acct = (name: string) => lookup.accounts.find((a) => a.name === name)!.id;
 
   const app = await NestFactory.createApplicationContext(
-    AppModule.forRoot({ ...config, REPORT_SCHEDULER: 'off' }),
+    AppModule.forRoot({ ...config, JOB_WORKER: 'off' }),
     { logger: ['error'] },
   );
   try {
@@ -281,7 +281,7 @@ export async function seedPhase10b(
   const acct = (name: string) => lookup.accounts.find((a) => a.name === name)!.id;
 
   const app = await NestFactory.createApplicationContext(
-    AppModule.forRoot({ ...config, REPORT_SCHEDULER: 'off' }),
+    AppModule.forRoot({ ...config, JOB_WORKER: 'off' }),
     { logger: ['error'] },
   );
   try {
@@ -431,7 +431,7 @@ export async function seedPhase10c(
   const acct = (name: string) => lookup.accounts.find((a) => a.name === name)!.id;
 
   const app = await NestFactory.createApplicationContext(
-    AppModule.forRoot({ ...config, REPORT_SCHEDULER: 'off' }),
+    AppModule.forRoot({ ...config, JOB_WORKER: 'off' }),
     { logger: ['error'] },
   );
   try {
@@ -603,7 +603,7 @@ export async function seedPhase10d(
   const acct = (name: string) => lookup.accounts.find((a) => a.name === name)!.id;
 
   const app = await NestFactory.createApplicationContext(
-    AppModule.forRoot({ ...config, REPORT_SCHEDULER: 'off' }),
+    AppModule.forRoot({ ...config, JOB_WORKER: 'off' }),
     { logger: ['error'] },
   );
   try {
@@ -769,7 +769,7 @@ export async function seedPhase10e(
   if (lookup.done || !lookup.checking || !lookup.services || !hillside || !oakwood) return;
 
   const app = await NestFactory.createApplicationContext(
-    AppModule.forRoot({ ...config, REPORT_SCHEDULER: 'off' }),
+    AppModule.forRoot({ ...config, JOB_WORKER: 'off' }),
     { logger: ['error'] },
   );
   try {
@@ -895,7 +895,7 @@ export async function seedPhase10f(
   );
 
   const app = await NestFactory.createApplicationContext(
-    AppModule.forRoot({ ...config, REPORT_SCHEDULER: 'off' }),
+    AppModule.forRoot({ ...config, JOB_WORKER: 'off' }),
     { logger: ['error'] },
   );
   try {

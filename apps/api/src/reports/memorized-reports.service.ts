@@ -4,8 +4,7 @@ import {
   Injectable,
   Logger,
   NotFoundException,
-  type OnApplicationBootstrap,
-  type BeforeApplicationShutdown,
+  type OnModuleInit,
 } from '@nestjs/common';
 import { sql, withTenant, type Db, type Tx } from '@acct/db';
 import {
@@ -26,6 +25,7 @@ import { AuditService } from '../audit/audit.service';
 import type { AuthContext, CompanyContext, RequestMeta } from '../common/request';
 import { APP_CONFIG, type AppConfig } from '../config';
 import { DB } from '../db/db.module';
+import { JobQueue } from '../jobs/job-queue.service';
 import { MAILER, type Mailer } from '../mail/mailer';
 import { renderReport } from './export/render';
 import { ReportsService } from './reports.service';
@@ -62,15 +62,13 @@ const SYSTEM_META: RequestMeta = { ip: null, userAgent: 'report-scheduler', requ
  * Memorized reports: a report's settings saved under a name, with relative dates ("last month"),
  * private to their creator or shared with the company. A schedule emails one as PDF, Excel or CSV.
  *
- * The scheduler checks every minute. Due schedules are claimed across companies through
+ * The 'reports.scheduled' job checks every minute (ADR 0027). Due schedules are claimed across companies through
  * app_claim_report_schedules (migration 0009); each then runs inside its company as the person
  * who scheduled it, and only while they can still see reports there.
  */
 @Injectable()
-export class MemorizedReportsService implements OnApplicationBootstrap, BeforeApplicationShutdown {
+export class MemorizedReportsService implements OnModuleInit {
   private readonly logger = new Logger('ReportScheduler');
-  private timer: NodeJS.Timeout | null = null;
-  private running: Promise<unknown> | null = null;
 
   constructor(
     @Inject(DB) private readonly db: Db,
@@ -78,22 +76,11 @@ export class MemorizedReportsService implements OnApplicationBootstrap, BeforeAp
     @Inject(MAILER) private readonly mailer: Mailer,
     private readonly reports: ReportsService,
     private readonly audit: AuditService,
+    private readonly jobs: JobQueue,
   ) {}
 
-  onApplicationBootstrap(): void {
-    if (this.config.REPORT_SCHEDULER !== 'on') return;
-    this.timer = setInterval(() => {
-      if (this.running) return;
-      this.running = this.tick()
-        .catch((e) => this.logger.error(`Scheduler tick failed: ${String(e)}`))
-        .finally(() => (this.running = null));
-    }, 60_000);
-    this.timer.unref();
-  }
-
-  async beforeApplicationShutdown(): Promise<void> {
-    if (this.timer) clearInterval(this.timer);
-    await this.running;
+  onModuleInit(): void {
+    this.jobs.register('reports.scheduled', () => this.tick());
   }
 
   private tenant<T>(auth: AuthContext, ctx: CompanyContext, fn: (tx: Tx) => Promise<T>) {

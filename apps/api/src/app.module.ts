@@ -13,6 +13,7 @@ import { APP_CONFIG, type AppConfig } from './config';
 import { DbModule } from './db/db.module';
 import { HealthController } from './health/health.controller';
 import { InventoryModule } from './inventory/inventory.module';
+import { JobsModule } from './jobs/jobs.module';
 import { LedgerModule } from './ledger/ledger.module';
 import { ListsModule } from './lists/lists.module';
 import { MailModule } from './mail/mail.module';
@@ -42,6 +43,7 @@ export class AppModule {
         },
         ThrottlerModule.forRoot([{ name: 'default', ttl: 60_000, limit: 600 }]),
         DbModule,
+        JobsModule,
         MailModule,
         AuditModule,
         AuthModule,

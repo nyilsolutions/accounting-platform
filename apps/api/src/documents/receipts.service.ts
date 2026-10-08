@@ -1,4 +1,11 @@
-import { BadRequestException, ConflictException, Inject, Injectable, Logger } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Inject,
+  Injectable,
+  Logger,
+  type OnModuleInit,
+} from '@nestjs/common';
 import { withTenant, type Db, type Tx } from '@acct/db';
 import {
   descriptionTokens,
@@ -16,6 +23,7 @@ import { AuditService } from '../audit/audit.service';
 import { guessParty } from '../banking/feed-matching';
 import type { AuthContext, CompanyContext, RequestMeta } from '../common/request';
 import { DB } from '../db/db.module';
+import { JobQueue } from '../jobs/job-queue.service';
 import { PurchaseDocumentsService } from '../purchases/purchase-documents.service';
 import { validationError } from '../sales/sales-common';
 import { extractionDto, refreshSearch } from './documents-common';
@@ -40,7 +48,7 @@ export function aliasOf(vendorName: string | null | undefined): string | null {
  * bill, create it when the person confirms, and learn which vendor and category they chose.
  */
 @Injectable()
-export class ReceiptsService {
+export class ReceiptsService implements OnModuleInit {
   private readonly logger = new Logger(ReceiptsService.name);
 
   constructor(
@@ -49,6 +57,7 @@ export class ReceiptsService {
     private readonly documents: DocumentsService,
     private readonly purchases: PurchaseDocumentsService,
     private readonly audit: AuditService,
+    private readonly jobs: JobQueue,
   ) {}
 
   get enabled(): boolean {
@@ -132,19 +141,29 @@ export class ReceiptsService {
     });
   }
 
-  /** Reads without making the caller wait; failures are recorded on the document. */
-  readInBackground(
-    userId: string | null,
-    companyId: string,
-    documentId: string,
-    meta: RequestMeta,
-  ): void {
-    if (!this.extractor) return;
-    setImmediate(() => {
-      this.read(userId, companyId, documentId, meta).catch((e: Error) =>
-        this.logger.warn(`Background receipt reading failed for ${documentId}: ${e.message}`),
-      );
+  /** The 'documents.read' job reads a document queued by `readInBackground` (ADR 0027). */
+  onModuleInit(): void {
+    this.jobs.register('documents.read', async (d, job) => {
+      if (!this.extractor) return;
+      await this.read(d.userId, d.companyId, d.documentId, {
+        ip: null,
+        userAgent: 'job:documents.read',
+        requestId: job.jobId,
+      });
     });
+  }
+
+  /**
+   * Reads without making the caller wait: queues the 'documents.read' job, retried if it fails
+   * outright. A reading that fails is recorded on the document.
+   */
+  readInBackground(userId: string | null, companyId: string, documentId: string): void {
+    if (!this.extractor) return;
+    this.jobs
+      .send('documents.read', { companyId, documentId, userId }, { singletonKey: documentId })
+      .catch((e: Error) =>
+        this.logger.warn(`Couldn't queue reading document ${documentId}: ${e.message}`),
+      );
   }
 
   /** The proposed expense or bill for a read document. */

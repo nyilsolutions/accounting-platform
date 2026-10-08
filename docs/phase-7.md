@@ -65,9 +65,9 @@
 
 ## Configuration
 
-| Variable           | Default | Notes                                                                                                                                  |
-| ------------------ | ------- | -------------------------------------------------------------------------------------------------------------------------------------- |
-| `REPORT_SCHEDULER` | `on`    | Checks every minute for scheduled reports to email. Set `off` on API instances that shouldn't send (a lease keeps sends unique anyway) |
+| Variable           | Default | Notes                                                                              |
+| ------------------ | ------- | ---------------------------------------------------------------------------------- |
+| `REPORT_SCHEDULER` | `on`    | Removed in Phase 12a: scheduled reports are the `reports.scheduled` job (ADR 0027) |
 
 Scheduled reports go through the configured mail transport (`MAIL_TRANSPORT`) with the report
 attached. The `file` transport writes attachments into the outbox JSON (base64).

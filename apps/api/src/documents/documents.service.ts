@@ -8,6 +8,7 @@ import {
   NotFoundException,
   PayloadTooLargeException,
   UnprocessableEntityException,
+  type OnModuleInit,
 } from '@nestjs/common';
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { zipSync } from 'fflate';
@@ -30,6 +31,7 @@ import { AuditService } from '../audit/audit.service';
 import type { AuthContext, CompanyContext, RequestMeta } from '../common/request';
 import { APP_CONFIG, type AppConfig } from '../config';
 import { DB } from '../db/db.module';
+import { JobQueue } from '../jobs/job-queue.service';
 import {
   assertEntity,
   CONTENT_TYPES_BY_KIND,
@@ -75,7 +77,7 @@ const MAX_ZIP_BYTES = 500 * 1024 * 1024;
  * signed short-lived downloads, ZIP download, soft delete by admins with retention.
  */
 @Injectable()
-export class DocumentsService {
+export class DocumentsService implements OnModuleInit {
   private readonly logger = new Logger(DocumentsService.name);
   readonly tokens: FileTokens;
 
@@ -85,8 +87,31 @@ export class DocumentsService {
     @Inject(OBJECT_STORE) private readonly store: ObjectStore,
     @Inject(VIRUS_SCANNER) private readonly scanner: VirusScanner,
     private readonly audit: AuditService,
+    private readonly jobs: JobQueue,
   ) {
     this.tokens = new FileTokens(config.FIELD_ENCRYPTION_KEY);
+  }
+
+  /** The daily 'documents.purge' job (ADR 0027): every company with deleted documents. */
+  onModuleInit(): void {
+    this.jobs.register('documents.purge', async (_d, job) => {
+      const meta: RequestMeta = {
+        ip: null,
+        userAgent: 'job:documents.purge',
+        requestId: job.jobId,
+      };
+      const { rows } = await sql<{ company_id: string }>`
+        select app_documents_purge_candidates() as company_id`.execute(this.db);
+      let purged = 0;
+      for (const r of rows) {
+        try {
+          purged += (await this.purgeCompany(null, r.company_id, meta)).purged;
+        } catch (e) {
+          this.logger.warn(`Purge failed for company ${r.company_id}: ${(e as Error).message}`);
+        }
+      }
+      return purged;
+    });
   }
 
   get maxBytes(): number {
@@ -817,12 +842,18 @@ export class DocumentsService {
 
   /**
    * Removes the bytes of deleted documents whose retention period has ended. Metadata and the
-   * audit trail stay. Admins only; a scheduled job will call this in production (Phase 12).
+   * audit trail stay. Admins can run it now; the 'documents.purge' job runs it daily.
    */
   purgeExpired(auth: AuthContext, ctx: CompanyContext, meta: RequestMeta, now = new Date()) {
     if (!ADMIN_ROLES.has(ctx.role))
       throw new ForbiddenException('Only owners and admins can purge documents');
-    const actor = { userId: auth.userId, companyId: ctx.companyId };
+    return this.purgeCompany(auth.userId, ctx.companyId, meta, now);
+  }
+
+  /** One company's purge, by an admin (`userId`) or the scheduled job (null). */
+  purgeCompany(userId: string | null, companyId: string, meta: RequestMeta, now = new Date()) {
+    const actor = { userId, companyId };
+    const ctx = { companyId };
     return (async () => {
       const due = await withTenant(this.db, actor, async (tx) => {
         const s = await this.ensureSettings(tx, ctx.companyId);
@@ -845,11 +876,13 @@ export class DocumentsService {
             )
             .execute();
         }
+        // The daily job leaves no trace when nothing was due; an admin's run always does.
+        if (!due.rows.length && !userId) return;
         await this.audit.record(
           tx,
           {
             companyId: ctx.companyId,
-            actorUserId: auth.userId,
+            actorUserId: userId,
             action: 'document.purged',
             entityType: 'company',
             entityId: ctx.companyId,

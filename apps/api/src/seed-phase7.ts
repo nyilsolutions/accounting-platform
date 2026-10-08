@@ -46,7 +46,7 @@ export async function seedPhase7(
   if (done) return;
 
   const app = await NestFactory.createApplicationContext(
-    AppModule.forRoot({ ...config, REPORT_SCHEDULER: 'off' }),
+    AppModule.forRoot({ ...config, JOB_WORKER: 'off' }),
     { logger: ['error'] },
   );
   try {

@@ -8,6 +8,17 @@ import { AppModule } from './app.module';
 import { PgErrorFilter } from './common/pg-error.filter';
 import { csrfMiddleware, requestIdMiddleware } from './common/security.middleware';
 import type { AppConfig } from './config';
+import { JsonLogger, requestLogger } from './observability/logger';
+
+let logger: JsonLogger | null = null;
+/** The process's logger: JSON in production, a readable line in development, always redacted. */
+export function appLogger(config: AppConfig): JsonLogger {
+  logger ??= new JsonLogger(
+    config.LOG_LEVEL,
+    config.LOG_FORMAT ?? (config.NODE_ENV === 'production' ? 'json' : 'pretty'),
+  );
+  return logger;
+}
 
 const SMALL_BODY_BYTES = 256 * 1024;
 /**
@@ -30,7 +41,7 @@ function bodySizeLimit(req: Request, res: Response, next: NextFunction): void {
 
 export async function createApp(config: AppConfig): Promise<INestApplication> {
   const app = await NestFactory.create<NestExpressApplication>(AppModule.forRoot(config), {
-    logger: config.NODE_ENV === 'test' ? ['error'] : ['log', 'warn', 'error'],
+    logger: config.NODE_ENV === 'test' ? ['error'] : appLogger(config),
     // Webhook signatures are checked against the exact bytes received.
     rawBody: true,
   });
@@ -51,6 +62,7 @@ export async function createApp(config: AppConfig): Promise<INestApplication> {
     limit: `${config.MAX_UPLOAD_MB + 1}mb`,
   });
   app.use(requestIdMiddleware);
+  if (config.NODE_ENV !== 'test') app.use(requestLogger(appLogger(config)));
   app.use(cookieParser());
   app.use(csrfMiddleware([config.WEB_ORIGIN]));
   app.useGlobalFilters(new PgErrorFilter());

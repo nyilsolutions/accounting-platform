@@ -1,6 +1,10 @@
-// Recreates the e2e database from scratch and applies migrations.
+// Recreates the e2e database from scratch, applies migrations and installs the job queue.
+import { createRequire } from 'node:module';
 import pg from 'pg';
 import db from '@acct/db';
+
+// The API's build (`pnpm build` first) installs the queue as the owner (ADR 0027).
+const { installJobQueue } = createRequire(import.meta.url)('../../api/dist/jobs/install.js');
 
 const admin = new URL(
   process.env.ADMIN_DATABASE_URL ?? 'postgres://postgres:postgres@localhost:5432/postgres',
@@ -18,4 +22,5 @@ await client.end();
 const target = new URL(admin);
 target.pathname = `/${name}`;
 await db.migrate(target.toString());
+await installJobQueue(target.toString());
 console.log(`e2e database ${name} ready`);

@@ -1,51 +1,29 @@
-import {
-  Inject,
-  Injectable,
-  Logger,
-  type BeforeApplicationShutdown,
-  type OnApplicationBootstrap,
-} from '@nestjs/common';
+import { Inject, Injectable, type OnModuleInit } from '@nestjs/common';
 import { sql, type Db } from '@acct/db';
-import { APP_CONFIG, type AppConfig } from '../../config';
 import { DB } from '../../db/db.module';
+import { JobQueue } from '../../jobs/job-queue.service';
 import { DepositPartnerService } from './deposit-partner.service';
 import { EftpsService } from './eftps.service';
-
-const POLL_MS = 15 * 60_000;
 
 /**
  * Asks EFTPS and the payments partner what changed (ADR 0025): pending enrollments, scheduled
  * tax payments and submitted deposit batches, across companies through the security-definer
- * lookup `app_payroll_partner_waiting` (ids only), each then handled inside its company.
+ * lookup `app_payroll_partner_waiting` (ids only), each then handled inside its company. The
+ * 'payroll.partners' job runs it every 15 minutes (ADR 0027); **Check now** runs it for one company.
  */
 @Injectable()
-export class PartnersPollerService implements OnApplicationBootstrap, BeforeApplicationShutdown {
-  private readonly logger = new Logger('PayrollPartners');
-  private timer: NodeJS.Timeout | null = null;
-  private running: Promise<unknown> | null = null;
-
+export class PartnersPollerService implements OnModuleInit {
   constructor(
     @Inject(DB) private readonly db: Db,
-    @Inject(APP_CONFIG) private readonly config: AppConfig,
     private readonly eftps: EftpsService,
     private readonly deposits: DepositPartnerService,
+    private readonly jobs: JobQueue,
   ) {}
 
-  onApplicationBootstrap(): void {
-    if (this.config.PAYROLL_PARTNER_POLLER !== 'on') return;
-    if (!this.eftps.provider && !this.deposits.partner) return;
-    this.timer = setInterval(() => {
-      if (this.running) return;
-      this.running = this.pollAll()
-        .catch((e) => this.logger.error(`Partner poll failed: ${String(e)}`))
-        .finally(() => (this.running = null));
-    }, POLL_MS);
-    this.timer.unref();
-  }
-
-  async beforeApplicationShutdown(): Promise<void> {
-    if (this.timer) clearInterval(this.timer);
-    await this.running;
+  onModuleInit(): void {
+    this.jobs.register('payroll.partners', async () =>
+      this.eftps.provider || this.deposits.partner ? this.pollAll() : 0,
+    );
   }
 
   /** Everything waiting on a provider, optionally for one company; returns the changes made. */

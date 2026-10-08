@@ -8,6 +8,7 @@ import { Reflector } from '@nestjs/core';
 import { ALLOW_PENDING_MFA, IS_PUBLIC } from '../common/decorators';
 import type { AppRequest } from '../common/request';
 import { SessionService } from './session.service';
+import { logContext } from '../observability/logger';
 
 /**
  * Global guard. Every route requires a session with a completed MFA challenge unless marked
@@ -28,7 +29,12 @@ export class SessionGuard implements CanActivate {
     const token = req.cookies?.[this.sessions.cookieName] as string | undefined;
     if (token) {
       const auth = await this.sessions.resolve(token);
-      if (auth) req.auth = auth;
+      if (auth) {
+        req.auth = auth;
+        // Later log lines for this request carry who made it (an id, never a name or email).
+        const log = logContext.getStore();
+        if (log) log.userId = auth.userId;
+      }
     }
     if (isPublic) return true;
     if (!req.auth) throw new UnauthorizedException('Sign in required');

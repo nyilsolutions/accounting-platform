@@ -13,9 +13,10 @@ cp .env.example .env
 pnpm install
 pnpm build                      # builds packages (required before db scripts / API dev)
 pnpm db:setup                   # creates the acct_app role + databases (local/CI only)
-pnpm db:migrate                 # applies packages/db/migrations/*.sql as the owner
+pnpm db:migrate                 # applies packages/db/migrations/*.sql as the owner, then installs the job queue
 pnpm db:seed                    # demo user + "Sample Landscaping Co." (prints MFA secret)
-pnpm dev                        # API :4000 + web :3000 (web proxies /api -> API)
+pnpm dev                        # API :4000 + web :3000 (web proxies /api -> API); the API runs jobs too
+pnpm --filter @acct/api worker  # a separate job worker (production runs the API with JOB_WORKER=off)
 
 pnpm lint && pnpm typecheck && pnpm test   # all unit/integration tests (need Postgres)
 pnpm e2e                        # Playwright; needs `pnpm build` first, ports 3000/4000 free
@@ -26,7 +27,10 @@ A single package: `pnpm --filter @acct/api test`, `pnpm --filter @acct/db test`,
 
 ## Layout
 
-- `apps/api`: NestJS 11 REST API (Express 5). Modules: auth, companies, members, audit, mail, health,
+- `apps/api`: NestJS 11 REST API (Express 5). Modules: auth, companies, members, audit, mail, health
+  (`/health/live`, `/health/ready`), jobs (the pg-boss queue in `jobs/job-queue.service.ts`, the
+  job catalogue in `jobs/jobs.ts`, `worker.ts` the worker entry), observability (redacted JSON
+  logs in `observability/logger.ts`, redaction in `redact.ts`, OpenTelemetry in `tracing.ts`),
   ledger (accounts, journal entries, posting engine, ledger settings), lists, sales (invoices,
   receipts, credit memos, refunds, payments, deposits, estimates), purchases (bills, vendor credits,
   bill payments/pay bills, checks and check printing, expenses, credit card credits, purchase
@@ -252,6 +256,18 @@ A single package: `pnpm --filter @acct/api test`, `pnpm --filter @acct/db test`,
   Every answer goes through `checkStateTaxAnswer`; requests never carry an SSN or bank number.
   `state_other`, `local_income` and `local_other` lines name their jurisdiction and are owed to
   `state_other:<ST>:<code>` and `local:<ST>:<code>`; federal taxes stay built in.
+- Background jobs (ADR 0027): anything that runs outside a request goes through `JobQueue`; never
+  `setInterval`, `setImmediate` or fire-and-forget promises (QuickBooks imports are the one
+  exception for now, question 85). Add a job to `jobs/jobs.ts` (cron in
+  UTC for scheduled ones), register its handler in the owning service's `onModuleInit`, and
+  `jobs:install` creates its queue. Job data carries ids only (never secrets, SSNs, bank numbers
+  or figures). Cross-company jobs find companies through security-definer lookups returning ids,
+  then work inside `withTenant()`. Pass `tx` to `send` when the job must exist only if the change
+  commits. Tests run jobs inline (`JOB_QUEUE=inline`, `drain()`); job tests use real pg-boss.
+- Logging (ADR 0027): use Nest's `Logger`; the app's `JsonLogger` redacts and tags every line
+  with the request, user, job and trace ids. Never log bodies, headers, query strings or
+  sensitive values; redaction is a safety net, not permission. Traces leave the process only
+  through `RedactingExporter`.
 - Database errors map to HTTP in `common/pg-error.filter.ts`; add friendly messages for new unique
   indexes there.
 
@@ -269,4 +285,4 @@ A single package: `pnpm --filter @acct/api test`, `pnpm --filter @acct/db test`,
 - [ ] Phase 9: Payroll and 1099 tax forms (part 1 done: prior payroll, W-2/W-3 figures, quarterly and FUTA summaries, state reports, filings; official PDFs, EFW2, 1099/IRIS and state layouts wait on documents)
 - [x] Phase 10: Advanced, in six parts (10a inventory done: items and assemblies, FIFO/average costing with backdated recosting, no negative stock, adjustments, builds, valuation and stock status reports, QuickBooks cut-over; 10b time tracking done: timesheets, approvals, paychecks and invoices from approved time, progress invoicing; 10c multi-currency done: foreign-currency customers, vendors, documents and payments, rates by hand or from the ECB, realized and unrealized gains and losses; 10d accountant tools done: reclassify, write off invoices, fix undeposited funds, client change review, month-end close, Adjusted Trial Balance; 10e online payments done: Stripe Connect Standard accounts (stand-in until the platform's keys exist), pay links and the pay page, payments into Undeposited Funds, payouts as deposits net of fees, refunds and chargebacks; 10f portals done: employee and contractor portals with password and MFA (pay stubs, W-2 figures, own time, W-4 and direct deposit requests approved by payroll, contractor payments and 1099 totals), customer portal by emailed link (invoices, statement, paying online, accepting estimates); follow-ups are open questions 62, 64, 66–69 and 71–73)
 - [ ] Phase 11: E-file and partners, in three parts (11a electronic filing done: Forms 941 and 940 through MeF and Forms 1099 through IRIS behind `EfileTransmitter`, with a stand-in for the IRS until the platform's approvals exist, rejections fixed and sent again, accepted returns recorded as filings, the ATS harness; 11b partners done: EFTPS through the platform as batch provider (enrollment, scheduled payments booked when scheduled and voided when cancelled or returned) and direct deposit through a payments partner (per company, returns flag the paycheck and account), both with stand-ins; 11c tax engine plug-in done: any state can be set up, its state and local taxes come from a licensed engine behind `StateTaxEngine` (paychecks refused with the reason until one is contracted; no stand-in), jurisdictions through liabilities, W-2 boxes 14–20 and state quarterly; the embedded provider designed in ADR 0026; follow-ups are open questions 74–83)
-- [ ] Phase 12: Hardening and launch
+- [ ] Phase 12: Hardening and launch, in four parts (12a jobs and observability done: a pg-boss queue in Postgres with a separate worker for receipt reading, the pollers, scheduled reports, a daily document purge and a nightly bank download; redacted JSON logs with request, user, job and trace ids; OpenTelemetry tracing with scrubbed spans; live and ready health checks; 12b performance, 12c security, 12d launch on AWS; follow-ups are open questions 84–86)

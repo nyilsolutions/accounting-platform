@@ -25,9 +25,9 @@ export async function startApp(overrides: Record<string, string> = {}): Promise<
     MAIL_TRANSPORT: 'capture',
     RATE_LIMIT_AUTH_PER_MINUTE: '1000',
     WEB_ORIGIN: 'http://localhost:3000',
-    REPORT_SCHEDULER: 'off',
-    EFILE_ACK_POLLER: 'off',
-    PAYROLL_PARTNER_POLLER: 'off',
+    // Jobs run in the test's process as soon as they are sent; schedules don't fire.
+    JOB_QUEUE: 'inline',
+    JOB_WORKER: 'off',
     ...overrides,
   });
   process.env.RATE_LIMIT_AUTH_PER_MINUTE = config.RATE_LIMIT_AUTH_PER_MINUTE.toString();

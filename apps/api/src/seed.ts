@@ -7,6 +7,7 @@ import { randomUUID } from 'node:crypto';
 import { generateTotp, generateTotpSecret, hashPassword, LocalAesGcmEncryptor } from '@acct/crypto';
 import { createDb, withTenant, type Db, type Tx } from '@acct/db';
 import { addDays, parseMoney } from '@acct/shared';
+import { JobQueue } from './jobs/job-queue.service';
 import { AuditService } from './audit/audit.service';
 import type { AuthContext, CompanyContext } from './common/request';
 import { loadConfig, type AppConfig } from './config';
@@ -763,12 +764,15 @@ async function seedDocuments(
 ): Promise<void> {
   const audit = new AuditService(db);
   const posting = new PostingService();
+  // Documents are read here directly; nothing is queued, so the queue isn't started.
+  const jobs = new JobQueue({ ...config, JOB_QUEUE: 'inline', JOB_WORKER: 'off' });
   const documents = new DocumentsService(
     db,
     config,
     createObjectStore(config, enc),
     createVirusScanner(config),
     audit,
+    jobs,
   );
   const receipts = new ReceiptsService(
     db,
@@ -776,6 +780,7 @@ async function seedDocuments(
     documents,
     new PurchaseDocumentsService(db, posting, new InventoryService(posting), audit),
     audit,
+    jobs,
   );
   const auth = {
     userId,

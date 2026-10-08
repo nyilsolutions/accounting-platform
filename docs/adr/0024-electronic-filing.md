@@ -98,7 +98,7 @@ the documents (question 75).
 ### Acknowledgements
 
 - **How they arrive:**
-  - a poller asks the transmitter every 15 minutes (`EFILE_ACK_POLLER`);
+  - a poller asks the transmitter every 15 minutes (the `efile.acks` job since ADR 0027);
   - **Check for the IRS's answer** asks now;
   - the stand-in's answer is applied at once.
 - **Lookups:** the poller finds waiting returns across companies through the security-definer
