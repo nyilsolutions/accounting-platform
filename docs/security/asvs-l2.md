@@ -6,46 +6,47 @@ reviews (authentication, sessions and access; input, files, API and configuratio
 architecture, cryptography, errors, data and business logic), each finding was verified by
 hand before it was fixed, and each fix has a test.
 
-Status: **Met** (with where), **Partial** (what is left, with its open question), **12d** (an
-infrastructure control that arrives with the AWS launch), or **N/A** (with why).
+Status: **Met** (with where), **Partial** (what is left, with its open question), or **N/A**
+(with why). Rows first marked **12d** (infrastructure controls) were met by the AWS launch
+(ADR 0030) and say so.
 
 Re-run this review before each major release and whenever a chapter's code changes a lot
 (`docs/policies/secure-development-policy.md`).
 
 ## Summary
 
-| Chapter                               | Not yet met (question)                                         | Fixed in 12c                                                         |
-| ------------------------------------- | -------------------------------------------------------------- | -------------------------------------------------------------------- |
-| V1 Architecture and threat modeling   | Component isolation (12d); unsigned Desktop agent (94)         | Threat model written (`threat-model.md`)                             |
-| V2 Authentication                     | Registration reveals existing emails (90)                      | MFA lockout, TOTP replay, breach check, pepper, recovery codes, more |
-| V3 Session management                 |                                                                | 30-minute idle, list and revoke sessions, re-authentication          |
-| V4 Access control                     |                                                                | Step-up for sensitive actions, agent keys, portal scoping            |
-| V5 Validation, sanitization, encoding |                                                                | Redirects, CSV formulas, ReDoS, SSRF, NUL characters                 |
-| V6 Stored cryptography                |                                                                | KMS envelope keys, rotation, GCM tag length                          |
-| V7 Errors and logging                 | Log retention and alarms (12d, 84)                             | Security events, generic errors, crash handlers                      |
-| V8 Data protection                    | Deleting a company or account (93)                             | no-store, Clear-Site-Data, retention, data export                    |
-| V9 Communications                     | The load balancer's TLS policy (12d)                           | TLS required to every service in production                          |
-| V10 Malicious code                    | Signed agent (94), SBOM (92)                                   | CI scanning, pinned actions                                          |
-| V11 Business logic                    |                                                                | Payment race, closing password, checkout limits                      |
-| V12 Files and resources               | Storage quota per company (91)                                 | Zip bombs, safe extensions, gzip bodies, download caps               |
-| V13 API                               |                                                                | 415 for body types nothing reads                                     |
-| V14 Configuration                     | Builds and deployment (12d); parsers in their own process (95) | CSP and HSTS, production checks, Content-Disposition                 |
+| Chapter                               | Not yet met (question)                    | Fixed in 12c                                                         |
+| ------------------------------------- | ----------------------------------------- | -------------------------------------------------------------------- |
+| V1 Architecture and threat modeling   | Unsigned Desktop agent (94)               | Threat model written (`threat-model.md`)                             |
+| V2 Authentication                     | Registration reveals existing emails (90) | MFA lockout, TOTP replay, breach check, pepper, recovery codes, more |
+| V3 Session management                 |                                           | 30-minute idle, list and revoke sessions, re-authentication          |
+| V4 Access control                     |                                           | Step-up for sensitive actions, agent keys, portal scoping            |
+| V5 Validation, sanitization, encoding |                                           | Redirects, CSV formulas, ReDoS, SSRF, NUL characters                 |
+| V6 Stored cryptography                |                                           | KMS envelope keys, rotation, GCM tag length                          |
+| V7 Errors and logging                 | Traces not collected yet (84)             | Security events, generic errors, crash handlers                      |
+| V8 Data protection                    | Deleting a company or account (93)        | no-store, Clear-Site-Data, retention, data export                    |
+| V9 Communications                     |                                           | TLS required to every service in production                          |
+| V10 Malicious code                    | Signed agent (94), SBOM (92)              | CI scanning, pinned actions                                          |
+| V11 Business logic                    |                                           | Payment race, closing password, checkout limits                      |
+| V12 Files and resources               | Storage quota per company (91)            | Zip bombs, safe extensions, gzip bodies, download caps               |
+| V13 API                               |                                           | 415 for body types nothing reads                                     |
+| V14 Configuration                     | Parsers in their own process (95)         | CSP and HSTS, production checks, Content-Disposition                 |
 
 ## V1 Architecture, design and threat modeling
 
-| Req     | Control                                      | Status  | Where                                                                                           |
-| ------- | -------------------------------------------- | ------- | ----------------------------------------------------------------------------------------------- |
-| 1.1.2   | Threat model for the design and its changes  | Met     | `threat-model.md`; ADRs per feature                                                             |
-| 1.1.4   | Trust boundaries and data flows documented   | Met     | `threat-model.md`                                                                               |
-| 1.1.6   | Central, vetted security controls            | Met     | Guards (`SessionGuard`, `CompanyAccessGuard`, `RecentMfaGuard`), `withTenant`, `FieldEncryptor` |
-| 1.2.1   | Unique, least-privilege service accounts     | Met     | `acct_app` owns nothing, no BYPASSRLS (ADR 0003); migrations as the owner role                  |
-| 1.4.1   | Access control enforced at a trusted layer   | Met     | API guards and Postgres RLS; the web only hides what the API refuses                            |
-| 1.4.4   | One access control mechanism                 | Met     | `RequirePermission` over `ROLE_PERMISSIONS` (ADR 0006)                                          |
-| 1.5.x   | Input and output architecture                | Met     | zod schemas shared by API and web (rule 8); parsers are pure and shared                         |
-| 1.6.1-4 | Key management policy, keys in a vault       | Met     | ADR 0029: AWS KMS wraps data keys; `docs/policies/encryption-and-key-management-policy.md`      |
-| 1.7.1   | Common logging format                        | Met     | `JsonLogger` with request, user, job and trace ids (ADR 0027)                                   |
-| 1.14.1  | Segregation of components of differing trust | 12d     | API, worker, web and Postgres in separate tasks and subnets; parsers in the API process (below) |
-| 1.14.6  | No unsupported client technologies           | Partial | Desktop migration agent ships unsigned until a code-signing certificate exists (question 94)    |
+| Req     | Control                                      | Status  | Where                                                                                                                            |
+| ------- | -------------------------------------------- | ------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| 1.1.2   | Threat model for the design and its changes  | Met     | `threat-model.md`; ADRs per feature                                                                                              |
+| 1.1.4   | Trust boundaries and data flows documented   | Met     | `threat-model.md`                                                                                                                |
+| 1.1.6   | Central, vetted security controls            | Met     | Guards (`SessionGuard`, `CompanyAccessGuard`, `RecentMfaGuard`), `withTenant`, `FieldEncryptor`                                  |
+| 1.2.1   | Unique, least-privilege service accounts     | Met     | `acct_app` owns nothing, no BYPASSRLS (ADR 0003); migrations as the owner role                                                   |
+| 1.4.1   | Access control enforced at a trusted layer   | Met     | API guards and Postgres RLS; the web only hides what the API refuses                                                             |
+| 1.4.4   | One access control mechanism                 | Met     | `RequirePermission` over `ROLE_PERMISSIONS` (ADR 0006)                                                                           |
+| 1.5.x   | Input and output architecture                | Met     | zod schemas shared by API and web (rule 8); parsers are pure and shared                                                          |
+| 1.6.1-4 | Key management policy, keys in a vault       | Met     | ADR 0029: AWS KMS wraps data keys; `docs/policies/encryption-and-key-management-policy.md`                                       |
+| 1.7.1   | Common logging format                        | Met     | `JsonLogger` with request, user, job and trace ids (ADR 0027)                                                                    |
+| 1.14.1  | Segregation of components of differing trust | Met     | API, worker, web and Postgres in separate tasks, security groups and subnet tiers (ADR 0030); parsers in the API process (below) |
+| 1.14.6  | No unsupported client technologies           | Partial | Desktop migration agent ships unsigned until a code-signing certificate exists (question 94)                                     |
 
 ## V2 Authentication
 
@@ -131,17 +132,17 @@ Re-run this review before each major release and whenever a chapter's code chang
 
 ## V7 Error handling and logging
 
-| Req        | Control                                    | Status  | Where                                                                                      |
-| ---------- | ------------------------------------------ | ------- | ------------------------------------------------------------------------------------------ |
-| 7.1.1-2    | No credentials or sensitive data in logs   | Met     | Redacting `JsonLogger` and trace exporter (ADR 0027); audit records redacted               |
-| 7.1.3-4    | Security events logged with context        | Met     | **12c:** `securityEvent` for refused access, unknown-account sign-ins, rejected input      |
-| 7.2.1-2    | Authentication and access decisions logged | Met     | Audit rows for sign-in, lockout, MFA; **12c:** guard denials                               |
-| 7.3.1-4    | Logs protected; time-synchronized          | 12d     | JSON on stdout to CloudWatch; retention and access in 12d (question 84)                    |
-| 7.3.3      | Audit log can't be changed                 | Met     | Triggers forbid update, delete and truncate on `audit_log`                                 |
-| 7.4.1      | Generic errors to people                   | Met     | **12c:** database and network errors in migrations and the QuickBooks callback are generic |
-| 7.4.2      | Exceptions handled everywhere              | Met     | `PgErrorFilter`; **12c:** the QuickBooks pull chain can't reject unhandled                 |
-| 7.4.3      | A last-resort handler                      | Met     | **12c:** `installProcessHandlers` in the API and worker                                    |
-| (alerting) | Anomalies raise alerts                     | Partial | Security events are logged and tagged; alarms are 12d (question 84)                        |
+| Req        | Control                                    | Status | Where                                                                                                         |
+| ---------- | ------------------------------------------ | ------ | ------------------------------------------------------------------------------------------------------------- |
+| 7.1.1-2    | No credentials or sensitive data in logs   | Met    | Redacting `JsonLogger` and trace exporter (ADR 0027); audit records redacted                                  |
+| 7.1.3-4    | Security events logged with context        | Met    | **12c:** `securityEvent` for refused access, unknown-account sign-ins, rejected input                         |
+| 7.2.1-2    | Authentication and access decisions logged | Met    | Audit rows for sign-in, lockout, MFA; **12c:** guard denials                                                  |
+| 7.3.1-4    | Logs protected; time-synchronized          | Met    | JSON on stdout to CloudWatch, KMS-encrypted, kept `log_retention_days`; CloudTrail with validation (ADR 0030) |
+| 7.3.3      | Audit log can't be changed                 | Met    | Triggers forbid update, delete and truncate on `audit_log`                                                    |
+| 7.4.1      | Generic errors to people                   | Met    | **12c:** database and network errors in migrations and the QuickBooks callback are generic                    |
+| 7.4.2      | Exceptions handled everywhere              | Met    | `PgErrorFilter`; **12c:** the QuickBooks pull chain can't reject unhandled                                    |
+| 7.4.3      | A last-resort handler                      | Met    | **12c:** `installProcessHandlers` in the API and worker                                                       |
+| (alerting) | Anomalies raise alerts                     | Met    | Alarms on security-event spikes, errors and GuardDuty findings (ADR 0030, `docs/runbooks/`)                   |
 
 ## V8 Data protection
 
@@ -161,7 +162,7 @@ Re-run this review before each major release and whenever a chapter's code chang
 
 | Req     | Control                           | Status | Where                                                                                                                 |
 | ------- | --------------------------------- | ------ | --------------------------------------------------------------------------------------------------------------------- |
-| 9.1.1-3 | TLS 1.2+ for clients              | 12d    | The ALB's TLS policy; HSTS on pages (**12c**)                                                                         |
+| 9.1.1-3 | TLS 1.2+ for clients              | Met    | The load balancer offers TLS 1.2 and 1.3 only and redirects HTTP (ADR 0030); HSTS on pages (**12c**)                  |
 | 9.2.1   | Trusted certificates to back ends | Met    | Node's CA store; no certificate checks turned off                                                                     |
 | 9.2.2   | TLS to every back end             | Met    | **12c:** production refuses to start without `sslmode=verify-full` to Postgres, https endpoints, clamd beside the API |
 
@@ -211,16 +212,16 @@ Re-run this review before each major release and whenever a chapter's code chang
 
 ## V14 Configuration
 
-| Req      | Control                                          | Status  | Where                                                                                           |
-| -------- | ------------------------------------------------ | ------- | ----------------------------------------------------------------------------------------------- |
-| 14.1.1-5 | Repeatable, hardened builds and deployment       | 12d     | Containers and Terraform                                                                        |
-| 14.2.1-3 | Components up to date; vulnerable ones flagged   | Met     | **12c:** Dependabot and the dependency audit in CI                                              |
-| 14.2.6   | Risky components isolated                        | Partial | PDF, ZIP and MIME parsers run in the API and worker processes (question 95)                     |
-| 14.3.2-3 | No debug output or version headers in production | Met     | `x-powered-by` off; generic errors                                                              |
-| 14.4.1   | Content type and charset on every response       | Met     | **12c:** text downloads say UTF-8                                                               |
-| 14.4.2   | API responses are attachments                    | Met     | **12c:** `Content-Disposition: attachment` on JSON                                              |
-| 14.4.3   | Content Security Policy                          | Met     | **12c:** a nonce CSP with `strict-dynamic` on every page (`apps/web/src/proxy.ts`)              |
-| 14.4.4-7 | nosniff, Referrer-Policy, frame-ancestors        | Met     | helmet; `next.config.ts`; `frame-ancestors 'none'`                                              |
-| 14.4.5   | HSTS                                             | Met     | **12c:** on pages outside development; helmet on the API                                        |
-| 14.5.x   | Request headers and CORS                         | Met     | No CORS; Origin checked                                                                         |
-| (config) | Unsafe production settings refused at start-up   | Met     | **12c:** TLS, https, clamd, JSON logs, KMS, pepper, breach check, the example key (`config.ts`) |
+| Req      | Control                                          | Status  | Where                                                                                               |
+| -------- | ------------------------------------------------ | ------- | --------------------------------------------------------------------------------------------------- |
+| 14.1.1-5 | Repeatable, hardened builds and deployment       | Met     | Pinned images built once and promoted, scanned; Terraform; non-root read-only containers (ADR 0030) |
+| 14.2.1-3 | Components up to date; vulnerable ones flagged   | Met     | **12c:** Dependabot and the dependency audit in CI                                                  |
+| 14.2.6   | Risky components isolated                        | Partial | PDF, ZIP and MIME parsers run in the API and worker processes (question 95)                         |
+| 14.3.2-3 | No debug output or version headers in production | Met     | `x-powered-by` off; generic errors                                                                  |
+| 14.4.1   | Content type and charset on every response       | Met     | **12c:** text downloads say UTF-8                                                                   |
+| 14.4.2   | API responses are attachments                    | Met     | **12c:** `Content-Disposition: attachment` on JSON                                                  |
+| 14.4.3   | Content Security Policy                          | Met     | **12c:** a nonce CSP with `strict-dynamic` on every page (`apps/web/src/proxy.ts`)                  |
+| 14.4.4-7 | nosniff, Referrer-Policy, frame-ancestors        | Met     | helmet; `next.config.ts`; `frame-ancestors 'none'`                                                  |
+| 14.4.5   | HSTS                                             | Met     | **12c:** on pages outside development; helmet on the API                                            |
+| 14.5.x   | Request headers and CORS                         | Met     | No CORS; Origin checked                                                                             |
+| (config) | Unsafe production settings refused at start-up   | Met     | **12c:** TLS, https, clamd, JSON logs, KMS, pepper, breach check, the example key (`config.ts`)     |

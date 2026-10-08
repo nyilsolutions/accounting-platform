@@ -14,8 +14,8 @@ Phase 12 makes the platform ready to run for customers. The owner decided (2026-
 | ---- | ------------------------------------------------------------------------------------------------------ | ------- |
 | 12a  | Background jobs (a queue and worker), structured redacted logs, tracing, health checks                 | Done    |
 | 12b  | Performance: 100,000-transaction data, query and index work, load tests against the targets            | Done    |
-| 12c  | Security: AWS KMS field encryption, an ASVS review and fixes, CI scanning, data export, SOC 2 policies | This PR |
-| 12d  | Launch: containers, Terraform for AWS, backups and a restore drill, alerting, the launch checklist     | Planned |
+| 12c  | Security: AWS KMS field encryption, an ASVS review and fixes, CI scanning, data export, SOC 2 policies | Done    |
+| 12d  | Launch: containers, Terraform for AWS, backups and a restore drill, alerting, the launch checklist     | This PR |
 
 ## 12a: Jobs and observability (ADR 0027)
 
@@ -228,3 +228,115 @@ pnpm --filter @acct/api keys:reencrypt   # after restarting the API and workers
   process, very large exports, pay link expiry, email-in replays.
 - **The policies' placeholders** need the company's details and an approver
   (`docs/policies/README.md`).
+
+## 12d: Launch on AWS (ADR 0030)
+
+The owner decided (2026-10-08): ECS on Fargate, RDS PostgreSQL Multi-AZ, Amazon SES, and
+staging and production in separate AWS accounts in us-east-1.
+
+### Delivered
+
+- **Images** (`Dockerfile`):
+  - `api` runs the API, the worker and the release step;
+  - `web` is the Next.js standalone server, built for the API's address in the cluster.
+
+  Both run as non-root over read-only files, from a Node base image pinned by digest. CI
+  builds both, runs them against Postgres (release step, API, worker, web, and `/api`
+  through the web proxy), and scans them with Grype.
+
+- **The release step** (`node dist/release.js`, `ops/release.ts`), run before every deploy:
+  1. checks the settings as the API will;
+  2. creates or updates the `acct_app` role;
+  3. migrates and installs the job queue;
+  4. creates the first KMS field key on a new database.
+- **AWS from code** (`infra/terraform`):
+  - **network:** a VPC with public, app and isolated data subnets, NAT, endpoints and flow
+    logs;
+  - **database:** RDS PostgreSQL 16, Multi-AZ, TLS only, KMS-encrypted;
+  - **storage:** S3 for documents (SSE-KMS, versioned, replicated to us-west-2);
+  - **keys:** KMS keys, with the field key multi-region;
+  - **services:** ECS Fargate (web, API with clamd, worker, release task) behind an HTTPS load
+    balancer with AWS WAF;
+  - **mail:** SES with DKIM, MAIL FROM, DMARC and a suppression list;
+  - **secrets:** Secrets Manager, generated write-only so they're never in the state;
+  - **roles:** least-privilege task roles, and GitHub OIDC deploy roles per environment;
+  - **account security:** CloudTrail, GuardDuty and Access Analyzer;
+  - **layout:** one module, applied per account, plus a locked vault in a separate backup
+    account.
+- **Mail through SES** (`MAIL_TRANSPORT=ses`, required in production). S3, SES and KMS use the
+  task role's temporary credentials; the SigV4 signer signs session tokens.
+- **Client IPs (question 96):** the API trusts `X-Forwarded-For` hops inside the VPC only, so it
+  sees the address the load balancer appended. A spoofed header is ignored, which was tested
+  through the web container.
+- **Deploys** (`.github/workflows/deploy.yml`, `infra/deploy/ecs-deploy.sh`):
+  1. After CI passes on `main`, the images are built once and staging is deployed.
+  2. Production waits for a reviewer, then gets the same images by digest.
+  3. Each deploy registers new task definitions and runs the release step, which must pass.
+  4. The services roll, with ECS rolling back unhealthy tasks, and the site is checked.
+
+  Rollback means deploying an earlier commit's images.
+
+- **Backups:**
+  - point-in-time recovery for 35 days, replicated to us-west-2;
+  - daily and monthly AWS Backup snapshots, copied to us-west-2 and to the backup account's
+    locked vault;
+  - document replication;
+  - an alert on any failed backup, copy or replication.
+- **Restore drill** (`infra/drill/restore-drill.sh`): restores a point-in-time copy and times
+  it, then checks it with `ops/verify-restore.ts`:
+  - migrations complete;
+  - books balance per company;
+  - encrypted fields decrypt through KMS;
+  - documents match their SHA-256.
+
+  It records the result, then deletes the copy.
+
+- **Alerting:** alarms on 5xx, p95 over 2 s, unhealthy or missing tasks, database CPU, storage,
+  memory and connections, SES bounce and complaint rates, replication, error and
+  security-event spikes in the logs, failed release steps, crashed tasks, RDS events and
+  GuardDuty. They all go to one SNS topic, and each alarm names its runbook.
+- **Runbooks** (`docs/runbooks/`): one per alarm group, plus deploy, rollback, restore drill,
+  disaster recovery and rotating secrets.
+- **Launch checklist** (`docs/launch-checklist.md`): what code can't do. That covers
+  accounts, DNS, SES production access, provider secrets, GitHub environments, the first
+  drill, the policies and people.
+
+### Running it
+
+```bash
+docker build --target api -t acct-api .
+docker build --target web --build-arg API_URL=http://localhost:4000 -t acct-web .
+docker run --rm --network host -e ADMIN_DATABASE_URL=... -e APP_DB_PASSWORD=... acct-api node dist/release.js
+
+cd infra/terraform/modules/platform && terraform init -backend=false && terraform test
+bash infra/deploy/test/ecs-deploy.test.sh
+infra/drill/restore-drill.sh production      # with administrator access to the account
+```
+
+### Tests
+
+| Suite                        | Count | Highlights                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| ---------------------------- | ----- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `packages/db`                | 123   | +2. The app role is created with no special powers and reset on each run                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `apps/api`                   | 684   | +14. **SES:** MIME round trip with a Unicode subject and attachment, header injection refused. **Role credentials:** session tokens signed like AWS's reference signer, fresh credentials per request. **Release step:** refuses bad settings before changing anything, creates the role and first field key, repeats safely. **Restore checks:** pass on real books, files and secrets; catch a changed file, an undecryptable value, unbalanced books, a missing migration. **Production settings:** a complete valid set loads |
+| Terraform (`terraform test`) | 3     | Against mocked AWS: Multi-AZ, encrypted, private, TLS-only database; multi-region field key; no public IPs; TLS 1.2+ and redirects; deploy roles per repository environment; clamd beside the API; client IP trust; non-root read-only containers; owner URL only in the release task; backups copied to the recovery region and the backup account; CloudTrail                                                                                                                                                                   |
+| Deploy script                | 12    | Against a fake AWS CLI: only images change in task definitions, the release step runs first and stops the deploy when it fails, a service ECS rolled back fails the deploy                                                                                                                                                                                                                                                                                                                                                        |
+| Images (CI)                  | 1     | Release step, API, worker and web start from the images against Postgres; `/api` works through the web proxy; Grype finds no fixable high or critical vulnerability                                                                                                                                                                                                                                                                                                                                                               |
+
+### Not in this part
+
+- **Applying it:** nothing here has been applied to a real AWS account. The launch checklist
+  covers the first apply, DNS, SES production access, provider secrets and GitHub
+  environments.
+- **Open questions 100 to 108:**
+  - RPO, RTO and retention values;
+  - the AWS Organization and backup account;
+  - domains;
+  - paging;
+  - the clamd image's source;
+  - who approves production deploys;
+  - WAF limits;
+  - a standby in the recovery region;
+  - automatic password rotation.
+
+  Questions 84 (traces) and 87 (sizes) are updated.

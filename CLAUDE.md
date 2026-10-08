@@ -23,6 +23,10 @@ pnpm e2e                        # Playwright; needs `pnpm build` first, ports 30
 pnpm --filter @acct/api perf     # performance suite (needs `nest build`); PERF_SCALE=full for 100k transactions
 pnpm --filter @acct/api keys:status|keys:rotate|keys:reencrypt   # field keys (ADMIN_DATABASE_URL, ADR 0029)
 pnpm format                     # prettier
+
+docker build --target api -t acct-api .   # API, worker and release step image (ADR 0030); --target web for the web
+cd infra/terraform/modules/platform && terraform init -backend=false && terraform test   # Terraform against mocked AWS
+bash infra/deploy/test/ecs-deploy.test.sh # the deploy script against a fake AWS CLI
 ```
 
 A single package: `pnpm --filter @acct/api test`, `pnpm --filter @acct/db test`, etc.
@@ -79,17 +83,24 @@ A single package: `pnpm --filter @acct/api test`, `pnpm --filter @acct/db test`,
   scenarios in `/efile-ats/<year>/`), security (field keys wrapped by KMS in `field-keys.ts`,
   every AAD in `aad.ts`, the encrypted-column registry and rotation in `rotation.ts`, the
   `keys:*` CLI), data-export (the owner's full archive: rules in `archive.ts`, the job in
-  `data-export.service.ts`). Sign-in hardening lives in `auth/` (`recent-mfa.guard.ts` for
-  step-up, `security-notices.service.ts`, `breach-check.ts`, `credential-cleanup.service.ts`).
+  `data-export.service.ts`), ops (the release step run before each deploy in `release.ts`, the
+  restore drill's checks in `verify-restore.ts`). Sign-in hardening lives in `auth/`
+  (`recent-mfa.guard.ts` for step-up, `security-notices.service.ts`, `breach-check.ts`,
+  `credential-cleanup.service.ts`).
   The A/R and A/P subledgers share one engine: `ledger/subledger.ts`.
 - `apps/desktop-agent`: QuickBooks Desktop migration agent (C#/.NET 8; `Core` is portable and
   tested on Linux with `dotnet test`, `Windows` is the WinForms wizard and QBXMLRP2 session).
 - `apps/web`: Next.js 16 (App Router) + TanStack Query + Tailwind 4. Calls the API only via `/api/*`.
-- `packages/db`: plain-SQL migrations, migrator, Kysely types, `withTenant()`, `createTestDatabase()`.
+- `packages/db`: plain-SQL migrations, migrator, Kysely types, `withTenant()`, `createTestDatabase()`,
+  `ensureAppRole()`.
 - `packages/crypto`: server-only: argon2id, TOTP, AES-256-GCM field encryption, tokens.
 - `packages/shared`: zod schemas, DTO types, roles and permissions (used by API **and** web).
 - `tax-data/<year>/*.json`: tax thresholds and tables with citations, loaded by
   `apps/api/src/common/tax-data.ts`.
+- `infra/`: Terraform for AWS (`terraform/modules/platform` per environment, `envs/staging`,
+  `envs/production`, `envs/backup`), the deploy script (`deploy/ecs-deploy.sh`) and the restore
+  drill (`drill/restore-drill.sh`). `Dockerfile` builds the `api` and `web` images. Operations:
+  `docs/runbooks/`, `docs/launch-checklist.md`.
 
 ## Non-negotiable rules
 
@@ -306,6 +317,18 @@ A single package: `pnpm --filter @acct/api test`, `pnpm --filter @acct/db test`,
     `loadConfig` (TLS, https, KMS, pepper, JSON logs).
   - **Web:** the CSP (`apps/web/src/proxy.ts`) allows scripts only with the page's nonce. Add a
     new external script or frame origin there deliberately.
+- Deploying on AWS (ADR 0030, `docs/runbooks/deploy.md`):
+  - **Migrations** run in the release step before the new code, while the old release still
+    serves requests, and are never reversed by a rollback. Every migration must work with
+    both: add first, remove or tighten in a later release.
+  - **A new setting** the API needs in production goes into the platform module
+    (`app_environment` in `ecs.tf`, or a secret in `secrets.tf`), not just `.env.example`.
+  - **A new AWS call** needs a permission on the task role in `iam.tf` (least privilege, with
+    conditions).
+  - **Infrastructure** changes only through Terraform, never in the console.
+  - **Containers** run as `node` with a read-only root filesystem: write only to `/tmp`.
+  - **Mail** goes through `Mailer` (SES in production).
+  - **New alarms** name their runbook in `docs/runbooks/`.
 
 ## Phase status
 
@@ -321,4 +344,4 @@ A single package: `pnpm --filter @acct/api test`, `pnpm --filter @acct/db test`,
 - [ ] Phase 9: Payroll and 1099 tax forms (part 1 done: prior payroll, W-2/W-3 figures, quarterly and FUTA summaries, state reports, filings; official PDFs, EFW2, 1099/IRIS and state layouts wait on documents)
 - [x] Phase 10: Advanced, in six parts (10a inventory done: items and assemblies, FIFO/average costing with backdated recosting, no negative stock, adjustments, builds, valuation and stock status reports, QuickBooks cut-over; 10b time tracking done: timesheets, approvals, paychecks and invoices from approved time, progress invoicing; 10c multi-currency done: foreign-currency customers, vendors, documents and payments, rates by hand or from the ECB, realized and unrealized gains and losses; 10d accountant tools done: reclassify, write off invoices, fix undeposited funds, client change review, month-end close, Adjusted Trial Balance; 10e online payments done: Stripe Connect Standard accounts (stand-in until the platform's keys exist), pay links and the pay page, payments into Undeposited Funds, payouts as deposits net of fees, refunds and chargebacks; 10f portals done: employee and contractor portals with password and MFA (pay stubs, W-2 figures, own time, W-4 and direct deposit requests approved by payroll, contractor payments and 1099 totals), customer portal by emailed link (invoices, statement, paying online, accepting estimates); follow-ups are open questions 62, 64, 66–69 and 71–73)
 - [ ] Phase 11: E-file and partners, in three parts (11a electronic filing done: Forms 941 and 940 through MeF and Forms 1099 through IRIS behind `EfileTransmitter`, with a stand-in for the IRS until the platform's approvals exist, rejections fixed and sent again, accepted returns recorded as filings, the ATS harness; 11b partners done: EFTPS through the platform as batch provider (enrollment, scheduled payments booked when scheduled and voided when cancelled or returned) and direct deposit through a payments partner (per company, returns flag the paycheck and account), both with stand-ins; 11c tax engine plug-in done: any state can be set up, its state and local taxes come from a licensed engine behind `StateTaxEngine` (paychecks refused with the reason until one is contracted; no stand-in), jurisdictions through liabilities, W-2 boxes 14–20 and state quarterly; the embedded provider designed in ADR 0026; follow-ups are open questions 74–83)
-- [ ] Phase 12: Hardening and launch, in four parts (12a jobs and observability done: a pg-boss queue in Postgres with a separate worker for receipt reading, the pollers, scheduled reports, a daily document purge and a nightly bank download; redacted JSON logs with request, user, job and trace ids; OpenTelemetry tracing with scrubbed spans; live and ready health checks; 12b performance done: a 100,000-transaction generator, a perf suite for reads, posting, 50-user load and shutdown (smoke in CI, full nightly), SQL paging and filtering for registers, subledger reports and P&L columns, jit off, draining requests on shutdown; 12c security done: AWS KMS envelope keys with rotation, an OWASP ASVS Level 2 review and fixes (sign-in, sessions, step-up, access, files, headers, CSP, errors, business logic, retention), CodeQL, dependency and secret scanning in CI, the owner's full data export, SOC 2 policies with placeholders; 12d launch on AWS; follow-ups are open questions 84–99)
+- [x] Phase 12: Hardening and launch, in four parts (12a jobs and observability done: a pg-boss queue in Postgres with a separate worker for receipt reading, the pollers, scheduled reports, a daily document purge and a nightly bank download; redacted JSON logs with request, user, job and trace ids; OpenTelemetry tracing with scrubbed spans; live and ready health checks; 12b performance done: a 100,000-transaction generator, a perf suite for reads, posting, 50-user load and shutdown (smoke in CI, full nightly), SQL paging and filtering for registers, subledger reports and P&L columns, jit off, draining requests on shutdown; 12c security done: AWS KMS envelope keys with rotation, an OWASP ASVS Level 2 review and fixes (sign-in, sessions, step-up, access, files, headers, CSP, errors, business logic, retention), CodeQL, dependency and secret scanning in CI, the owner's full data export, SOC 2 policies with placeholders; 12d launch on AWS done: non-root images built once and promoted, Terraform for staging and production accounts (ECS Fargate, RDS PostgreSQL Multi-AZ, S3, KMS, SES, WAF, backups to a second region and a locked backup account, alarms, CloudTrail and GuardDuty), a deploy workflow with a release step and production approval, a verified restore drill, runbooks and a launch checklist; not yet applied to real accounts; follow-ups are open questions 84–108)

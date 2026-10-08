@@ -27,7 +27,13 @@ RUN API_URL=${API_URL} NEXT_OUTPUT=standalone pnpm turbo run build --filter=@acc
 # The API with its production dependencies only (workspace packages copied in).
 RUN pnpm --filter @acct/api --prod deploy --legacy /out/api
 
-FROM ${NODE_IMAGE} AS api
+FROM ${NODE_IMAGE} AS runtime
+# The package managers in the base image aren't used at run time: remove them (and their
+# dependencies) from what runs and what scanners report.
+RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/corepack /opt/yarn-* \
+    /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack /usr/local/bin/yarn /usr/local/bin/yarnpkg
+
+FROM runtime AS api
 ENV NODE_ENV=production \
     NODE_EXTRA_CA_CERTS=/etc/ssl/certs/rds-ca.pem \
     TAX_DATA_DIR=/app/tax-data \
@@ -45,7 +51,7 @@ EXPOSE 4000
 # checks the API's /health/ready (ADR 0030).
 CMD ["node", "dist/main.js"]
 
-FROM ${NODE_IMAGE} AS web
+FROM runtime AS web
 ENV NODE_ENV=production NEXT_TELEMETRY_DISABLED=1 PORT=3000 HOSTNAME=0.0.0.0
 WORKDIR /app
 COPY --from=build /repo/apps/web/.next/standalone ./

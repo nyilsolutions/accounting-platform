@@ -45,11 +45,15 @@ pnpm e2e                                   # browser tests (after `pnpm build`)
 | `packages/db`     | SQL migrations, Row-Level Security, typed query builder |
 | `packages/crypto` | Password hashing, TOTP, field encryption                |
 | `packages/shared` | Validation schemas, roles and permissions, DTOs         |
-| `docs/`           | Master plan, ADRs, phase reports, security notes        |
+| `infra/`          | Terraform for AWS, the deploy script, the restore drill |
+| `docs/`           | Master plan, ADRs, phase reports, security, runbooks    |
 
 ## Configuration notes
 
 - `API_URL` (web) is read **at build time** for the `/api` proxy. The default is `http://localhost:4000`.
 - `DATABASE_URL` must use the non-owner `acct_app` role. Migrations use `ADMIN_DATABASE_URL`.
-- `FIELD_ENCRYPTION_KEY` is a 32-byte base64 key. Production will move to KMS (ADR 0004).
-- Production start-up is intentionally blocked until a real email provider is configured.
+- `FIELD_ENCRYPTION_KEY` is a 32-byte base64 key for development. Production uses field keys
+  wrapped by AWS KMS (ADR 0029).
+- Production runs on AWS: containers on ECS Fargate, RDS PostgreSQL, S3, SES, deployed by the
+  `Deploy` workflow (ADR 0030, `infra/terraform/README.md`, `docs/launch-checklist.md`). The API
+  refuses to start in production with settings that are unsafe there.
