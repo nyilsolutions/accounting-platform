@@ -1,0 +1,305 @@
+{
+  "year": 2026,
+  "state": "IL",
+  "description": "Illinois income tax withholding for wages paid in 2026 (Booklet IL-700-T automated payroll method).",
+  "sources": [
+    {
+      "id": "il-700-t",
+      "title": "Illinois Department of Revenue, Booklet IL-700-T, Illinois Withholding Tax Tables (2026)",
+      "revision": "R-12/25",
+      "effective": "2026-01-01",
+      "url": "https://tax.illinois.gov/content/dam/soi/en/web/tax/forms/withholding/documents/currentyear/il-700-t.pdf"
+    },
+    {
+      "id": "ea-50",
+      "title": "Illinois Department of Employment Security, EA-50, 2026 State Experience Factor and Employers' UI Contribution Rates",
+      "revision": "11/2025",
+      "url": "https://ides.illinois.gov/"
+    },
+    {
+      "id": "il-pub-130",
+      "title": "Illinois Department of Revenue Publication 130, Who is Required to Withhold Illinois Income Tax",
+      "revision": "PUB-130 (R-02/26)",
+      "url": null,
+      "urlNote": "The supplied copy does not show its own address; publisher site tax.illinois.gov."
+    },
+    {
+      "id": "86-iac-100-7050",
+      "title": "86 Ill. Adm. Code 100.7050, Computation of Amount Withheld (IITA Section 702)",
+      "revision": "amended at 41 Ill. Reg. 14217, effective November 7, 2017 (captured 2026-09-29)",
+      "url": "https://ilga.gov/agencies/JCAR/EntirePart?titlepart=08600100"
+    },
+    {
+      "id": "56-iac-2730",
+      "title": "56 Ill. Adm. Code Part 2730, Wages (Unemployment Insurance)",
+      "revision": "amended at 50 Ill. Reg. 2143, effective February 2, 2026 (captured 2026-09-29)",
+      "url": "https://ilga.gov/agencies/JCAR/EntirePart?titlepart=05602730"
+    },
+    {
+      "id": "ides-guide",
+      "title": "IDES, Guide to the Illinois U.I. Act",
+      "revision": "Part IV pages dated (5/19); PDF modified 2025-10-16",
+      "url": null,
+      "urlNote": "The supplied copy does not show its own address; publisher site ides.illinois.gov."
+    },
+    {
+      "id": "il-pub-131",
+      "title": "Illinois Department of Revenue Publication 131, Withholding Income Tax Payment and Filing Requirements",
+      "revision": "PUB-131 (R-01/26), January 2026",
+      "url": null,
+      "urlNote": "The supplied copy does not show its own address; publisher site tax.illinois.gov."
+    },
+    {
+      "id": "il-w-4",
+      "title": "Illinois Department of Revenue, Form IL-W-4, Employee's and other Payee's Illinois Withholding Allowance Certificate and Instructions",
+      "revision": "IL-W-4 (R-07/23), the current revision as supplied for 2026",
+      "url": null,
+      "urlNote": "The supplied copy does not show its own address; publisher site tax.illinois.gov."
+    }
+  ],
+  "incomeTaxWithholding": {
+    "method": "Automated payroll method: 4.95% x (wages - (Line 1 allowances x $2,925 + Line 2 allowances x $1,000) / pay periods per year), plus the IL-W-4 Line 3 additional amount.",
+    "ratePercent": "4.95",
+    "line1AllowanceAnnual": "2925.00",
+    "line2AllowanceAnnual": "1000.00",
+    "negativeTaxableIsZero": true,
+    "cite": [
+      {
+        "source": "il-700-t",
+        "page": 3,
+        "ref": "How do I calculate the amount to withhold?"
+      },
+      {
+        "source": "il-700-t",
+        "page": 4,
+        "ref": "Automated payroll method"
+      }
+    ],
+    "supplementalWages": {
+      "method": "flat_rate",
+      "note": "Supplemental wages (bonuses, commissions) paid separately: the employer may elect to withhold at the tax rate in effect (4.95%) on the supplemental amount; the engine uses that election for bonus runs.",
+      "cite": [
+        {
+          "source": "86-iac-100-7050",
+          "page": null,
+          "ref": "(c) \"When supplemental wages are paid, the amount of tax required to be withheld shall be determined in accordance with the same methods provided for withholding on those wages under the Internal Revenue Code... However, an employer may elect to compute the amount of tax to be withheld using the tax rate in effect for the date the compensation is paid.\""
+        }
+      ]
+    }
+  },
+  "unemployment": {
+    "wageBase": "14250.00",
+    "newEmployerRatePercent": "3.350",
+    "newEmployerRateByNaicsSector": {
+      "56": "3.450"
+    },
+    "fundBuildingRatePercent": "0.550",
+    "minimumRatePercent": "0.750",
+    "maximumRatePercent": "7.050",
+    "stateExperienceFactorPercent": "102",
+    "smallEmployerCapPercent": "5.400",
+    "smallEmployerQuarterlyWagesBelow": "50000.00",
+    "note": "New employer rates include the 0.550% fund building rate. The employer's own rate comes from its IDES notice (entered in Payroll > Setup). An experience-rated employer above 5.400% with quarterly wages under $50,000 pays 5.400% that quarter.",
+    "cite": [
+      {
+        "source": "ea-50",
+        "page": 3,
+        "ref": "Employers' contribution rates for 2026 (new employers)"
+      },
+      {
+        "source": "ea-50",
+        "page": 4,
+        "ref": "Minimum and maximum rates; small employer note"
+      },
+      {
+        "source": "ea-50",
+        "page": 5,
+        "ref": "Wage limitation"
+      }
+    ]
+  },
+  "noCertificate": {
+    "rule": "withhold_with_no_allowances",
+    "note": "Without a completed IL-W-4, or when the IL-W-4 must be disregarded, withhold with no allowances. An IL-W-4 claiming total exemption is disregarded unless the employee's federal Form W-4 also claims total exemption.",
+    "cite": [
+      {
+        "source": "il-pub-130",
+        "page": 7,
+        "ref": "\"If a completed Form IL-W-4 is not filed, or you are required to disregard Form IL-W-4, you must withhold Illinois Income Tax with no allowances.\" Form IL-W-4 is disregarded when \"An employee claims total exemption from Illinois Income Tax withholding, but has not filed a federal Form W-4... claiming total exemption.\""
+      },
+      {
+        "source": "il-w-4",
+        "page": 1,
+        "ref": "\"If you do not file a completed Form IL-W-4 with your employer, if you fail to sign the form or to include all necessary information, or if you alter the form, your employer must withhold Illinois Income Tax on the entire amount of your compensation, without allowing any exemptions.\""
+      }
+    ]
+  },
+  "workedExamples": [
+    {
+      "source": "il-700-t",
+      "page": 4,
+      "what": "Weekly $800, IL-W-4 Line 1 = 2, Line 2 = 2 (automated method)",
+      "inputs": {
+        "period": "weekly",
+        "wages": "800.00",
+        "basicAllowances": 2,
+        "additionalAllowances": 2
+      },
+      "published": {
+        "withholding": "32.13"
+      }
+    },
+    {
+      "source": "il-700-t",
+      "page": 3,
+      "what": "Weekly $300, Line 1 = 2, Line 2 = 1 (wage bracket table)",
+      "published": {
+        "withholding": "8.38"
+      },
+      "note": "Wage bracket table example; the golden tests use the automated method example."
+    }
+  ],
+  "taxableWages": {
+    "incomeTax": {
+      "basis": "federal_fit",
+      "note": "Illinois withholding follows federal income tax withholding: compensation paid in Illinois is subject when federal tax is withheld from it, and the Illinois wages reported equal federal Box 1 wages. Retirement income and compensation exempt from federal withholding are not subject.",
+      "cite": [
+        {
+          "source": "il-pub-130",
+          "page": 4,
+          "ref": "\"You must withhold Illinois Income Tax when you withhold federal income tax from compensation you paid in Illinois.\""
+        },
+        {
+          "source": "il-pub-130",
+          "page": 7,
+          "ref": "Not required: \"compensation paid to an employee whose compensation is exempt from federal withholding requirements\"; \"compensation that will not be included in the recipient's base income\""
+        },
+        {
+          "source": "il-pub-130",
+          "page": 9,
+          "ref": "Form W-2: \"Make sure that the sum of the state wages in Box 16 are equal to Box 1.\""
+        }
+      ]
+    },
+    "unemployment": {
+      "regularWages": "taxable",
+      "kinds": {
+        "traditional_401k": "taxable",
+        "retirement_match": [
+          {
+            "before": "2026-07-01",
+            "taxability": "taxable"
+          },
+          {
+            "from": "2026-07-01",
+            "taxability": "exempt"
+          }
+        ],
+        "section_125": "exempt",
+        "health_fsa": "exempt",
+        "dependent_care_fsa": "taxable",
+        "employer_health": "exempt",
+        "cash_tips": "taxable",
+        "paid_tips": "taxable",
+        "fringe_benefit": "taxable"
+      },
+      "otherKinds": "pending",
+      "note": "Company 401(k) contributions are wages when paid before July 1, 2026 and not wages after June 30, 2026 (the February 2026 amendment of Section 2730.155; the IDES guide's 2019 text predates it). A health FSA is treated as a cafeteria-plan benefit for medical expenses, which Section 2730.150 and the IDES guide exclude; a reviewer should confirm. 403(b), HSA and reimbursements are not addressed.",
+      "cite": [
+        {
+          "source": "56-iac-2730",
+          "page": null,
+          "ref": "Section 2730.155: 401(k) \"Amounts deducted from an individual's taxable income pursuant to salary reduction arrangements, as well as employer contributions made before July 1, 2026, are also 'wages'. However, beginning with payments made after June 30, 2026, employer contributions to a 401(k) plan are not 'wages'.\""
+        },
+        {
+          "source": "56-iac-2730",
+          "page": null,
+          "ref": "Section 2730.150: cafeteria plan payments are not wages to the extent the benefit is excluded under Section 235 of the Act and not FUTA wages; (a) medical insurance premiums are not wages; (c) dependent care assistance is wages."
+        },
+        {
+          "source": "56-iac-2730",
+          "page": null,
+          "ref": "Section 2730.130(b)(2): payments under a plan \"made on account of medical or hospitalization expenses in connection with sickness or accident disability\" are not wages."
+        },
+        {
+          "source": "56-iac-2730",
+          "page": null,
+          "ref": "Section 2730.105: gratuities reported by employees are included in the employer's reports; Section 2730.100: remuneration in kind is wages at fair market value."
+        },
+        {
+          "source": "ides-guide",
+          "page": "G-12, G-13",
+          "ref": "Tips as wages; excluded payments: \"Payments under a plan or into a fund... for medical or hospital expenses in connection with sickness or accident disability\"; cafeteria plan examples (medical premiums excluded, dependent care included)."
+        }
+      ]
+    }
+  },
+  "ownerApproval": {
+    "date": "2026-09-30",
+    "by": "product owner",
+    "scope": "Figures checked as copied from the supplied documents, for building and testing the tax calculations. Not a professional review: reviewedBy stays null until a CPA or payroll specialist signs off, which is required before real paychecks."
+  },
+  "reviewedBy": null,
+  "note": "Approved by the product owner for building (see ownerApproval); awaiting professional review.",
+  "withholdingDeposits": {
+    "schedules": ["monthly", "semiweekly"],
+    "newTaxpayerSchedule": "monthly",
+    "monthlyDueDayOfFollowingMonth": 15,
+    "semiweekly": {
+      "wednesday_to_friday": "following Wednesday",
+      "saturday_to_tuesday": "following Friday"
+    },
+    "lookbackThreshold": "12000.00",
+    "lookbackPeriod2026": {
+      "from": "2024-07-01",
+      "to": "2025-06-30"
+    },
+    "quarterThreshold": "12000.00",
+    "separatePaymentsByQuarter": true,
+    "returns": {
+      "form": "IL-941",
+      "due": "last day of the month after the quarter",
+      "dueDates": {
+        "Q1": "2026-04-30",
+        "Q2": "2026-07-31",
+        "Q3": "2026-11-02",
+        "Q4": "2027-02-01"
+      }
+    },
+    "rules": [
+      "IDOR assigns the schedule from the look-back period (July 1 through June 30 of the year before last): $12,000 or less is monthly, more is semiweekly. New taxpayers are monthly.",
+      "Monthly: due by the 15th of the month after the month the tax was withheld.",
+      "Semiweekly: withheld Wednesday to Friday is due the following Wednesday; Saturday to Tuesday the following Friday. Payments must be electronic.",
+      "More than $12,000 withheld in a quarter: semiweekly from the next quarter for the rest of the year and the next year.",
+      "A due date on a weekend or state-recognized holiday moves to the next business day (state holidays are not applied yet).",
+      "Withholding from two quarters is paid separately even when the due date is the same."
+    ],
+    "cite": [
+      {
+        "source": "il-pub-131",
+        "page": 3,
+        "ref": "When am I required to pay?: \"Monthly IL-501 payments are due by the 15th day of the month following the month in which the tax was withheld.\" \"Semi-weekly IL-501 payments are due by Wednesday for amounts withheld on the preceding Wednesday, Thursday, or Friday, and by Friday for amounts withheld on the preceding Saturday, Sunday, Monday, or Tuesday.\""
+      },
+      {
+        "source": "il-pub-131",
+        "page": 3,
+        "ref": "How is my payment frequency determined?: look-back period \"July 1, 2024, through June 30, 2025\" for 2026; \"First-time taxpayers and taxpayers who have reported $12,000 or less in withholding during the 'look-back' period, are assigned to the monthly payment\"; \"If you exceed $12,000 in withholding during a quarter, it is your responsibility to begin to pay your Illinois withholding income tax semi-weekly in the following quarter, the remainder of the year, and the subsequent year.\""
+      },
+      {
+        "source": "il-pub-131",
+        "page": 3,
+        "ref": "\"Any time a due date falls on a weekend or state recognized holiday, we adjust the due date to the next business day.\""
+      },
+      {
+        "source": "il-pub-131",
+        "page": 2,
+        "ref": "\"The Form IL-941 is due by the last day of the month that follows the end of the quarter\"; \"If the return due date falls on a weekend or holiday, Form IL-941 is due on the next business day.\""
+      },
+      {
+        "source": "il-pub-131",
+        "page": 4,
+        "ref": "\"Make separate payments if your liability is for two separate quarters.\""
+      }
+    ]
+  }
+}

@@ -1,0 +1,2581 @@
+{
+  "year": 2026,
+  "state": "NY",
+  "description": "New York payroll figures for 2026: New York State, New York City and Yonkers withholding (NYS-50-T-NYS, -NYC, -Y) and unemployment insurance. Paid Family Leave, Disability Benefits and MCTMT rates are still pending.",
+  "sources": [
+    {
+      "id": "nys-50-t-nys",
+      "title": "NYS-50-T-NYS, New York State Withholding Tax Tables and Methods",
+      "revision": "1/26",
+      "effective": "2026-01-01",
+      "url": "https://www.tax.ny.gov/pdf/publications/withholding/nys50_t_nys.pdf"
+    },
+    {
+      "id": "nys-50-t-nyc",
+      "title": "NYS-50-T-NYC, New York City Withholding Tax Tables and Methods",
+      "revision": "1/26",
+      "effective": "2026-01-01",
+      "url": "https://www.tax.ny.gov/pdf/publications/withholding/nys50_t_nyc.pdf"
+    },
+    {
+      "id": "nys-50-t-y",
+      "title": "NYS-50-T-Y, Yonkers Withholding Tax Tables and Methods",
+      "revision": "1/26",
+      "effective": "2026-01-01",
+      "url": "https://www.tax.ny.gov/pdf/publications/withholding/nys50_t_y.pdf"
+    },
+    {
+      "id": "nys-50",
+      "title": "NYS-50, Employer's Guide to Unemployment Insurance, Wage Reporting, and Withholding Tax",
+      "revision": "12/25",
+      "url": "https://www.tax.ny.gov/forms/html-instructions/nys-50/nys-50-employers-guide.htm",
+      "pageNote": "HTML page; cites name the section."
+    },
+    {
+      "id": "tsb-m-84-7-i",
+      "title": "NYS Tax Department TSB-M-84(7)I, Cafeteria Plans and Section 401(k) Plans",
+      "revision": "May 4, 1984",
+      "url": null,
+      "urlNote": "The supplied copy does not show its own address; publisher site tax.ny.gov."
+    },
+    {
+      "id": "nys-414h-125",
+      "title": "NYS Tax Department, Public employee 414(h) retirement contributions and New York City flexible benefits program (IRC 125)",
+      "revision": "page updated July 24, 2026",
+      "url": null,
+      "urlNote": "The supplied page copy does not include its address; publisher site tax.ny.gov."
+    },
+    {
+      "id": "nys-pfl-2026",
+      "title": "New York State Paid Family Leave, New York Paid Family Leave Updates for 2026",
+      "revision": "page text captured 2026-09-29 and supplied 2026-09-30",
+      "url": "https://paidfamilyleave.ny.gov/2026"
+    },
+    {
+      "id": "pfl-notice-2026",
+      "title": "NYS Workers' Compensation Board, Employee Notice of Paid Family Leave Payroll Deduction for 2026",
+      "revision": "PFL-PayDeduction-notice-2026 9-25",
+      "url": null,
+      "urlNote": "The supplied copy does not show its own address; publisher site paidfamilyleave.ny.gov."
+    },
+    {
+      "id": "ny-labor-517",
+      "title": "New York Labor Law § 517, Remuneration (Unemployment Insurance)",
+      "revision": "page text captured and supplied 2026-09-30",
+      "url": "https://www.nysenate.gov/legislation/laws/LAB/517"
+    },
+    {
+      "id": "ia-318-15",
+      "title": "NYS Department of Labor, IA 318.15, Reporting Meals, Lodging, Tips and Other Forms of Remuneration",
+      "revision": "IA 318.15 (12/25)",
+      "url": null,
+      "urlNote": "The supplied copy does not show its own address; publisher site dol.ny.gov."
+    },
+    {
+      "id": "ny-wcl-201",
+      "title": "New York Workers' Compensation Law § 201, Definitions (Disability Benefits and Paid Family Leave), subdivisions 12 and 13",
+      "revision": "page text captured and supplied 2026-09-30",
+      "url": "https://www.nysenate.gov/legislation/laws/WKC/201"
+    },
+    {
+      "id": "wcb-db-pfl",
+      "title": "NYS Workers' Compensation Board, Disability Benefits and Paid Family Leave Insurance (employers)",
+      "revision": "page as supplied 2026-09-30 (no revision date shown)",
+      "url": null,
+      "urlNote": "The supplied copy is the saved page; publisher site wcb.ny.gov."
+    },
+    {
+      "id": "it-2104",
+      "title": "NYS Tax Department, Form IT-2104, Employee's Withholding Allowance Certificate (2026)",
+      "revision": "2026",
+      "url": null,
+      "urlNote": "The supplied form does not show its own address; it points to www.tax.ny.gov/r/it2104i-2026 for the instructions."
+    },
+    {
+      "id": "it-2104-i",
+      "title": "NYS Tax Department, Form IT-2104-I, Instructions for Form IT-2104 (2026)",
+      "revision": "2026",
+      "url": "https://www.tax.ny.gov/r/it2104i-2026",
+      "urlNote": "Address printed on Form IT-2104."
+    },
+    {
+      "id": "pub-420",
+      "title": "NYS Tax Department, Publication 420, Guide to the Metropolitan Commuter Transportation Mobility Tax",
+      "revision": "Pub 420 (8/15), with a cover note on changes for quarters from July 1, 2023",
+      "url": null,
+      "urlNote": "The supplied copy does not show its own address; publisher site tax.ny.gov."
+    }
+  ],
+  "stateIncomeTaxWithholding": {
+    "method": "Method II exact calculation: net wages = wages - Table A (deduction + exemptions); then (net wages - column 3) x column 4 + column 5 from the period's table for the marital status. When annualized net wages reach the Method III threshold ($1,077,550 single, $2,155,350 married), use Method III: annualized net wages x the Method III rate / pay periods.",
+    "exemptionsSource": "Number of New York State allowances on Form IT-2104 (line 1).",
+    "maritalStatus": {
+      "single": "single",
+      "married": "married",
+      "married_single_rate": {
+        "status": "pending",
+        "note": "IT-2104 'Married, but withhold at higher single rate': the booklet doesn't state which table applies; confirm (expected: the single table)."
+      }
+    },
+    "tableA_deductionPlusExemptions": {
+      "note": "Index = number of exemptions (0-10). Above 10: Table B deduction (exemptions = 0 column) + exemptions x Table C.",
+      "values": {
+        "daily": {
+          "single": [
+            "28.45",
+            "32.30",
+            "36.15",
+            "40.00",
+            "43.85",
+            "47.70",
+            "51.55",
+            "55.40",
+            "59.25",
+            "63.10",
+            "66.95"
+          ],
+          "married": [
+            "30.60",
+            "34.45",
+            "38.30",
+            "42.15",
+            "46.00",
+            "49.85",
+            "53.70",
+            "57.55",
+            "61.40",
+            "65.25",
+            "69.10"
+          ]
+        },
+        "weekly": {
+          "single": [
+            "142.30",
+            "161.55",
+            "180.80",
+            "200.05",
+            "219.30",
+            "238.55",
+            "257.80",
+            "277.05",
+            "296.30",
+            "315.55",
+            "334.80"
+          ],
+          "married": [
+            "152.90",
+            "172.15",
+            "191.40",
+            "210.65",
+            "229.90",
+            "249.15",
+            "268.40",
+            "287.65",
+            "306.90",
+            "326.15",
+            "345.40"
+          ]
+        },
+        "biweekly": {
+          "single": [
+            "284.60",
+            "323.10",
+            "361.60",
+            "400.10",
+            "438.60",
+            "477.10",
+            "515.60",
+            "554.10",
+            "592.60",
+            "631.10",
+            "669.60"
+          ],
+          "married": [
+            "305.80",
+            "344.30",
+            "382.80",
+            "421.30",
+            "459.80",
+            "498.30",
+            "536.80",
+            "575.30",
+            "613.80",
+            "652.30",
+            "690.80"
+          ]
+        },
+        "semimonthly": {
+          "single": [
+            "308.35",
+            "350.00",
+            "391.65",
+            "433.30",
+            "474.95",
+            "516.60",
+            "558.25",
+            "599.90",
+            "641.55",
+            "683.20",
+            "724.85"
+          ],
+          "married": [
+            "331.25",
+            "372.90",
+            "414.55",
+            "456.20",
+            "497.85",
+            "539.50",
+            "581.15",
+            "622.80",
+            "664.45",
+            "706.10",
+            "747.75"
+          ]
+        },
+        "monthly": {
+          "single": [
+            "616.70",
+            "700.00",
+            "783.30",
+            "866.60",
+            "949.90",
+            "1033.20",
+            "1116.50",
+            "1199.80",
+            "1283.10",
+            "1366.40",
+            "1449.70"
+          ],
+          "married": [
+            "662.50",
+            "745.80",
+            "829.10",
+            "912.40",
+            "995.70",
+            "1079.00",
+            "1162.30",
+            "1245.60",
+            "1328.90",
+            "1412.20",
+            "1495.50"
+          ]
+        },
+        "annual": {
+          "single": [
+            "7400.00",
+            "8400.00",
+            "9400.00",
+            "10400.00",
+            "11400.00",
+            "12400.00",
+            "13400.00",
+            "14400.00",
+            "15400.00",
+            "16400.00",
+            "17400.00"
+          ],
+          "married": [
+            "7950.00",
+            "8950.00",
+            "9950.00",
+            "10950.00",
+            "11950.00",
+            "12950.00",
+            "13950.00",
+            "14950.00",
+            "15950.00",
+            "16950.00",
+            "17950.00"
+          ]
+        }
+      }
+    },
+    "tableC_exemptionValue": {
+      "daily": "3.85",
+      "weekly": "19.25",
+      "biweekly": "38.50",
+      "semimonthly": "41.65",
+      "monthly": "83.30",
+      "annual": "1000.00"
+    },
+    "rateTables": {
+      "single": {
+        "biweekly": [
+          {
+            "atLeast": "0.00",
+            "lessThan": "327.00",
+            "subtract": "0.00",
+            "ratePercent": "3.9",
+            "plus": "0.00"
+          },
+          {
+            "atLeast": "327.00",
+            "lessThan": "450.00",
+            "subtract": "327.00",
+            "ratePercent": "4.4",
+            "plus": "12.77"
+          },
+          {
+            "atLeast": "450.00",
+            "lessThan": "535.00",
+            "subtract": "450.00",
+            "ratePercent": "5.15",
+            "plus": "18.15"
+          },
+          {
+            "atLeast": "535.00",
+            "lessThan": "3102.00",
+            "subtract": "535.00",
+            "ratePercent": "5.4",
+            "plus": "22.54"
+          },
+          {
+            "atLeast": "3102.00",
+            "lessThan": "3723.00",
+            "subtract": "3102.00",
+            "ratePercent": "5.9",
+            "plus": "161.15"
+          },
+          {
+            "atLeast": "3723.00",
+            "lessThan": "4140.00",
+            "subtract": "3723.00",
+            "ratePercent": "7.03",
+            "plus": "197.81"
+          },
+          {
+            "atLeast": "4140.00",
+            "lessThan": "6063.00",
+            "subtract": "4140.00",
+            "ratePercent": "7.53",
+            "plus": "227.15"
+          },
+          {
+            "atLeast": "6063.00",
+            "lessThan": "8285.00",
+            "subtract": "6063.00",
+            "ratePercent": "6.4",
+            "plus": "372.04"
+          },
+          {
+            "atLeast": "8285.00",
+            "lessThan": "10208.00",
+            "subtract": "8285.00",
+            "ratePercent": "11.44",
+            "plus": "514.19"
+          },
+          {
+            "atLeast": "10208.00",
+            "lessThan": "41444.00",
+            "subtract": "10208.00",
+            "ratePercent": "7.35",
+            "plus": "734.27"
+          }
+        ],
+        "daily": [
+          {
+            "atLeast": "0.00",
+            "lessThan": "33.00",
+            "subtract": "0.00",
+            "ratePercent": "3.9",
+            "plus": "0.00"
+          },
+          {
+            "atLeast": "33.00",
+            "lessThan": "45.00",
+            "subtract": "33.00",
+            "ratePercent": "4.4",
+            "plus": "1.28"
+          },
+          {
+            "atLeast": "45.00",
+            "lessThan": "53.00",
+            "subtract": "45.00",
+            "ratePercent": "5.15",
+            "plus": "1.82"
+          },
+          {
+            "atLeast": "53.00",
+            "lessThan": "310.00",
+            "subtract": "53.00",
+            "ratePercent": "5.4",
+            "plus": "2.25"
+          },
+          {
+            "atLeast": "310.00",
+            "lessThan": "372.00",
+            "subtract": "310.00",
+            "ratePercent": "5.9",
+            "plus": "16.12"
+          },
+          {
+            "atLeast": "372.00",
+            "lessThan": "414.00",
+            "subtract": "372.00",
+            "ratePercent": "7.03",
+            "plus": "19.78"
+          },
+          {
+            "atLeast": "414.00",
+            "lessThan": "606.00",
+            "subtract": "414.00",
+            "ratePercent": "7.53",
+            "plus": "22.72"
+          },
+          {
+            "atLeast": "606.00",
+            "lessThan": "828.00",
+            "subtract": "606.00",
+            "ratePercent": "6.4",
+            "plus": "37.20"
+          },
+          {
+            "atLeast": "828.00",
+            "lessThan": "1021.00",
+            "subtract": "828.00",
+            "ratePercent": "11.44",
+            "plus": "51.42"
+          },
+          {
+            "atLeast": "1021.00",
+            "lessThan": "4144.00",
+            "subtract": "1021.00",
+            "ratePercent": "7.35",
+            "plus": "73.43"
+          }
+        ],
+        "semimonthly": [
+          {
+            "atLeast": "0.00",
+            "lessThan": "354.00",
+            "subtract": "0.00",
+            "ratePercent": "3.9",
+            "plus": "0.00"
+          },
+          {
+            "atLeast": "354.00",
+            "lessThan": "488.00",
+            "subtract": "354.00",
+            "ratePercent": "4.4",
+            "plus": "13.83"
+          },
+          {
+            "atLeast": "488.00",
+            "lessThan": "579.00",
+            "subtract": "488.00",
+            "ratePercent": "5.15",
+            "plus": "19.67"
+          },
+          {
+            "atLeast": "579.00",
+            "lessThan": "3360.00",
+            "subtract": "579.00",
+            "ratePercent": "5.4",
+            "plus": "24.42"
+          },
+          {
+            "atLeast": "3360.00",
+            "lessThan": "4033.00",
+            "subtract": "3360.00",
+            "ratePercent": "5.9",
+            "plus": "174.58"
+          },
+          {
+            "atLeast": "4033.00",
+            "lessThan": "4485.00",
+            "subtract": "4033.00",
+            "ratePercent": "7.03",
+            "plus": "214.29"
+          },
+          {
+            "atLeast": "4485.00",
+            "lessThan": "6569.00",
+            "subtract": "4485.00",
+            "ratePercent": "7.53",
+            "plus": "246.08"
+          },
+          {
+            "atLeast": "6569.00",
+            "lessThan": "8975.00",
+            "subtract": "6569.00",
+            "ratePercent": "6.4",
+            "plus": "403.04"
+          },
+          {
+            "atLeast": "8975.00",
+            "lessThan": "11058.00",
+            "subtract": "8975.00",
+            "ratePercent": "11.44",
+            "plus": "557.04"
+          },
+          {
+            "atLeast": "11058.00",
+            "lessThan": "44898.00",
+            "subtract": "11058.00",
+            "ratePercent": "7.35",
+            "plus": "795.46"
+          }
+        ],
+        "annual": [
+          {
+            "atLeast": "0.00",
+            "lessThan": "8500.00",
+            "subtract": "0.00",
+            "ratePercent": "3.9",
+            "plus": "0.00"
+          },
+          {
+            "atLeast": "8500.00",
+            "lessThan": "11700.00",
+            "subtract": "8500.00",
+            "ratePercent": "4.4",
+            "plus": "332.00"
+          },
+          {
+            "atLeast": "11700.00",
+            "lessThan": "13900.00",
+            "subtract": "11700.00",
+            "ratePercent": "5.15",
+            "plus": "472.00"
+          },
+          {
+            "atLeast": "13900.00",
+            "lessThan": "80650.00",
+            "subtract": "13900.00",
+            "ratePercent": "5.4",
+            "plus": "586.00"
+          },
+          {
+            "atLeast": "80650.00",
+            "lessThan": "96800.00",
+            "subtract": "80650.00",
+            "ratePercent": "5.9",
+            "plus": "4190.00"
+          },
+          {
+            "atLeast": "96800.00",
+            "lessThan": "107650.00",
+            "subtract": "96800.00",
+            "ratePercent": "7.03",
+            "plus": "5143.00"
+          },
+          {
+            "atLeast": "107650.00",
+            "lessThan": "157650.00",
+            "subtract": "107650.00",
+            "ratePercent": "7.53",
+            "plus": "5906.00"
+          },
+          {
+            "atLeast": "157650.00",
+            "lessThan": "215400.00",
+            "subtract": "157650.00",
+            "ratePercent": "6.4",
+            "plus": "9673.00"
+          },
+          {
+            "atLeast": "215400.00",
+            "lessThan": "265400.00",
+            "subtract": "215400.00",
+            "ratePercent": "11.44",
+            "plus": "13369.00"
+          },
+          {
+            "atLeast": "265400.00",
+            "lessThan": "1077550.00",
+            "subtract": "265400.00",
+            "ratePercent": "7.35",
+            "plus": "19091.00"
+          }
+        ],
+        "weekly": [
+          {
+            "atLeast": "0.00",
+            "lessThan": "163.00",
+            "subtract": "0.00",
+            "ratePercent": "3.9",
+            "plus": "0.00"
+          },
+          {
+            "atLeast": "163.00",
+            "lessThan": "225.00",
+            "subtract": "163.00",
+            "ratePercent": "4.4",
+            "plus": "6.38"
+          },
+          {
+            "atLeast": "225.00",
+            "lessThan": "267.00",
+            "subtract": "225.00",
+            "ratePercent": "5.15",
+            "plus": "9.08"
+          },
+          {
+            "atLeast": "267.00",
+            "lessThan": "1551.00",
+            "subtract": "267.00",
+            "ratePercent": "5.4",
+            "plus": "11.27"
+          },
+          {
+            "atLeast": "1551.00",
+            "lessThan": "1862.00",
+            "subtract": "1551.00",
+            "ratePercent": "5.9",
+            "plus": "80.58"
+          },
+          {
+            "atLeast": "1862.00",
+            "lessThan": "2070.00",
+            "subtract": "1862.00",
+            "ratePercent": "7.03",
+            "plus": "98.90"
+          },
+          {
+            "atLeast": "2070.00",
+            "lessThan": "3032.00",
+            "subtract": "2070.00",
+            "ratePercent": "7.53",
+            "plus": "113.58"
+          },
+          {
+            "atLeast": "3032.00",
+            "lessThan": "4142.00",
+            "subtract": "3032.00",
+            "ratePercent": "6.4",
+            "plus": "186.02"
+          },
+          {
+            "atLeast": "4142.00",
+            "lessThan": "5104.00",
+            "subtract": "4142.00",
+            "ratePercent": "11.44",
+            "plus": "257.10"
+          },
+          {
+            "atLeast": "5104.00",
+            "lessThan": "20722.00",
+            "subtract": "5104.00",
+            "ratePercent": "7.35",
+            "plus": "367.13"
+          }
+        ],
+        "monthly": [
+          {
+            "atLeast": "0.00",
+            "lessThan": "708.00",
+            "subtract": "0.00",
+            "ratePercent": "3.9",
+            "plus": "0.00"
+          },
+          {
+            "atLeast": "708.00",
+            "lessThan": "975.00",
+            "subtract": "708.00",
+            "ratePercent": "4.4",
+            "plus": "27.67"
+          },
+          {
+            "atLeast": "975.00",
+            "lessThan": "1158.00",
+            "subtract": "975.00",
+            "ratePercent": "5.15",
+            "plus": "39.33"
+          },
+          {
+            "atLeast": "1158.00",
+            "lessThan": "6721.00",
+            "subtract": "1158.00",
+            "ratePercent": "5.4",
+            "plus": "48.83"
+          },
+          {
+            "atLeast": "6721.00",
+            "lessThan": "8067.00",
+            "subtract": "6721.00",
+            "ratePercent": "5.9",
+            "plus": "349.17"
+          },
+          {
+            "atLeast": "8067.00",
+            "lessThan": "8971.00",
+            "subtract": "8067.00",
+            "ratePercent": "7.03",
+            "plus": "428.58"
+          },
+          {
+            "atLeast": "8971.00",
+            "lessThan": "13138.00",
+            "subtract": "8971.00",
+            "ratePercent": "7.53",
+            "plus": "492.17"
+          },
+          {
+            "atLeast": "13138.00",
+            "lessThan": "17950.00",
+            "subtract": "13138.00",
+            "ratePercent": "6.4",
+            "plus": "806.08"
+          },
+          {
+            "atLeast": "17950.00",
+            "lessThan": "22117.00",
+            "subtract": "17950.00",
+            "ratePercent": "11.44",
+            "plus": "1114.08"
+          },
+          {
+            "atLeast": "22117.00",
+            "lessThan": "89796.00",
+            "subtract": "22117.00",
+            "ratePercent": "7.35",
+            "plus": "1590.92"
+          }
+        ]
+      },
+      "married": {
+        "biweekly": [
+          {
+            "atLeast": "0.00",
+            "lessThan": "327.00",
+            "subtract": "0.00",
+            "ratePercent": "3.9",
+            "plus": "0.00"
+          },
+          {
+            "atLeast": "327.00",
+            "lessThan": "450.00",
+            "subtract": "327.00",
+            "ratePercent": "4.4",
+            "plus": "12.77"
+          },
+          {
+            "atLeast": "450.00",
+            "lessThan": "535.00",
+            "subtract": "450.00",
+            "ratePercent": "5.15",
+            "plus": "18.15"
+          },
+          {
+            "atLeast": "535.00",
+            "lessThan": "3102.00",
+            "subtract": "535.00",
+            "ratePercent": "5.4",
+            "plus": "22.54"
+          },
+          {
+            "atLeast": "3102.00",
+            "lessThan": "3723.00",
+            "subtract": "3102.00",
+            "ratePercent": "5.9",
+            "plus": "161.15"
+          },
+          {
+            "atLeast": "3723.00",
+            "lessThan": "4140.00",
+            "subtract": "3723.00",
+            "ratePercent": "6.57",
+            "plus": "197.81"
+          },
+          {
+            "atLeast": "4140.00",
+            "lessThan": "6063.00",
+            "subtract": "4140.00",
+            "ratePercent": "7.07",
+            "plus": "225.19"
+          },
+          {
+            "atLeast": "6063.00",
+            "lessThan": "8137.00",
+            "subtract": "6063.00",
+            "ratePercent": "8.01",
+            "plus": "361.08"
+          },
+          {
+            "atLeast": "8137.00",
+            "lessThan": "12431.00",
+            "subtract": "8137.00",
+            "ratePercent": "6.4",
+            "plus": "527.23"
+          },
+          {
+            "atLeast": "12431.00",
+            "lessThan": "14354.00",
+            "subtract": "12431.00",
+            "ratePercent": "13.49",
+            "plus": "802.08"
+          },
+          {
+            "atLeast": "14354.00",
+            "lessThan": "41444.00",
+            "subtract": "14354.00",
+            "ratePercent": "7.35",
+            "plus": "1061.54"
+          },
+          {
+            "atLeast": "41444.00",
+            "lessThan": "82898.00",
+            "subtract": "41444.00",
+            "ratePercent": "7.65",
+            "plus": "3052.65"
+          }
+        ],
+        "daily": [
+          {
+            "atLeast": "0.00",
+            "lessThan": "33.00",
+            "subtract": "0.00",
+            "ratePercent": "3.9",
+            "plus": "0.00"
+          },
+          {
+            "atLeast": "33.00",
+            "lessThan": "45.00",
+            "subtract": "33.00",
+            "ratePercent": "4.4",
+            "plus": "1.28"
+          },
+          {
+            "atLeast": "45.00",
+            "lessThan": "53.00",
+            "subtract": "45.00",
+            "ratePercent": "5.15",
+            "plus": "1.82"
+          },
+          {
+            "atLeast": "53.00",
+            "lessThan": "310.00",
+            "subtract": "53.00",
+            "ratePercent": "5.4",
+            "plus": "2.25"
+          },
+          {
+            "atLeast": "310.00",
+            "lessThan": "372.00",
+            "subtract": "310.00",
+            "ratePercent": "5.9",
+            "plus": "16.12"
+          },
+          {
+            "atLeast": "372.00",
+            "lessThan": "414.00",
+            "subtract": "372.00",
+            "ratePercent": "6.57",
+            "plus": "19.78"
+          },
+          {
+            "atLeast": "414.00",
+            "lessThan": "606.00",
+            "subtract": "414.00",
+            "ratePercent": "7.07",
+            "plus": "22.52"
+          },
+          {
+            "atLeast": "606.00",
+            "lessThan": "814.00",
+            "subtract": "606.00",
+            "ratePercent": "8.01",
+            "plus": "36.11"
+          },
+          {
+            "atLeast": "814.00",
+            "lessThan": "1243.00",
+            "subtract": "814.00",
+            "ratePercent": "6.4",
+            "plus": "52.72"
+          },
+          {
+            "atLeast": "1243.00",
+            "lessThan": "1435.00",
+            "subtract": "1243.00",
+            "ratePercent": "13.49",
+            "plus": "80.21"
+          },
+          {
+            "atLeast": "1435.00",
+            "lessThan": "4144.00",
+            "subtract": "1435.00",
+            "ratePercent": "7.35",
+            "plus": "106.15"
+          },
+          {
+            "atLeast": "4144.00",
+            "lessThan": "8290.00",
+            "subtract": "4144.00",
+            "ratePercent": "7.65",
+            "plus": "305.27"
+          }
+        ],
+        "semimonthly": [
+          {
+            "atLeast": "0.00",
+            "lessThan": "354.00",
+            "subtract": "0.00",
+            "ratePercent": "3.9",
+            "plus": "0.00"
+          },
+          {
+            "atLeast": "354.00",
+            "lessThan": "488.00",
+            "subtract": "354.00",
+            "ratePercent": "4.4",
+            "plus": "13.83"
+          },
+          {
+            "atLeast": "488.00",
+            "lessThan": "579.00",
+            "subtract": "488.00",
+            "ratePercent": "5.15",
+            "plus": "19.67"
+          },
+          {
+            "atLeast": "579.00",
+            "lessThan": "3360.00",
+            "subtract": "579.00",
+            "ratePercent": "5.4",
+            "plus": "24.42"
+          },
+          {
+            "atLeast": "3360.00",
+            "lessThan": "4033.00",
+            "subtract": "3360.00",
+            "ratePercent": "5.9",
+            "plus": "174.58"
+          },
+          {
+            "atLeast": "4033.00",
+            "lessThan": "4485.00",
+            "subtract": "4033.00",
+            "ratePercent": "6.57",
+            "plus": "214.29"
+          },
+          {
+            "atLeast": "4485.00",
+            "lessThan": "6569.00",
+            "subtract": "4485.00",
+            "ratePercent": "7.07",
+            "plus": "243.96"
+          },
+          {
+            "atLeast": "6569.00",
+            "lessThan": "8815.00",
+            "subtract": "6569.00",
+            "ratePercent": "8.01",
+            "plus": "391.17"
+          },
+          {
+            "atLeast": "8815.00",
+            "lessThan": "13467.00",
+            "subtract": "8815.00",
+            "ratePercent": "6.4",
+            "plus": "571.17"
+          },
+          {
+            "atLeast": "13467.00",
+            "lessThan": "15550.00",
+            "subtract": "13467.00",
+            "ratePercent": "13.49",
+            "plus": "868.92"
+          },
+          {
+            "atLeast": "15550.00",
+            "lessThan": "44898.00",
+            "subtract": "15550.00",
+            "ratePercent": "7.35",
+            "plus": "1150.00"
+          },
+          {
+            "atLeast": "44898.00",
+            "lessThan": "89806.00",
+            "subtract": "44898.00",
+            "ratePercent": "7.65",
+            "plus": "3307.04"
+          }
+        ],
+        "annual": [
+          {
+            "atLeast": "0.00",
+            "lessThan": "8500.00",
+            "subtract": "0.00",
+            "ratePercent": "3.9",
+            "plus": "0.00"
+          },
+          {
+            "atLeast": "8500.00",
+            "lessThan": "11700.00",
+            "subtract": "8500.00",
+            "ratePercent": "4.4",
+            "plus": "332.00"
+          },
+          {
+            "atLeast": "11700.00",
+            "lessThan": "13900.00",
+            "subtract": "11700.00",
+            "ratePercent": "5.15",
+            "plus": "472.00"
+          },
+          {
+            "atLeast": "13900.00",
+            "lessThan": "80650.00",
+            "subtract": "13900.00",
+            "ratePercent": "5.4",
+            "plus": "586.00"
+          },
+          {
+            "atLeast": "80650.00",
+            "lessThan": "96800.00",
+            "subtract": "80650.00",
+            "ratePercent": "5.9",
+            "plus": "4190.00"
+          },
+          {
+            "atLeast": "96800.00",
+            "lessThan": "107650.00",
+            "subtract": "96800.00",
+            "ratePercent": "6.57",
+            "plus": "5143.00"
+          },
+          {
+            "atLeast": "107650.00",
+            "lessThan": "157650.00",
+            "subtract": "107650.00",
+            "ratePercent": "7.07",
+            "plus": "5855.00"
+          },
+          {
+            "atLeast": "157650.00",
+            "lessThan": "211550.00",
+            "subtract": "157650.00",
+            "ratePercent": "8.01",
+            "plus": "9388.00"
+          },
+          {
+            "atLeast": "211550.00",
+            "lessThan": "323200.00",
+            "subtract": "211550.00",
+            "ratePercent": "6.4",
+            "plus": "13708.00"
+          },
+          {
+            "atLeast": "323200.00",
+            "lessThan": "373200.00",
+            "subtract": "323200.00",
+            "ratePercent": "13.49",
+            "plus": "20854.00"
+          },
+          {
+            "atLeast": "373200.00",
+            "lessThan": "1077550.00",
+            "subtract": "373200.00",
+            "ratePercent": "7.35",
+            "plus": "27600.00"
+          },
+          {
+            "atLeast": "1077550.00",
+            "lessThan": "2155350.00",
+            "subtract": "1077550.00",
+            "ratePercent": "7.65",
+            "plus": "79369.00"
+          }
+        ],
+        "weekly": [
+          {
+            "atLeast": "0.00",
+            "lessThan": "163.00",
+            "subtract": "0.00",
+            "ratePercent": "3.9",
+            "plus": "0.00"
+          },
+          {
+            "atLeast": "163.00",
+            "lessThan": "225.00",
+            "subtract": "163.00",
+            "ratePercent": "4.4",
+            "plus": "6.38"
+          },
+          {
+            "atLeast": "225.00",
+            "lessThan": "267.00",
+            "subtract": "225.00",
+            "ratePercent": "5.15",
+            "plus": "9.08"
+          },
+          {
+            "atLeast": "267.00",
+            "lessThan": "1551.00",
+            "subtract": "267.00",
+            "ratePercent": "5.4",
+            "plus": "11.27"
+          },
+          {
+            "atLeast": "1551.00",
+            "lessThan": "1862.00",
+            "subtract": "1551.00",
+            "ratePercent": "5.9",
+            "plus": "80.58"
+          },
+          {
+            "atLeast": "1862.00",
+            "lessThan": "2070.00",
+            "subtract": "1862.00",
+            "ratePercent": "6.57",
+            "plus": "98.90"
+          },
+          {
+            "atLeast": "2070.00",
+            "lessThan": "3032.00",
+            "subtract": "2070.00",
+            "ratePercent": "7.07",
+            "plus": "112.60"
+          },
+          {
+            "atLeast": "3032.00",
+            "lessThan": "4068.00",
+            "subtract": "3032.00",
+            "ratePercent": "8.01",
+            "plus": "180.54"
+          },
+          {
+            "atLeast": "4068.00",
+            "lessThan": "6215.00",
+            "subtract": "4068.00",
+            "ratePercent": "6.4",
+            "plus": "263.62"
+          },
+          {
+            "atLeast": "6215.00",
+            "lessThan": "7177.00",
+            "subtract": "6215.00",
+            "ratePercent": "13.49",
+            "plus": "401.04"
+          },
+          {
+            "atLeast": "7177.00",
+            "lessThan": "20722.00",
+            "subtract": "7177.00",
+            "ratePercent": "7.35",
+            "plus": "530.77"
+          },
+          {
+            "atLeast": "20722.00",
+            "lessThan": "41449.00",
+            "subtract": "20722.00",
+            "ratePercent": "7.65",
+            "plus": "1526.33"
+          }
+        ],
+        "monthly": [
+          {
+            "atLeast": "0.00",
+            "lessThan": "708.00",
+            "subtract": "0.00",
+            "ratePercent": "3.9",
+            "plus": "0.00"
+          },
+          {
+            "atLeast": "708.00",
+            "lessThan": "975.00",
+            "subtract": "708.00",
+            "ratePercent": "4.4",
+            "plus": "27.67"
+          },
+          {
+            "atLeast": "975.00",
+            "lessThan": "1158.00",
+            "subtract": "975.00",
+            "ratePercent": "5.15",
+            "plus": "39.33"
+          },
+          {
+            "atLeast": "1158.00",
+            "lessThan": "6721.00",
+            "subtract": "1158.00",
+            "ratePercent": "5.4",
+            "plus": "48.83"
+          },
+          {
+            "atLeast": "6721.00",
+            "lessThan": "8067.00",
+            "subtract": "6721.00",
+            "ratePercent": "5.9",
+            "plus": "349.17"
+          },
+          {
+            "atLeast": "8067.00",
+            "lessThan": "8971.00",
+            "subtract": "8067.00",
+            "ratePercent": "6.57",
+            "plus": "428.58"
+          },
+          {
+            "atLeast": "8971.00",
+            "lessThan": "13138.00",
+            "subtract": "8971.00",
+            "ratePercent": "7.07",
+            "plus": "487.92"
+          },
+          {
+            "atLeast": "13138.00",
+            "lessThan": "17629.00",
+            "subtract": "13138.00",
+            "ratePercent": "8.01",
+            "plus": "782.33"
+          },
+          {
+            "atLeast": "17629.00",
+            "lessThan": "26933.00",
+            "subtract": "17629.00",
+            "ratePercent": "6.4",
+            "plus": "1142.33"
+          },
+          {
+            "atLeast": "26933.00",
+            "lessThan": "31100.00",
+            "subtract": "26933.00",
+            "ratePercent": "13.49",
+            "plus": "1737.83"
+          },
+          {
+            "atLeast": "31100.00",
+            "lessThan": "89796.00",
+            "subtract": "31100.00",
+            "ratePercent": "7.35",
+            "plus": "2300.00"
+          },
+          {
+            "atLeast": "89796.00",
+            "lessThan": "179613.00",
+            "subtract": "89796.00",
+            "ratePercent": "7.65",
+            "plus": "6614.08"
+          }
+        ]
+      }
+    },
+    "method3TopRates": {
+      "single": [
+        {
+          "atLeast": "1077550.00",
+          "lessThan": "5000000.00",
+          "ratePercent": "10.45"
+        },
+        {
+          "atLeast": "5000000.00",
+          "lessThan": "25000000.00",
+          "ratePercent": "11.10"
+        },
+        {
+          "atLeast": "25000000.00",
+          "lessThan": null,
+          "ratePercent": "11.70"
+        }
+      ],
+      "married": [
+        {
+          "atLeast": "2155350.00",
+          "lessThan": "5000000.00",
+          "ratePercent": "10.45"
+        },
+        {
+          "atLeast": "5000000.00",
+          "lessThan": "25000000.00",
+          "ratePercent": "11.10"
+        },
+        {
+          "atLeast": "25000000.00",
+          "lessThan": null,
+          "ratePercent": "11.70"
+        }
+      ]
+    },
+    "supplementalRatePercent": "11.70",
+    "cite": [
+      {
+        "source": "nys-50-t-nys",
+        "page": 3,
+        "ref": "Supplemental wage payment withholding rates (effective January 1, 2026)"
+      },
+      {
+        "source": "nys-50-t-nys",
+        "page": 14,
+        "ref": "Tables A, B, C"
+      },
+      {
+        "source": "nys-50-t-nys",
+        "page": 16,
+        "ref": "Method II single instructions"
+      },
+      {
+        "source": "nys-50-t-nys",
+        "page": 17,
+        "ref": "Method II single tables"
+      },
+      {
+        "source": "nys-50-t-nys",
+        "page": 18,
+        "ref": "Method II married instructions"
+      },
+      {
+        "source": "nys-50-t-nys",
+        "page": 19,
+        "ref": "Method II married tables"
+      },
+      {
+        "source": "nys-50-t-nys",
+        "page": 22,
+        "ref": "Method III"
+      }
+    ],
+    "rounding": "Each step's product is rounded to the nearest cent (half up), as in the booklet's worked examples."
+  },
+  "noCertificate": {
+    "rule": "If an employee gives a 2020-or-later federal Form W-4 but no Form IT-2104, the employer may use zero allowances.",
+    "cite": [
+      {
+        "source": "nys-50",
+        "page": "Part 3",
+        "ref": "New York State, New York City, and Yonkers income tax withholding"
+      },
+      {
+        "source": "it-2104-i",
+        "page": 1,
+        "ref": "Tax years 2020 or later: \"If you submit a federal Form W-4 to your employer for tax year 2020 or later, and do not file New York State Form IT-2104, your employer may use zero as your number of allowances.\""
+      }
+    ]
+  },
+  "nycResidentWithholding": {
+    "method": "Method II exact calculation: net wages = wages - Table A (deduction + exemptions for the payroll period and marital status); then (net wages - column 3) x column 4 + column 5 from the period's Table II. Single and married use the same rate tables; they differ only in Table A/B.",
+    "exemptionsSource": "Number of New York City allowances on Form IT-2104 (line 2).",
+    "tableA_deductionPlusExemptions": {
+      "note": "Index = number of exemptions (0-10). Above 10: Table B deduction + exemptions x Table C.",
+      "values": {
+        "daily": {
+          "single": [
+            "19.25",
+            "23.10",
+            "26.95",
+            "30.80",
+            "34.65",
+            "38.50",
+            "42.35",
+            "46.20",
+            "50.05",
+            "53.90",
+            "57.75"
+          ],
+          "married": [
+            "21.15",
+            "25.00",
+            "28.85",
+            "32.70",
+            "36.55",
+            "40.40",
+            "44.25",
+            "48.10",
+            "51.95",
+            "55.80",
+            "59.65"
+          ]
+        },
+        "weekly": {
+          "single": [
+            "96.15",
+            "115.40",
+            "134.65",
+            "153.90",
+            "173.15",
+            "192.40",
+            "211.65",
+            "230.90",
+            "250.15",
+            "269.40",
+            "288.65"
+          ],
+          "married": [
+            "105.75",
+            "125.00",
+            "144.25",
+            "163.50",
+            "182.75",
+            "202.00",
+            "221.25",
+            "240.50",
+            "259.75",
+            "279.00",
+            "298.25"
+          ]
+        },
+        "biweekly": {
+          "single": [
+            "192.30",
+            "230.80",
+            "269.30",
+            "307.80",
+            "346.30",
+            "384.80",
+            "423.30",
+            "461.80",
+            "500.30",
+            "538.80",
+            "577.30"
+          ],
+          "married": [
+            "211.50",
+            "250.00",
+            "288.50",
+            "327.00",
+            "365.50",
+            "404.00",
+            "442.50",
+            "481.00",
+            "519.50",
+            "558.00",
+            "596.50"
+          ]
+        },
+        "semimonthly": {
+          "single": [
+            "208.35",
+            "250.00",
+            "291.65",
+            "333.30",
+            "374.95",
+            "416.60",
+            "458.25",
+            "499.90",
+            "541.55",
+            "583.20",
+            "624.85"
+          ],
+          "married": [
+            "229.15",
+            "270.80",
+            "312.45",
+            "354.10",
+            "395.75",
+            "437.40",
+            "479.05",
+            "520.70",
+            "562.35",
+            "604.00",
+            "645.65"
+          ]
+        },
+        "monthly": {
+          "single": [
+            "416.70",
+            "500.00",
+            "583.30",
+            "666.60",
+            "749.90",
+            "833.20",
+            "916.50",
+            "999.80",
+            "1083.10",
+            "1166.40",
+            "1249.70"
+          ],
+          "married": [
+            "458.30",
+            "541.60",
+            "624.90",
+            "708.20",
+            "791.50",
+            "874.80",
+            "958.10",
+            "1041.40",
+            "1124.70",
+            "1208.00",
+            "1291.30"
+          ]
+        },
+        "annual": {
+          "single": [
+            "5000.00",
+            "6000.00",
+            "7000.00",
+            "8000.00",
+            "9000.00",
+            "10000.00",
+            "11000.00",
+            "12000.00",
+            "13000.00",
+            "14000.00",
+            "15000.00"
+          ],
+          "married": [
+            "5500.00",
+            "6500.00",
+            "7500.00",
+            "8500.00",
+            "9500.00",
+            "10500.00",
+            "11500.00",
+            "12500.00",
+            "13500.00",
+            "14500.00",
+            "15500.00"
+          ]
+        }
+      }
+    },
+    "tableB_deduction": {
+      "daily": {
+        "single": "19.25",
+        "married": "21.15"
+      },
+      "weekly": {
+        "single": "96.15",
+        "married": "105.75"
+      },
+      "biweekly": {
+        "single": "192.30",
+        "married": "211.50"
+      },
+      "semimonthly": {
+        "single": "208.35",
+        "married": "229.15"
+      },
+      "monthly": {
+        "single": "416.70",
+        "married": "458.30"
+      },
+      "annual": {
+        "single": "5000.00",
+        "married": "5500.00"
+      }
+    },
+    "tableC_exemptionValue": {
+      "daily": "3.85",
+      "weekly": "19.25",
+      "biweekly": "38.50",
+      "semimonthly": "41.65",
+      "monthly": "83.30",
+      "annual": "1000.00"
+    },
+    "rateTables": {
+      "weekly": [
+        {
+          "atLeast": "0.00",
+          "lessThan": "154.00",
+          "subtract": "0.00",
+          "ratePercent": "2.05",
+          "plus": "0.00"
+        },
+        {
+          "atLeast": "154.00",
+          "lessThan": "167.00",
+          "subtract": "154.00",
+          "ratePercent": "2.80",
+          "plus": "3.15"
+        },
+        {
+          "atLeast": "167.00",
+          "lessThan": "288.00",
+          "subtract": "167.00",
+          "ratePercent": "3.25",
+          "plus": "3.54"
+        },
+        {
+          "atLeast": "288.00",
+          "lessThan": "481.00",
+          "subtract": "288.00",
+          "ratePercent": "3.95",
+          "plus": "7.46"
+        },
+        {
+          "atLeast": "481.00",
+          "lessThan": "1154.00",
+          "subtract": "481.00",
+          "ratePercent": "4.15",
+          "plus": "15.06"
+        },
+        {
+          "atLeast": "1154.00",
+          "lessThan": null,
+          "subtract": "1154.00",
+          "ratePercent": "4.25",
+          "plus": "43.00"
+        }
+      ],
+      "biweekly": [
+        {
+          "atLeast": "0.00",
+          "lessThan": "308.00",
+          "subtract": "0.00",
+          "ratePercent": "2.05",
+          "plus": "0.00"
+        },
+        {
+          "atLeast": "308.00",
+          "lessThan": "334.00",
+          "subtract": "308.00",
+          "ratePercent": "2.80",
+          "plus": "6.31"
+        },
+        {
+          "atLeast": "334.00",
+          "lessThan": "577.00",
+          "subtract": "334.00",
+          "ratePercent": "3.25",
+          "plus": "7.08"
+        },
+        {
+          "atLeast": "577.00",
+          "lessThan": "962.00",
+          "subtract": "577.00",
+          "ratePercent": "3.95",
+          "plus": "14.92"
+        },
+        {
+          "atLeast": "962.00",
+          "lessThan": "2308.00",
+          "subtract": "962.00",
+          "ratePercent": "4.15",
+          "plus": "30.12"
+        },
+        {
+          "atLeast": "2308.00",
+          "lessThan": null,
+          "subtract": "2308.00",
+          "ratePercent": "4.25",
+          "plus": "86.00"
+        }
+      ],
+      "semimonthly": [
+        {
+          "atLeast": "0.00",
+          "lessThan": "333.00",
+          "subtract": "0.00",
+          "ratePercent": "2.05",
+          "plus": "0.00"
+        },
+        {
+          "atLeast": "333.00",
+          "lessThan": "362.00",
+          "subtract": "333.00",
+          "ratePercent": "2.80",
+          "plus": "6.83"
+        },
+        {
+          "atLeast": "362.00",
+          "lessThan": "625.00",
+          "subtract": "362.00",
+          "ratePercent": "3.25",
+          "plus": "7.67"
+        },
+        {
+          "atLeast": "625.00",
+          "lessThan": "1042.00",
+          "subtract": "625.00",
+          "ratePercent": "3.95",
+          "plus": "16.17"
+        },
+        {
+          "atLeast": "1042.00",
+          "lessThan": "2500.00",
+          "subtract": "1042.00",
+          "ratePercent": "4.15",
+          "plus": "32.63"
+        },
+        {
+          "atLeast": "2500.00",
+          "lessThan": null,
+          "subtract": "2500.00",
+          "ratePercent": "4.25",
+          "plus": "93.17"
+        }
+      ],
+      "monthly": [
+        {
+          "atLeast": "0.00",
+          "lessThan": "667.00",
+          "subtract": "0.00",
+          "ratePercent": "2.05",
+          "plus": "0.00"
+        },
+        {
+          "atLeast": "667.00",
+          "lessThan": "725.00",
+          "subtract": "667.00",
+          "ratePercent": "2.80",
+          "plus": "13.67"
+        },
+        {
+          "atLeast": "725.00",
+          "lessThan": "1250.00",
+          "subtract": "725.00",
+          "ratePercent": "3.25",
+          "plus": "15.33"
+        },
+        {
+          "atLeast": "1250.00",
+          "lessThan": "2083.00",
+          "subtract": "1250.00",
+          "ratePercent": "3.95",
+          "plus": "32.33"
+        },
+        {
+          "atLeast": "2083.00",
+          "lessThan": "5000.00",
+          "subtract": "2083.00",
+          "ratePercent": "4.15",
+          "plus": "65.25"
+        },
+        {
+          "atLeast": "5000.00",
+          "lessThan": null,
+          "subtract": "5000.00",
+          "ratePercent": "4.25",
+          "plus": "186.33"
+        }
+      ],
+      "daily": [
+        {
+          "atLeast": "0.00",
+          "lessThan": "31.00",
+          "subtract": "0.00",
+          "ratePercent": "2.05",
+          "plus": "0.00"
+        },
+        {
+          "atLeast": "31.00",
+          "lessThan": "33.50",
+          "subtract": "31.00",
+          "ratePercent": "2.80",
+          "plus": "0.63"
+        },
+        {
+          "atLeast": "33.50",
+          "lessThan": "57.50",
+          "subtract": "33.50",
+          "ratePercent": "3.25",
+          "plus": "0.71"
+        },
+        {
+          "atLeast": "57.50",
+          "lessThan": "96.00",
+          "subtract": "57.50",
+          "ratePercent": "3.95",
+          "plus": "1.49"
+        },
+        {
+          "atLeast": "96.00",
+          "lessThan": "231.00",
+          "subtract": "96.00",
+          "ratePercent": "4.15",
+          "plus": "3.01"
+        },
+        {
+          "atLeast": "231.00",
+          "lessThan": null,
+          "subtract": "231.00",
+          "ratePercent": "4.25",
+          "plus": "8.60"
+        }
+      ],
+      "annual": [
+        {
+          "atLeast": "0.00",
+          "lessThan": "8000.00",
+          "subtract": "0.00",
+          "ratePercent": "2.05",
+          "plus": "0.00"
+        },
+        {
+          "atLeast": "8000.00",
+          "lessThan": "8700.00",
+          "subtract": "8000.00",
+          "ratePercent": "2.80",
+          "plus": "164.00"
+        },
+        {
+          "atLeast": "8700.00",
+          "lessThan": "15000.00",
+          "subtract": "8700.00",
+          "ratePercent": "3.25",
+          "plus": "184.00"
+        },
+        {
+          "atLeast": "15000.00",
+          "lessThan": "25000.00",
+          "subtract": "15000.00",
+          "ratePercent": "3.95",
+          "plus": "388.00"
+        },
+        {
+          "atLeast": "25000.00",
+          "lessThan": "60000.00",
+          "subtract": "25000.00",
+          "ratePercent": "4.15",
+          "plus": "783.00"
+        },
+        {
+          "atLeast": "60000.00",
+          "lessThan": null,
+          "subtract": "60000.00",
+          "ratePercent": "4.25",
+          "plus": "2236.00"
+        }
+      ]
+    },
+    "supplementalRatePercent": "4.25",
+    "cite": [
+      {
+        "source": "nys-50-t-nyc",
+        "page": 3,
+        "ref": "Supplemental wage payment withholding rates"
+      },
+      {
+        "source": "nys-50-t-nyc",
+        "page": 24,
+        "ref": "Tables A, B, C"
+      },
+      {
+        "source": "nys-50-t-nyc",
+        "page": 25,
+        "ref": "Method II single"
+      },
+      {
+        "source": "nys-50-t-nyc",
+        "page": 26,
+        "ref": "Method II married"
+      }
+    ]
+  },
+  "yonkersWithholding": {
+    "resident": {
+      "method": "Figure the New York State withholding (Method II, or Method III for top incomes) with the same Table A and rate tables, then multiply by the resident surcharge rate.",
+      "surchargeRatePercent": "16.75",
+      "supplementalRatePercent": "1.95975",
+      "tablesSameAsStateTables": true,
+      "cite": [
+        {
+          "source": "nys-50-t-y",
+          "page": 3,
+          "ref": "Supplemental wage payment withholding rates"
+        },
+        {
+          "source": "nys-50-t-y",
+          "page": 14,
+          "ref": "Tables A-C (identical to NYS-50-T-NYS)"
+        },
+        {
+          "source": "nys-50-t-y",
+          "page": 16,
+          "ref": "Method II single, Step 5 x 16.75%"
+        },
+        {
+          "source": "nys-50-t-y",
+          "page": 18,
+          "ref": "Method II married"
+        },
+        {
+          "source": "nys-50-t-y",
+          "page": 22,
+          "ref": "Method III x 16.75%"
+        }
+      ],
+      "rounding": "Round the state amount and then the surcharge to the nearest cent (half up)."
+    },
+    "nonresident": {
+      "method": "Method VIII annualized: annualized pay = gross wages x pay periods; no withholding under $4,000; subtract the exclusion for the bracket; x 0.50%; divide by pay periods.",
+      "ratePercent": "0.50",
+      "supplementalRatePercent": "0.50",
+      "annualExclusions": [
+        {
+          "over": "0.00",
+          "notOver": "3999.99",
+          "exclusion": null,
+          "note": "No tax withheld"
+        },
+        {
+          "over": "3999.99",
+          "notOver": "10000.00",
+          "exclusion": "3000.00"
+        },
+        {
+          "over": "10000.00",
+          "notOver": "20000.00",
+          "exclusion": "2000.00"
+        },
+        {
+          "over": "20000.00",
+          "notOver": "30000.00",
+          "exclusion": "1000.00"
+        },
+        {
+          "over": "30000.00",
+          "notOver": null,
+          "exclusion": "0.00"
+        }
+      ],
+      "payPeriodsPerYear": {
+        "daily": 260,
+        "weekly": 52,
+        "biweekly": 26,
+        "semimonthly": 24,
+        "monthly": 12
+      },
+      "cite": [
+        {
+          "source": "nys-50-t-y",
+          "page": 3,
+          "ref": "Supplemental rates"
+        },
+        {
+          "source": "nys-50-t-y",
+          "page": 25,
+          "ref": "Method VIII annualized tax method"
+        }
+      ]
+    }
+  },
+  "unemployment": {
+    "wageBase": "17600.00",
+    "reemploymentServiceFundRatePercent": "0.075",
+    "newEmployerNormalRateMaxPercent": "3.4",
+    "subsidiaryRateRangePercent": {
+      "min": "0",
+      "max": "0.925"
+    },
+    "note": "The employer's own normal and subsidiary rates come from its annual Department of Labor rate notice (entered in Payroll > Setup). The re-employment service fund (0.075%) is added to them and isn't creditable against FUTA.",
+    "cite": [
+      {
+        "source": "nys-50",
+        "page": "Part 1-D",
+        "ref": "Annual wage base (2026: $17,600)"
+      },
+      {
+        "source": "nys-50",
+        "page": "Part 1-D",
+        "ref": "Re-employment service fund"
+      },
+      {
+        "source": "nys-50",
+        "page": "Part 1-E",
+        "ref": "Subsidiary rate; Newly liable employer"
+      }
+    ]
+  },
+  "mctmt": {
+    "quarterlyPayrollThreshold": "312500.00",
+    "zones": {
+      "zone1": ["New York", "Bronx", "Kings", "Queens", "Richmond"],
+      "zone2": ["Rockland", "Nassau", "Suffolk", "Orange", "Putnam", "Dutchess", "Westchester"]
+    },
+    "rates": {
+      "status": "pending",
+      "note": "Publication 420 (8/15) was supplied, but its own cover note says its employer rates are obsolete for tax quarters beginning on or after July 1, 2023, and that the MCTD is now divided into two zones. Needs the Tax Department's current \"Employers: metropolitan commuter transportation mobility tax (MCTMT)\" page.",
+      "cite": [
+        {
+          "source": "pub-420",
+          "page": 1,
+          "ref": "\"MCTMT rates on pages 11 – 12 – For tax quarters beginning on or after July 1, 2023, the tax rates for employers are obsolete.\""
+        }
+      ]
+    },
+    "cite": [
+      {
+        "source": "nys-50",
+        "page": "Part 1",
+        "ref": "Metropolitan commuter transportation mobility tax (MCTMT) for employers"
+      }
+    ]
+  },
+  "paidFamilyLeave": {
+    "employeeRatePercent": "0.432",
+    "annualMaxContribution": "411.91",
+    "paidBy": "employee",
+    "note": "Employees contribute 0.432% of their wages each pay period until they reach $411.91 for the year with this employer. An employer may collect this from employees but doesn't have to: a company that pays it itself turns deduction off in Payroll › Setup. Which pay counts is taxableWages.paidFamilyLeave.",
+    "cite": [
+      {
+        "source": "nys-pfl-2026",
+        "page": null,
+        "ref": "\"For 2026, employees will contribute 0.432% of their gross wages per pay period, with a maximum annual contribution of $411.91.\" \"The maximum employee contribution for each covered employer in 2026 is $411.91.\""
+      },
+      {
+        "source": "pfl-notice-2026",
+        "page": 1,
+        "ref": "\"The 2026 payroll contribution is 0.432% of an employee's wages each pay period and is capped at an annual maximum of $411.91.\""
+      },
+      {
+        "source": "wcb-db-pfl",
+        "page": null,
+        "ref": "Deduction and waiver: \"An employer is allowed, but not required, to collect contributions from its employees to offset the cost of providing disability and Paid Family Leave benefits.\""
+      }
+    ],
+    "optional": true
+  },
+  "disabilityBenefits": {
+    "employeeRatePercent": "0.5",
+    "weeklyMaxContribution": "0.60",
+    "optional": true,
+    "note": "Employees contribute 0.5% of their wages, up to $0.60 a week, toward the employer's disability benefits (DBL) policy. An employer may collect it but doesn't have to: a company that pays it itself turns deduction off in Payroll › Setup. Employees receiving social security old-age benefits are exempt once they file Form DB-130 (marked on the employee). Which pay counts is taxableWages.disabilityBenefits.",
+    "cite": [
+      {
+        "source": "wcb-db-pfl",
+        "page": null,
+        "ref": "Disability benefits: \"An employee's contribution is computed at the rate of one-half of one percent of their wages, but no more than sixty cents a week.\" \"An employer is allowed, but not required, to collect contributions from its employees\"; employees entitled to old age insurance benefits \"shall be exempt upon filing Form DB130 with the employer and the chair.\""
+      },
+      {
+        "source": "ny-wcl-201",
+        "page": null,
+        "ref": "§ 201(12), definition of wages (as for Paid Family Leave)"
+      }
+    ],
+    "perPayPeriodMax": {
+      "rule": "weekly_max_times_weeks_in_period",
+      "weeksPerYear": 52,
+      "note": "The cap for a pay period is $0.60 times the weeks in it: 52 weeks divided by the pay periods in the year (weekly $0.60, every other week $1.20, twice a month $1.30, monthly $2.60), rounded to the cent.",
+      "decision": "Owner decision 2026-09-30 (\"go with your recommendations\"); for the CPA to confirm."
+    }
+  },
+  "workedExamples": [
+    {
+      "source": "nys-50-t-nys",
+      "page": 16,
+      "what": "weekly 400.00, single, 3 exemptions",
+      "inputs": {
+        "period": "weekly",
+        "status": "single",
+        "exemptions": 3,
+        "wages": "400.00"
+      },
+      "published": {
+        "withholding": "8.01"
+      }
+    },
+    {
+      "source": "nys-50-t-nys",
+      "page": 16,
+      "what": "semimonthly 5000.00, single, 1 exemptions",
+      "inputs": {
+        "period": "semimonthly",
+        "status": "single",
+        "exemptions": 1,
+        "wages": "5000.00"
+      },
+      "published": {
+        "withholding": "258.51"
+      },
+      "expectedFromTables": {
+        "withholding": "258.50"
+      },
+      "discrepancy": "The tables give $258.50: $165.00 x 0.0753 = $12.4245, which rounds to $12.42, but the booklet shows $12.43. The other six examples round to the nearest cent, so this is a one-cent error in the booklet; the engine follows the tables."
+    },
+    {
+      "source": "nys-50-t-nys",
+      "page": 16,
+      "what": "monthly 50000.00, single, 3 exemptions",
+      "inputs": {
+        "period": "monthly",
+        "status": "single",
+        "exemptions": 3,
+        "wages": "50000.00"
+      },
+      "published": {
+        "withholding": "3576.63"
+      }
+    },
+    {
+      "source": "nys-50-t-nys",
+      "page": 16,
+      "what": "daily 750.00, single, 2 exemptions",
+      "inputs": {
+        "period": "daily",
+        "status": "single",
+        "exemptions": 2,
+        "wages": "750.00"
+      },
+      "published": {
+        "withholding": "44.10"
+      }
+    },
+    {
+      "source": "nys-50-t-nys",
+      "page": 18,
+      "what": "weekly 400.00, married, 4 exemptions",
+      "inputs": {
+        "period": "weekly",
+        "status": "married",
+        "exemptions": 4,
+        "wages": "400.00"
+      },
+      "published": {
+        "withholding": "6.69"
+      }
+    },
+    {
+      "source": "nys-50-t-nys",
+      "page": 18,
+      "what": "semimonthly 5000.00, married, 3 exemptions",
+      "inputs": {
+        "period": "semimonthly",
+        "status": "married",
+        "exemptions": 3,
+        "wages": "5000.00"
+      },
+      "published": {
+        "withholding": "248.11"
+      },
+      "expectedFromTables": {
+        "withholding": "248.12"
+      },
+      "discrepancy": "The tables give $248.12: $58.80 x 0.0707 = $4.157, which rounds to $4.16, but the booklet prints the rate as 0.070 and the result as $4.15. A one-cent error in the booklet; the engine follows the tables."
+    },
+    {
+      "source": "nys-50-t-nys",
+      "page": 18,
+      "what": "monthly 50000.00, married, 3 exemptions",
+      "inputs": {
+        "period": "monthly",
+        "status": "married",
+        "exemptions": 3,
+        "wages": "50000.00"
+      },
+      "published": {
+        "withholding": "3622.09"
+      }
+    },
+    {
+      "source": "nys-50-t-nys",
+      "page": 18,
+      "what": "daily 750.00, married, 2 exemptions",
+      "inputs": {
+        "period": "daily",
+        "status": "married",
+        "exemptions": 2,
+        "wages": "750.00"
+      },
+      "published": {
+        "withholding": "44.58"
+      }
+    },
+    {
+      "source": "nys-50-t-nyc",
+      "page": 27,
+      "what": "weekly 400.00, married, 4 exemptions",
+      "inputs": {
+        "period": "weekly",
+        "status": "married",
+        "exemptions": 4,
+        "wages": "400.00"
+      },
+      "published": {
+        "withholding": "5.17"
+      }
+    },
+    {
+      "source": "nys-50-t-nyc",
+      "page": 27,
+      "what": "semimonthly 5000.00, married, 3 exemptions",
+      "inputs": {
+        "period": "semimonthly",
+        "status": "married",
+        "exemptions": 3,
+        "wages": "5000.00"
+      },
+      "published": {
+        "withholding": "184.37"
+      }
+    },
+    {
+      "source": "nys-50-t-nyc",
+      "page": 27,
+      "what": "monthly 50000.00, married, 3 exemptions",
+      "inputs": {
+        "period": "monthly",
+        "status": "married",
+        "exemptions": 3,
+        "wages": "50000.00"
+      },
+      "published": {
+        "withholding": "2068.73"
+      }
+    },
+    {
+      "source": "nys-50-t-nyc",
+      "page": 27,
+      "what": "daily 750.00, married, 2 exemptions",
+      "inputs": {
+        "period": "daily",
+        "status": "married",
+        "exemptions": 2,
+        "wages": "750.00"
+      },
+      "published": {
+        "withholding": "29.43"
+      }
+    },
+    {
+      "source": "nys-50-t-nyc",
+      "page": 27,
+      "what": "weekly 400.00, single, 3 exemptions",
+      "inputs": {
+        "period": "weekly",
+        "status": "single",
+        "exemptions": 3,
+        "wages": "400.00"
+      },
+      "published": {
+        "withholding": "6.11"
+      }
+    },
+    {
+      "source": "nys-50-t-nyc",
+      "page": 27,
+      "what": "semimonthly 5000.00, single, 1 exemptions",
+      "inputs": {
+        "period": "semimonthly",
+        "status": "single",
+        "exemptions": 1,
+        "wages": "5000.00"
+      },
+      "published": {
+        "withholding": "188.80"
+      }
+    },
+    {
+      "source": "nys-50-t-nyc",
+      "page": 27,
+      "what": "monthly 50000.00, single, 3 exemptions",
+      "inputs": {
+        "period": "monthly",
+        "status": "single",
+        "exemptions": 3,
+        "wages": "50000.00"
+      },
+      "published": {
+        "withholding": "2070.50"
+      }
+    },
+    {
+      "source": "nys-50-t-nyc",
+      "page": 27,
+      "what": "daily 750.00, single, 2 exemptions",
+      "inputs": {
+        "period": "daily",
+        "status": "single",
+        "exemptions": 2,
+        "wages": "750.00"
+      },
+      "published": {
+        "withholding": "29.51"
+      }
+    },
+    {
+      "source": "nys-50-t-y",
+      "page": 16,
+      "what": "Yonkers resident: weekly 400.00, single, 3 exemptions",
+      "inputs": {
+        "kind": "yonkersResident",
+        "period": "weekly",
+        "status": "single",
+        "exemptions": 3,
+        "wages": "400.00"
+      },
+      "published": {
+        "withholding": "1.34"
+      }
+    },
+    {
+      "source": "nys-50-t-y",
+      "page": 16,
+      "what": "Yonkers resident: semimonthly 5000.00, single, 1 exemptions",
+      "inputs": {
+        "kind": "yonkersResident",
+        "period": "semimonthly",
+        "status": "single",
+        "exemptions": 1,
+        "wages": "5000.00"
+      },
+      "published": {
+        "withholding": "43.30"
+      }
+    },
+    {
+      "source": "nys-50-t-y",
+      "page": 16,
+      "what": "Yonkers resident: monthly 50000.00, single, 3 exemptions",
+      "inputs": {
+        "kind": "yonkersResident",
+        "period": "monthly",
+        "status": "single",
+        "exemptions": 3,
+        "wages": "50000.00"
+      },
+      "published": {
+        "withholding": "599.08"
+      },
+      "expectedFromTables": {
+        "withholding": "599.09"
+      },
+      "discrepancy": "$3,576.63 x 0.1675 = $599.0855, which rounds to $599.09; the booklet shows $599.08, although on the same page $44.10 x 0.1675 = $7.38675 is rounded up to $7.39. A one-cent inconsistency in the booklet; the engine rounds to the nearest cent."
+    },
+    {
+      "source": "nys-50-t-y",
+      "page": 16,
+      "what": "Yonkers resident: daily 750.00, single, 2 exemptions",
+      "inputs": {
+        "kind": "yonkersResident",
+        "period": "daily",
+        "status": "single",
+        "exemptions": 2,
+        "wages": "750.00"
+      },
+      "published": {
+        "withholding": "7.39"
+      }
+    },
+    {
+      "source": "nys-50-t-y",
+      "page": 18,
+      "what": "Yonkers resident: weekly 400.00, married, 4 exemptions",
+      "inputs": {
+        "kind": "yonkersResident",
+        "period": "weekly",
+        "status": "married",
+        "exemptions": 4,
+        "wages": "400.00"
+      },
+      "published": {
+        "withholding": "1.12"
+      }
+    },
+    {
+      "source": "nys-50-t-y",
+      "page": 18,
+      "what": "Yonkers resident: semimonthly 5000.00, married, 3 exemptions",
+      "inputs": {
+        "kind": "yonkersResident",
+        "period": "semimonthly",
+        "status": "married",
+        "exemptions": 3,
+        "wages": "5000.00"
+      },
+      "published": {
+        "withholding": "41.56"
+      }
+    },
+    {
+      "source": "nys-50-t-y",
+      "page": 18,
+      "what": "Yonkers resident: monthly 50000.00, married, 3 exemptions",
+      "inputs": {
+        "kind": "yonkersResident",
+        "period": "monthly",
+        "status": "married",
+        "exemptions": 3,
+        "wages": "50000.00"
+      },
+      "published": {
+        "withholding": "606.70"
+      }
+    },
+    {
+      "source": "nys-50-t-y",
+      "page": 18,
+      "what": "Yonkers resident: daily 750.00, married, 2 exemptions",
+      "inputs": {
+        "kind": "yonkersResident",
+        "period": "daily",
+        "status": "married",
+        "exemptions": 2,
+        "wages": "750.00"
+      },
+      "published": {
+        "withholding": "7.47"
+      }
+    },
+    {
+      "source": "nys-50-t-y",
+      "page": 25,
+      "what": "Yonkers nonresident (Method VIII): weekly 75.00",
+      "inputs": {
+        "kind": "yonkersNonresident",
+        "period": "weekly",
+        "wages": "75.00"
+      },
+      "published": {
+        "withholding": "0.00"
+      }
+    },
+    {
+      "source": "nys-50-t-y",
+      "page": 25,
+      "what": "Yonkers nonresident (Method VIII): weekly 200.00",
+      "inputs": {
+        "kind": "yonkersNonresident",
+        "period": "weekly",
+        "wages": "200.00"
+      },
+      "published": {
+        "withholding": "0.81"
+      }
+    },
+    {
+      "source": "nys-50-t-y",
+      "page": 25,
+      "what": "Yonkers nonresident (Method VIII): semimonthly 400.00",
+      "inputs": {
+        "kind": "yonkersNonresident",
+        "period": "semimonthly",
+        "wages": "400.00"
+      },
+      "published": {
+        "withholding": "1.38"
+      }
+    }
+  ],
+  "taxableWages": {
+    "incomeTax": {
+      "basis": "federal_fit",
+      "note": "New York State, New York City and Yonkers withholding apply to the wages subject to federal income tax withholding.",
+      "cite": [
+        {
+          "source": "nys-50",
+          "page": "Part 3",
+          "ref": "E. Income subject to withholding: \"Compensation that is considered as wages for federal income tax withholding purposes, including tips... is generally considered wages for purposes of withholding New York State income tax, New York City income tax, Yonkers resident tax surcharge, and Yonkers nonresident earnings tax\""
+        },
+        {
+          "source": "tsb-m-84-7-i",
+          "page": 1,
+          "ref": "\"Contributions to a qualified cash or deferred salary profit-sharing or stock bonus plan which are excluded from an employee's income for federal income tax purposes are also excluded from income for New York State and City of New York income tax purposes. Accordingly, such contributions are not subject to New York State or City of New York income tax withholding.\""
+        }
+      ],
+      "publicEmployees": {
+        "note": "Public employees' 414(h) retirement contributions and New York City's own flexible benefits program (IRC 125) are added back on the employee's New York return. Payroll has no item kinds for these public-employer plans, so they are not supported.",
+        "cite": [
+          {
+            "source": "nys-414h-125",
+            "page": null,
+            "ref": "414(h) contributions and NYC flexible benefits program amounts are reported as addition modifications on Form IT-201/IT-203"
+          }
+        ]
+      }
+    },
+    "unemployment": {
+      "regularWages": "taxable",
+      "kinds": {
+        "cash_tips": "taxable",
+        "paid_tips": "taxable",
+        "retirement_match": "exempt",
+        "employer_health": "exempt",
+        "employer_hsa": "exempt",
+        "fringe_benefit": "taxable",
+        "employer_hsa_cafeteria": "exempt"
+      },
+      "otherKinds": "pending",
+      "note": "Salaries, commissions, bonuses, certified tips and the reasonable value of noncash pay (taxable fringe benefits) are remuneration. Employer payments under a plan for retirement or for medical or hospitalization expenses, and payments to a 401(a) trust, are not. Employee pre-tax deductions (401(k), cafeteria plan, FSA, HSA) are not addressed by § 517 or the Department of Labor sources supplied, so paychecks with them are refused for New York unemployment until sourced. Dismissal (severance) payments are excluded by § 517(2)(h); payroll has no severance kind, so don't pay severance with an earnings kind until one is added.",
+      "cite": [
+        {
+          "source": "nys-50",
+          "page": "Part 2",
+          "ref": "Remuneration \"includes every form of compensation paid to covered employees including salary, cash wages, commissions, bonuses, tips, vacation pay...\""
+        },
+        {
+          "source": "nys-50",
+          "page": "Part 2",
+          "ref": "Payments to employees not reportable: \"Any payment made under a plan or system providing for retirement, sickness, or accident disability, or medical or hospital expenses for an employee... including amounts paid for insurance\"; \"Payments from or to a trust described in IRC § 401(a)\""
+        },
+        {
+          "source": "ny-labor-517",
+          "page": null,
+          "ref": "§ 517(1): \"'Remuneration' means every form of compensation for employment paid by an employer to his employee... including salaries, commissions, bonuses, and the reasonable money value of board, rent, housing, lodging, or similar advantage received.\" § 517(2) exclusions include (a) plan payments \"on account of retirement, or sickness or accident disability, or medical or hospitalization expenses\", (e) payments \"from or to a trust described in section four hundred one (a)\" and (h) \"Dismissal payments.\""
+        },
+        {
+          "source": "ia-318-15",
+          "page": 1,
+          "ref": "Reporting Tips: \"The amount certified by employees must be included in the employer's quarterly contribution reports\"; page 2: \"The reasonable value of any noncash compensation provided by employers to their employees is remuneration which is reportable and subject to contribution on a quarterly basis.\""
+        }
+      ]
+    },
+    "paidFamilyLeave": {
+      "regularWages": "taxable",
+      "kinds": {
+        "traditional_401k": "taxable",
+        "traditional_403b": "taxable",
+        "section_125": "taxable",
+        "hsa": "taxable",
+        "health_fsa": "taxable",
+        "dependent_care_fsa": "taxable",
+        "retirement_match": "exempt",
+        "employer_health": "exempt",
+        "employer_hsa": "exempt",
+        "employer_hsa_cafeteria": "exempt",
+        "other_employer_contribution": "exempt"
+      },
+      "otherKinds": "pending",
+      "note": "Paid Family Leave wages are the pay rate under the contract of hiring (WCL § 201(12)), a percentage of gross wages: employee pre-tax deductions don't lower them, and company contributions aren't part of them. This reading of the definition was decided by the owner on 2026-09-30 for the CPA to confirm. Tips, noncash pay and reimbursements are not addressed and stay pending.",
+      "decision": "Owner decision 2026-09-30 (\"go with your recommendations\"); for the CPA to confirm.",
+      "cite": [
+        {
+          "source": "ny-wcl-201",
+          "page": null,
+          "ref": "§ 201(12): \"'Wages' means the money rate at which employment with a covered employer is recompensed under the contract of hiring with the covered employer and shall include the reasonable value of board, rent, housing, lodging, or similar advantage received under the contract of hiring.\" Supplied with it, from paidfamilyleave.ny.gov/cost: \"Commissions and bonuses are considered wages for PFL purposes.\""
+        },
+        {
+          "source": "nys-pfl-2026",
+          "page": null,
+          "ref": "\"0.432% of their gross wages per pay period\""
+        }
+      ]
+    },
+    "disabilityBenefits": {
+      "regularWages": "taxable",
+      "kinds": {
+        "traditional_401k": "taxable",
+        "traditional_403b": "taxable",
+        "section_125": "taxable",
+        "hsa": "taxable",
+        "health_fsa": "taxable",
+        "dependent_care_fsa": "taxable",
+        "retirement_match": "exempt",
+        "employer_health": "exempt",
+        "employer_hsa": "exempt",
+        "employer_hsa_cafeteria": "exempt",
+        "other_employer_contribution": "exempt"
+      },
+      "otherKinds": "pending",
+      "note": "Disability benefits wages are the pay rate under the contract of hiring (WCL § 201(12)), a percentage of gross wages: employee pre-tax deductions don't lower them, and company contributions aren't part of them. This reading of the definition was decided by the owner on 2026-09-30 for the CPA to confirm. Tips, noncash pay and reimbursements are not addressed and stay pending.",
+      "decision": "Owner decision 2026-09-30 (\"go with your recommendations\"); for the CPA to confirm.",
+      "cite": [
+        {
+          "source": "ny-wcl-201",
+          "page": null,
+          "ref": "§ 201(12): \"'Wages' means the money rate at which employment with a covered employer is recompensed under the contract of hiring with the covered employer and shall include the reasonable value of board, rent, housing, lodging, or similar advantage received under the contract of hiring.\" Supplied with it, from paidfamilyleave.ny.gov/cost: \"Commissions and bonuses are considered wages for PFL purposes.\""
+        },
+        {
+          "source": "wcb-db-pfl",
+          "page": null,
+          "ref": "\"An employee's contribution is computed at the rate of one-half of one percent of their wages, but no more than sixty cents a week.\""
+        }
+      ]
+    }
+  },
+  "ownerApproval": {
+    "date": "2026-09-30",
+    "by": "product owner",
+    "scope": "Figures checked as copied from the supplied documents, for building and testing the tax calculations. Not a professional review: reviewedBy stays null until a CPA or payroll specialist signs off, which is required before real paychecks."
+  },
+  "reviewedBy": null,
+  "note": "Approved by the product owner for building (see ownerApproval); awaiting professional review.",
+  "certificate": {
+    "form": "IT-2104",
+    "reportToStateAboveAllowances": 14,
+    "note": "When an employee claims more than 14 allowances for New York State, the employer must send a copy of the IT-2104 to the Tax Department (box A), which may adjust the allowances.",
+    "cite": [
+      {
+        "source": "it-2104-i",
+        "page": 2,
+        "ref": "Claiming more than 14 allowances: \"If you claim more than 14 allowances, your employer must send a copy of your Form IT-2104 to the New York State Tax Department.\""
+      },
+      {
+        "source": "it-2104",
+        "page": 1,
+        "ref": "Employer box A: \"Employee claimed more than 14 exemption allowances for New York State\""
+      }
+    ]
+  }
+}

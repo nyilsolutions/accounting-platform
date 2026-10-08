@@ -31,9 +31,9 @@ test('owner signs up with MFA, creates a company, invites an accountant who join
   await expect(page.getByText('**-***6789')).toBeVisible();
   await shot(page, '05-dashboard');
 
-  // --- Upcoming module placeholder ------------------------------------------------------
+  // --- Payroll starts with its setup ------------------------------------------------------
   await page.getByRole('link', { name: 'Payroll' }).click();
-  await expect(page.getByText('Coming in Phases 8–9')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Set up payroll' })).toBeVisible();
 
   // --- Keyboard shortcut: g u -> Users & roles -----------------------------------------
   await page.locator('body').click();

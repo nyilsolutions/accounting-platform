@@ -22,6 +22,8 @@ export const PERMISSIONS = [
   'banking.manage',
   'payroll.view',
   'payroll.manage',
+  /** See employees' full SSNs (always audit-logged). */
+  'payroll.sensitive.reveal',
   'reports.view',
   'time.manage',
   'documents.view',
@@ -83,6 +85,7 @@ export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
     'company.view',
     'payroll.view',
     'payroll.manage',
+    'payroll.sensitive.reveal',
     'documents.view',
     'documents.manage',
   ],

@@ -1,0 +1,134 @@
+{
+  "year": 2026,
+  "state": "FL",
+  "description": "Florida payroll figures for 2026. Florida has no state personal income tax; employers pay reemployment (unemployment) tax.",
+  "sources": [
+    {
+      "id": "fl-rt-rates",
+      "title": "Florida Department of Revenue, Reemployment Tax Rate Information",
+      "revision": "page as supplied 2026-09-30 (no revision date shown)",
+      "url": "https://floridarevenue.com/taxes/taxesfees/Pages/rt_rate_info.aspx"
+    },
+    {
+      "id": "fs-443-1217",
+      "title": "The 2026 Florida Statutes, s. 443.1217 Wages (Reemployment Assistance)",
+      "revision": "2026 Florida Statutes (captured 2026-09-29)",
+      "url": "http://www.leg.state.fl.us/statutes/index.cfm?App_mode=Display_Statute&URL=0400-0499/0443/Sections/0443.1217.html"
+    },
+    {
+      "id": "rt-800002",
+      "title": "Florida Department of Revenue, Employer Guide to Reemployment Tax (RT-800002)",
+      "revision": "PDF modified 2025-09-23",
+      "url": null,
+      "urlNote": "The supplied copy does not show its own address; publisher site floridarevenue.com."
+    },
+    {
+      "id": "fl-dor-rt-returns",
+      "title": "Florida Department of Revenue, Reemployment Tax Report and Payment Information",
+      "revision": "page as supplied 2026-09-30 (no revision date shown)",
+      "url": "https://floridarevenue.com/taxes/taxesfees/Pages/rt_return_pay.aspx"
+    }
+  ],
+  "incomeTaxWithholding": {
+    "none": true,
+    "note": "Florida has no state personal income tax."
+  },
+  "unemployment": {
+    "wageBase": "7000.00",
+    "newEmployerRatePercent": "2.7",
+    "minimumRatePercent": "0.1",
+    "maximumRatePercent": "5.4",
+    "paidBy": "employer",
+    "note": "New employers pay 2.7% until they have enough history for an earned rate. The employer's own rate comes from its Form RT-20 rate notice (entered in Payroll > Setup). Minimum and maximum apply to wages paid in 2026; a higher rate may apply to delinquent employers.",
+    "cite": [
+      {
+        "source": "fl-rt-rates",
+        "page": null,
+        "ref": "Reemployment Tax Rate Information: initial rate 2.7%; 2026 minimum 0.1% and maximum 5.4% on annual wages up to $7,000 per employee"
+      }
+    ]
+  },
+  "taxableWages": {
+    "unemployment": {
+      "regularWages": "taxable",
+      "kinds": {
+        "cash_tips": "taxable",
+        "paid_tips": "taxable",
+        "fringe_benefit": "taxable",
+        "traditional_403b": "taxable",
+        "section_125": "exempt",
+        "health_fsa": "exempt",
+        "dependent_care_fsa": "exempt",
+        "hsa": "exempt",
+        "employer_health": "exempt",
+        "retirement_match": "exempt",
+        "employer_hsa": "taxable",
+        "employer_hsa_cafeteria": "exempt"
+      },
+      "otherKinds": "pending",
+      "note": "Employee 401(k) deferrals stay pending: s. 443.1217(2)(f)1 exempts payments \"to a trust described in s. 401(a)\" without the salary-reduction exception it makes for 403(b) in (f)4, and neither the Employer Guide nor the Department's return page (which lists both plans as excluded without that exception) says how deferrals count. HSA contributions are excluded only through a cafeteria plan: the employee hsa kind and company contributions through the cafeteria plan (employer_hsa_cafeteria) are excluded; company contributions outside it (employer_hsa) are wages. Reimbursements are not addressed.",
+      "cite": [
+        {
+          "source": "fs-443-1217",
+          "page": null,
+          "ref": "(1) \"The wages subject to this chapter include all remuneration for employment, including commissions, bonuses, back pay awards, and the cash value of all remuneration paid in any medium other than cash... include tips or gratuities received while performing services... included in a written statement furnished to the employer\""
+        },
+        {
+          "source": "fs-443-1217",
+          "page": null,
+          "ref": "(2)(b) exempt: payments under a plan for employees generally, \"including any amount paid... for insurance,\" on account of \"2. Medical and hospitalization expenses in connection with sickness or accident disability\""
+        },
+        {
+          "source": "fs-443-1217",
+          "page": null,
+          "ref": "(2)(f) exempt: payments \"1. From or to a trust described in s. 401(a)...\"; \"4. Under or to an annuity contract described in s. 403(b)..., other than a payment for the purchase of an annuity contract as part of a salary reduction agreement\"; \"7. Under a cafeteria plan, as defined in s. 125...\""
+        },
+        {
+          "source": "rt-800002",
+          "page": 10,
+          "ref": "Exempt Wages: \"Cafeteria Plan payments if they are not reportable to the Internal Revenue Service.\" Taxable Wages include tips in a written statement and the \"Cash value of all remuneration paid in any medium other than cash.\""
+        },
+        {
+          "source": "rt-800002",
+          "page": 18,
+          "ref": "Glossary, Cafeteria Plan Exemption: \"When the cash option is chosen, the payments are considered wages and are subject to reemployment tax.\""
+        },
+        {
+          "source": "fl-dor-rt-returns",
+          "page": null,
+          "ref": "Definition of Wages, excluded: \"Accident and health benefits (not including Archer MSA or Health Savings Accounts unless the Health Saving Account is included in a cafeteria plan). Section (s.) 443.1217(2)(b)\"; \"Cafeteria Plan pursuant to 26 United States Code Section 125... s. 443.1217(2)(f)7\"; tips are wages \"if received while performing services... and are included in a written statement furnished by the employee to the employer\""
+        }
+      ]
+    }
+  },
+  "ownerApproval": {
+    "date": "2026-09-30",
+    "by": "product owner",
+    "scope": "Figures checked as copied from the supplied documents, for building and testing the tax calculations. Not a professional review: reviewedBy stays null until a CPA or payroll specialist signs off, which is required before real paychecks."
+  },
+  "reviewedBy": null,
+  "note": "The source is a web page without a revision date; the page's 2026 statement is cited.",
+  "quarterlyReturns": {
+    "form": "RT-6",
+    "dueDates": {
+      "Q1": "2026-04-30",
+      "Q2": "2026-07-31",
+      "Q3": "2026-11-02",
+      "Q4": "2027-02-01"
+    },
+    "dueNote": "Report and pay with Form RT-6 (Employer's Quarterly Report). Electronic payments must be initiated by 5:00 p.m. ET the business day before.",
+    "note": "The report is due the 1st of the month after the quarter and late after the last day of that month, moved to the next working day when that is a Saturday, Sunday or legal holiday (October 31, 2026 is a Saturday; January 31, 2027 is a Sunday). Employers with 10 or more employees in any quarter of the preceding state fiscal year must file and pay electronically. The installment option for the first three quarters is not supported.",
+    "cite": [
+      {
+        "source": "fl-dor-rt-returns",
+        "page": null,
+        "ref": "Due Dates: \"An Employer's Quarterly Report (Form RT-6) is due the 1st day of the month following the end of each calendar quarter and is late if not postmarked by the last day of the month.\" 1st quarter April 30, 2nd July 31, 3rd October 31, 4th January 31; \"if the last day of the month is a Saturday, Sunday, or legal holiday, the timely filing period is extended until the end of the next working day.\""
+      },
+      {
+        "source": "fl-dor-rt-returns",
+        "page": null,
+        "ref": "\"you must initiate your electronic payment and receive a confirmation number no later than 5:00 p.m. ET, on the business day prior to the due date for your payment to be considered timely.\""
+      }
+    ]
+  }
+}

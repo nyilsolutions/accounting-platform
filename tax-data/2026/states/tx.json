@@ -1,0 +1,129 @@
+{
+  "year": 2026,
+  "state": "TX",
+  "description": "Texas payroll figures for 2026. Texas has no state personal income tax; employers pay unemployment insurance (UI) tax to the Texas Workforce Commission.",
+  "sources": [
+    {
+      "id": "twc-2026-rates",
+      "title": "Texas Workforce Commission, Your 2026 Tax Rates",
+      "revision": "page text captured 2026-09-29 and supplied 2026-09-30 (no revision date shown)",
+      "url": "https://www.twc.texas.gov/programs/unemployment-tax/your-tax-rates"
+    },
+    {
+      "id": "twc-taxable-wages",
+      "title": "Texas Workforce Commission, Reporting & Determining Taxable Wages: Taxable & Non-Taxable Benefits",
+      "revision": "page text captured 2026-09-29 and supplied 2026-09-30 (no revision date shown)",
+      "url": "https://www.twc.texas.gov/programs/unemployment-tax/reporting-determining-taxable-wages"
+    },
+    {
+      "id": "tx-labor-201",
+      "title": "Texas Labor Code, Chapter 201 (Texas Unemployment Compensation Act), Sec. 201.081 General Definition of Wages and Sec. 201.082 Exceptions to Wages",
+      "revision": "Sec. 201.082 amended by Acts 1997, 75th Leg., ch. 94 (page text captured and supplied 2026-09-30)",
+      "url": "https://statutes.capitol.texas.gov/Docs/LA/htm/LA.201.htm"
+    },
+    {
+      "id": "twc-new-employer",
+      "title": "Texas Workforce Commission, New Texas Employer Information",
+      "revision": "page text captured and supplied 2026-09-30 (no revision date shown)",
+      "url": "https://www.twc.texas.gov/programs/unemployment-tax/new-texas-employer-information"
+    }
+  ],
+  "incomeTaxWithholding": {
+    "none": true,
+    "note": "Texas has no state personal income tax."
+  },
+  "unemployment": {
+    "wageBase": "9000.00",
+    "minimumRatePercent": "0.32",
+    "maximumRatePercent": "6.32",
+    "paidBy": "employer",
+    "effectiveRate": {
+      "note": "The effective rate is the sum of five components. The employer's own effective rate comes from its TWC rate notice (entered in Payroll > Setup); these components explain it and are not used to compute it.",
+      "components": {
+        "generalTaxRate": {
+          "replenishmentRatioPercent": "1.20",
+          "note": "Benefit ratio (chargebacks / taxable wages, Q4 2022 through Q3 2025 for 2026) times the replenishment ratio; 0.00% with no chargebacks."
+        },
+        "replenishmentTaxRatePercent": "0.21",
+        "obligationAssessmentRatePercent": "0.00",
+        "interestTaxRatePercent": "0.01",
+        "deficitTaxRatePercent": "0.00",
+        "employmentAndTrainingInvestmentAssessmentPercent": "0.10"
+      },
+      "check": "Minimum 0.32% = GTR 0.00 + RTR 0.21 + OA 0.00 + interest 0.01 + DTR 0.00 + ETIA 0.10."
+    },
+    "newEmployerRatePercent": "2.70",
+    "newEmployerRateNote": "A newly liable employer starts at the higher of its NAICS industry average and 2.7%; for 2026 the entry-level rate is 2.70% for every group. An employer that acquired a previous employer's compensation experience gets a computed rate instead, so the rate on the TWC notice is what payroll uses (Payroll > Setup).",
+    "cite": [
+      {
+        "source": "twc-2026-rates",
+        "page": null,
+        "ref": "\"You pay unemployment tax on the first $9,000 that each employee earns during the calendar year.\""
+      },
+      {
+        "source": "twc-2026-rates",
+        "page": null,
+        "ref": "\"The minimum tax rate for 2026 is 0.32 percent. The maximum tax rate for 2026 is 6.32 percent.\""
+      },
+      {
+        "source": "twc-2026-rates",
+        "page": null,
+        "ref": "Components: replenishment ratio 1.20%; RTR 0.21% (reduced by 0.10% to offset the ETIA); no Bond Obligation Assessment Rate for 2026; Interest Tax Rate 0.01%; no Deficit Tax Rate for 2026; ETIA 0.10%"
+      },
+      {
+        "source": "twc-new-employer",
+        "page": null,
+        "ref": "\"Texas law sets an employer's tax rate at their NAICS industry average or 2.7 percent, whichever is higher... For 2026, the entry-level rate is 2.70% for all groups with no exceptions.\""
+      }
+    ]
+  },
+  "taxableWages": {
+    "unemployment": {
+      "regularWages": "taxable",
+      "kinds": {
+        "traditional_401k": "taxable",
+        "traditional_403b": "taxable",
+        "section_125": "taxable",
+        "hsa": "taxable",
+        "health_fsa": "taxable",
+        "dependent_care_fsa": "taxable",
+        "retirement_match": "exempt",
+        "cash_tips": "taxable",
+        "paid_tips": "taxable",
+        "fringe_benefit": "taxable",
+        "employer_health": "exempt"
+      },
+      "otherKinds": "pending",
+      "note": "Employee salary reductions are taxable wages in Texas whatever they fund (TWC). Employer contributions to a qualified 401(k) trust, and employer payments under a plan for employees generally for retirement or for medical or hospitalization expenses, are not wages (the retirement_match and employer_health kinds assume such plans). Tips are wages to the extent FUTA counts them (tips reported in writing to the employer, per federal.json). Noncash pay (taxable fringe benefits) is wages at its cash value. Reimbursements, company HSA contributions and other company contributions are not addressed and stay pending.",
+      "cite": [
+        {
+          "source": "twc-taxable-wages",
+          "page": null,
+          "ref": "\"Employee contributions used to fund benefits by salary reduction or deduction from the employee's base pay would be taxable as wages, regardless of what they are used to purchase or provide.\""
+        },
+        {
+          "source": "twc-taxable-wages",
+          "page": null,
+          "ref": "401(k): \"Employer contributions into a 401(k) trust are not considered taxable wages for state unemployment tax purposes only if... the trust meets the requirements of Section 401(a)... [and] is exempt under Section 501(a).\" \"Employee contributions from a salary reduction or deduction from the employee's base pay are taxable under Texas state unemployment tax laws.\""
+        },
+        {
+          "source": "tx-labor-201",
+          "page": null,
+          "ref": "Sec. 201.081: \"wages\" means all remuneration for personal services, including \"(1) the cash value of remuneration paid in a medium other than cash; and (2) a gratuity received by an employee in the course of employment to the extent that the gratuity is considered wages in the computation of taxes under the Federal Unemployment Tax Act\""
+        },
+        {
+          "source": "tx-labor-201",
+          "page": null,
+          "ref": "Sec. 201.082: \"wages\" does not include \"(2) a payment... made to or for an employee... under a plan the employer established for employees generally, or a class of employees... for: (A) retirement; (B) sickness or accident disability; (C) medical or hospitalization expenses in connection with sickness or accident disability\" or \"(5) a payment made to or for an employee... (A) from or to a trust defined by Section 401(a)... that is exempt from tax under Section 501(a)\""
+        }
+      ]
+    }
+  },
+  "ownerApproval": {
+    "date": "2026-09-30",
+    "by": "product owner",
+    "scope": "Figures checked as copied from the supplied documents, for building and testing the tax calculations. Not a professional review: reviewedBy stays null until a CPA or payroll specialist signs off, which is required before real paychecks."
+  },
+  "reviewedBy": null,
+  "note": "The source is page text you supplied (the TWC site blocks downloads), not the page itself."
+}

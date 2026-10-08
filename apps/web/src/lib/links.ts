@@ -30,6 +30,10 @@ export function txnHref(companyId: string, txnType: string, id: string): string 
     case 'sales_tax_payment':
     case 'sales_tax_adjustment':
       return `${base}/sales-tax`;
+    case 'paycheck':
+      return `${base}/payroll/paychecks/by-transaction/${id}`;
+    case 'payroll_liability_payment':
+      return `${base}/payroll/liabilities`;
     default:
       return `${base}/accounting/journal-entries/${id}`;
   }

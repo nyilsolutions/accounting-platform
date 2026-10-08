@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { decimalPlaces, parseMoney, tryParseMoney } from './money';
 import { US_STATES } from './company';
+import { isIsoDate } from './dates';
 import { EXEMPTION_REASONS, type ExemptionReason } from './sales-tax';
 
 const optText = (max: number) =>
@@ -116,6 +117,15 @@ export const vendorInputSchema = z.object({
   /** Write-only. Omit to keep the stored TIN, '' to remove it. */
   tin: tinSchema.optional().or(z.literal('')),
   defaultExpenseAccountId: z.uuid().nullable().optional(),
+  /** When the contractor's Form W-9 came in. */
+  w9ReceivedOn: z
+    .string()
+    .refine(isIsoDate, 'Enter a valid date')
+    .nullable()
+    .optional()
+    .or(z.literal('').transform(() => null)),
+  /** The IRS told you to backup withhold (B-notice), or the contractor gave no TIN. */
+  backupWithholding: z.boolean().optional(),
 });
 export type VendorInput = z.input<typeof vendorInputSchema>;
 export const vendorUpdateSchema = vendorInputSchema
@@ -131,6 +141,8 @@ export interface VendorDto extends ContactDto {
   /** Masked, e.g. "***-**-1234" or "**-***1234". */
   tinMasked: string | null;
   defaultExpenseAccountId: string | null;
+  w9ReceivedOn: string | null;
+  backupWithholding: boolean;
 }
 
 export function maskTin(type: string | null, last4: string | null): string | null {

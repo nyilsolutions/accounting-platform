@@ -11,7 +11,8 @@ Add new questions here instead of guessing.
 3. **Registration:** open self-signup (current), or invite-only for your firm's clients?
    Self-signup currently reveals whether an email is registered (409 on duplicate); invite-only
    would remove that.
-4. **Which states** should payroll support first (Phase 8)?
+4. **Which states** should payroll support first (Phase 8)? _Answered: Illinois, Texas, Florida,
+   California and New York (see `docs/states.md`)._
 5. **Which QuickBooks editions** do your clients use (Online, Desktop Pro/Premier/Enterprise)? Sample
    files or a QBO sandbox are needed for Phase 6.
 
@@ -164,3 +165,98 @@ Add new questions here instead of guessing.
     - Budgets longer than twelve months?
 43. **Branded report PDFs:** exports use a plain layout with the company name. Should PDFs carry
     the company logo (the same question as item 14 for invoices)?
+
+## Payroll setup (Phase 8)
+
+44. **Payroll tax data:** `tax-data/2026/federal.json` and `states/{il,ny,ca,fl,tx}.json` are
+    approved by you for building (2026-09-30) and wait for a CPA or payroll specialist's review
+    (`reviewedBy`) before real paychecks. The tax engine refuses anything not sourced, with the
+    reason. Still needed:
+    - **New York**:
+      - the current MCTMT employer rates: Publication 420 (8/15) was supplied, but its cover note
+        says its employer rates are obsolete from July 1, 2023. Needs the Tax Department's
+        "Employers: metropolitan commuter transportation mobility tax" page;
+      - which table applies to IT-2104 "Married, but withhold at higher single rate" (expected:
+        single; IT-2104-I doesn't say);
+      - how employee pre-tax deductions (401(k), cafeteria plan, FSA, HSA) count for
+        unemployment. Labor Law § 517 excludes plan payments and 401(a) trust payments but doesn't
+        address salary reductions. (Noncash pay and certified tips are now sourced, IA 318.15);
+    - **California**: the 2026 California Employer's Guide (DE 44) for income tax withholding
+      (every California paycheck waits on this). One conflict for the reviewer: DE 231EB (2017)
+      shows employer 401(k) contributions as subject to unemployment and SDI, the newer DE 231A
+      (2023) says they are not; payroll follows DE 231A;
+    - **Florida**: whether employee 401(k) deferrals are reemployment tax wages. Section
+      443.1217(2)(f)1 exempts payments "to a trust described in s. 401(a)" without the
+      salary-reduction exception it makes for 403(b). Neither the Employer Guide (RT-800002) nor
+      the Department's return page settles it: the page lists both plans as excluded without that
+      exception. Florida paychecks with a 401(k) deduction wait on this. Also reimbursements;
+    - **Illinois**: how 403(b), HSA and reimbursements count for unemployment. A health FSA is
+      treated as excluded (a cafeteria-plan benefit for medical expenses); a reviewer should
+      confirm;
+    - **Texas**: reimbursements, company HSA and other company contributions for unemployment
+      (Labor Code 201.081–.082 and the TWC pages settle tips, noncash pay, company health plans
+      and the 2.70% new-employer rate);
+    - the **2026 FUTA credit reduction states** (Department of Labor, November 2026). Paychecks
+      use the 0.6% net rate; a credit reduction is added on Form 940 at year end;
+    - **state holidays** for due dates: Illinois moves a due date on a state-recognized holiday to
+      the next business day (Publication 131). Only weekends are applied today (see question 46).
+
+    Settled by the documents supplied on 2026-09-30: Roth 401(k)/403(b) (2026 W-2 instructions),
+    the Illinois withholding deposit schedule (Publication 131), Florida RT-6 due dates, the
+    Texas new-employer rate, and the current IL-W-4 (R-07/23), DE 4 (Rev. 56, 1-26) and IT-2104
+    (2026) forms.
+
+    A paycheck with a kind of pay whose treatment isn't sourced for its state is refused with the
+    reason; everything else is calculated.
+
+45. **Your direct deposit bank (ODFI):** which bank will originate the ACH files? Banks differ on:
+    - a balanced file (an offsetting debit to your account) or credits only (built today);
+    - line endings (CRLF today) and the immediate origin and company ID they assign;
+    - whether prenotes are required, and how many business days to wait after one.
+46. **Pay dates on bank holidays:** a pay date on a weekend moves to the Friday before. Should
+    Federal Reserve holidays move it too? If so, the holiday list would live in `tax-data`.
+47. **State certificate fields:** settled. The fields match the current IL-W-4 (R-07/23), DE 4
+    (Rev. 56, 1-26) and IT-2104 (2026). DE 4 line 4 (military spouse) was added. New York
+    paychecks now say when an IT-2104 claims more than 14 allowances and must be sent to the state.
+48. **Paid sick leave:** California and New York require minimum paid sick leave, and some cities
+    have their own rules. Should PTO policies enforce those minimums, or is that the employer's
+    job?
+49. **Who can see full SSNs:** owners, admins, accountants and payroll admins can reveal an
+    employee's SSN, and every reveal is audit-logged. Is that the right group?
+50. **Missing Form W-4:** an employee without a W-4 is flagged. Pub 15-T says to withhold as
+    single with no adjustments until one arrives. Should payroll allow paying them that way, or
+    block the paycheck until a W-4 is on file?
+
+## Pay runs (Phase 8, part 2)
+
+51. **Pay before payroll starts here:** wage bases and caps (social security, FUTA, state
+    unemployment, Paid Family Leave, 401(k) limits) use year-to-date wages from paychecks posted
+    here. A company that starts mid-year needs its earlier 2026 pay entered. Should we add a
+    "prior payroll" entry (year-to-date totals per employee as of the start date), or import it
+    from QuickBooks (Phase 6 doesn't carry paychecks)?
+52. **Garnishment limits:** a garnishment is taken as entered, up to its total owed. The Consumer
+    Credit Protection Act caps most garnishments at a share of disposable earnings (and child
+    support at 50–65%), and states have their own limits. Should payroll enforce them? If so, the
+    limits belong in `tax-data` with citations.
+53. **Working in more than one state, and Yonkers nonresidents:** each employee's taxes go to their
+    work state. Employees who live in one state and work in another (reciprocity, resident-state
+    withholding) or who split time between states are not handled, and the Yonkers nonresident
+    earnings tax (implemented and tested) needs to know who works in Yonkers. How common is this
+    for your customers?
+54. **Paper paychecks:** paychecks paid by check are marked "to print" but can't be printed yet
+    with the check printing from Phase 3 (voucher stubs differ). Do customers print paychecks, or
+    is direct deposit plus a pay stub enough for now?
+55. **New York Paid Family Leave and Disability Benefits (DBL):** decided 2026-09-30 ("go with
+    your recommendations"), for the CPA to confirm:
+    - **Wages:** PFL and DBL wages are gross pay: employee pre-tax deductions (401(k), cafeteria
+      plan, FSA, HSA) don't lower them, and company contributions aren't part of them (WCL
+      § 201(12)). Tips, noncash pay and reimbursements stay pending.
+    - **DBL** is deducted: 0.5% of wages, at most $0.60 times the weeks in the pay period ($1.20
+      every two weeks, $1.30 twice a month, $2.60 monthly). A bonus or off-cycle check gets its own
+      period's cap, so a week with two checks can go over $0.60; a reviewer should say whether to
+      track the cap by week instead.
+    - Employees who filed **Form DB-130** are marked on the employee and have no DBL withheld.
+    - **Company pays:** Payroll › Setup can turn off collecting PFL or DBL from employees.
+56. **Florida company HSA contributions:** decided 2026-09-30. The item is split into "HSA
+    (company contribution through the cafeteria plan)", excluded from Florida reemployment wages,
+    and "HSA (company contribution outside a cafeteria plan)", which counts.
