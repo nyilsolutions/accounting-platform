@@ -214,6 +214,14 @@ export const NAV: NavItem[] = [
     section: 'main',
   },
   {
+    key: 'receipts-inbox',
+    label: 'Receipts inbox',
+    path: '/documents/inbox',
+    shortcut: 'q',
+    permission: 'documents.view',
+    section: 'hidden',
+  },
+  {
     key: 'import',
     label: 'Import from QuickBooks',
     path: '/import',
@@ -269,16 +277,6 @@ export const UPCOMING_MODULES: Record<
       'Direct deposit (NACHA)',
       'Tax liabilities and deposits',
       'Forms 941, 940, W-2/W-3, 1099-NEC/MISC',
-    ],
-  },
-  documents: {
-    title: 'Documents',
-    phase: 'Phase 5',
-    features: [
-      'Attach files to any transaction',
-      'Receipt capture with OCR',
-      'Email-in inbox',
-      'Document library with search',
     ],
   },
   import: {

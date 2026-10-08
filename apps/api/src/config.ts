@@ -38,6 +38,33 @@ const envSchema = z.object({
   PLAID_ENV: z.enum(['sandbox', 'production']).default('sandbox'),
   /** Public URL Plaid posts webhooks to (…/api/webhooks/plaid). Without it, sync is manual. */
   PLAID_WEBHOOK_URL: z.url().optional(),
+
+  // Documents (Phase 5)
+  /** 'local' (encrypted files on disk; development and tests) or 's3' (any S3-compatible store). */
+  DOCUMENT_STORAGE: z.enum(['local', 's3']).default('local'),
+  DOCUMENT_STORAGE_DIR: z.string().default('.documents'),
+  S3_BUCKET: z.string().optional(),
+  S3_REGION: z.string().default('us-east-1'),
+  /** For MinIO, Cloudflare R2 and others; omit for AWS. */
+  S3_ENDPOINT: z.url().optional(),
+  S3_ACCESS_KEY_ID: z.string().optional(),
+  S3_SECRET_ACCESS_KEY: z.string().optional(),
+  S3_FORCE_PATH_STYLE: bool.default(false),
+  /** Server-side encryption: 'AES256' (S3-managed keys) or 'aws:kms' (with S3_KMS_KEY_ID). */
+  S3_SSE: z.enum(['AES256', 'aws:kms']).default('AES256'),
+  S3_KMS_KEY_ID: z.string().optional(),
+  MAX_UPLOAD_MB: z.coerce.number().int().min(1).max(100).default(25),
+  /** 'clamd' (ClamAV daemon), 'dev' (flags the EICAR test file only) or 'none'. */
+  VIRUS_SCANNER: z.enum(['clamd', 'dev', 'none']).default('dev'),
+  CLAMD_HOST: z.string().default('127.0.0.1'),
+  CLAMD_PORT: z.coerce.number().int().default(3310),
+  /** Receipt reading: 'anthropic' (Claude), 'heuristic' (text-based PDFs only) or 'none'. */
+  DOCUMENT_AI: z.enum(['anthropic', 'heuristic', 'none']).default('heuristic'),
+  ANTHROPIC_API_KEY: z.string().optional(),
+  DOCUMENT_AI_MODEL: z.string().default('claude-opus-5-5'),
+  /** Email-in: addresses are <token>@INBOUND_EMAIL_DOMAIN; the provider signs each message. */
+  INBOUND_EMAIL_DOMAIN: z.string().optional(),
+  INBOUND_EMAIL_SECRET: z.string().min(32).optional(),
 });
 
 export type AppConfig = z.infer<typeof envSchema>;
@@ -56,12 +83,32 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     if (['console', 'capture', 'file'].includes(config.MAIL_TRANSPORT)) {
       throw new Error('A real mail transport must be configured in production');
     }
+    if (config.DOCUMENT_STORAGE !== 's3') {
+      throw new Error("DOCUMENT_STORAGE must be 's3' in production");
+    }
+    if (config.VIRUS_SCANNER !== 'clamd') {
+      throw new Error("VIRUS_SCANNER must be 'clamd' in production");
+    }
     if (config.BANK_FEED_PROVIDER === 'mock') {
       throw new Error("BANK_FEED_PROVIDER must be 'plaid' or 'none' in production");
     }
   }
   if (config.BANK_FEED_PROVIDER === 'plaid' && (!config.PLAID_CLIENT_ID || !config.PLAID_SECRET)) {
     throw new Error('PLAID_CLIENT_ID and PLAID_SECRET are required when BANK_FEED_PROVIDER=plaid');
+  }
+  if (
+    config.DOCUMENT_STORAGE === 's3' &&
+    (!config.S3_BUCKET || !config.S3_ACCESS_KEY_ID || !config.S3_SECRET_ACCESS_KEY)
+  ) {
+    throw new Error(
+      'S3_BUCKET, S3_ACCESS_KEY_ID and S3_SECRET_ACCESS_KEY are required for S3 storage',
+    );
+  }
+  if (config.DOCUMENT_AI === 'anthropic' && !config.ANTHROPIC_API_KEY) {
+    throw new Error('ANTHROPIC_API_KEY is required when DOCUMENT_AI=anthropic');
+  }
+  if (config.INBOUND_EMAIL_DOMAIN && !config.INBOUND_EMAIL_SECRET) {
+    throw new Error('INBOUND_EMAIL_SECRET is required when INBOUND_EMAIL_DOMAIN is set');
   }
   return config;
 }

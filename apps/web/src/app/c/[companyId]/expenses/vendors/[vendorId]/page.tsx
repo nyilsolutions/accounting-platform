@@ -9,6 +9,7 @@ import { billToOf } from '@/components/sales/use-sales-lookups';
 import { Alert, Badge, buttonClass, Card, Spinner } from '@/components/ui';
 import { api, errorMessage } from '@/lib/api';
 import { keys, useAccess } from '@/lib/queries';
+import { Attachments } from '@/components/documents/attachments';
 
 export default function VendorPage() {
   const { companyId, vendorId } = useParams<{ companyId: string; vendorId: string }>();
@@ -108,6 +109,7 @@ export default function VendorPage() {
         </Card>
       </div>
       <PurchaseTransactionsTable companyId={companyId} vendorId={vendorId} />
+      <Attachments companyId={companyId} entityType="vendor" entityId={vendorId} />
     </>
   );
 }

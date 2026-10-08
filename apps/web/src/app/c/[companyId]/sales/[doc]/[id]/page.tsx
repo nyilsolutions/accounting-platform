@@ -23,6 +23,7 @@ import { Alert, Button, buttonClass, Card, Spinner } from '@/components/ui';
 import { api, errorMessage } from '@/lib/api';
 import { txnHref } from '@/lib/links';
 import { keys, ledgerKeys, useAccess } from '@/lib/queries';
+import { Attachments } from '@/components/documents/attachments';
 
 function SalesDocument() {
   const { companyId, doc, id } = useParams<{ companyId: string; doc: string; id: string }>();
@@ -249,6 +250,7 @@ function SalesDocument() {
           setNotice(`${labels.title} sent to ${input.to}.`);
         }}
       />
+      <Attachments companyId={companyId} entityType="transaction" entityId={id} />
       {closing.dialog}
     </>
   );

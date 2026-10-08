@@ -74,3 +74,21 @@ Add new questions here instead of guessing.
     limits it to accountant users. Should it need the accountant or admin role?
 25. **Bank feed transactions from closed periods:** they can be downloaded and reviewed, but
     adding them needs the closing-date password. Should they be excluded automatically instead?
+
+## Documents (Phase 5)
+
+26. **AI receipt reading and data processing:** reading receipts with Claude sends the file to
+    Anthropic's API. Is that acceptable for your clients under your privacy policy and client
+    agreements, and do you want a zero-data-retention arrangement first? Until decided,
+    `DOCUMENT_AI=heuristic` reads only text-based PDFs.
+27. **HEIC photos:** converting iPhone HEIC photos to JPEG needs an HEVC decoder (libheif), which
+    has patent-licensing implications. Should we license a converter, convert in the browser
+    before upload, or ask users to set their phones to JPEG?
+28. **Retention:** is 7 years the right default for your clients (IRS guidance ranges from 3 to 7
+    years; employment tax records at least 4)? Should some document types (payroll, 1099) have
+    their own longer periods?
+29. **Email-in senders:** today any sender who knows a company's address can add documents to its
+    inbox (they are scanned and wait for review). Should we restrict senders to company users or
+    an allow-list?
+30. **Storage and malware scanning in production:** which S3 region, bucket policy and KMS key,
+    and will ClamAV run as a sidecar or a managed scanning service?
