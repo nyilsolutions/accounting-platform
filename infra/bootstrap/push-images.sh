@@ -5,9 +5,10 @@
 #
 #   AWS_PROFILE=acct-staging infra/bootstrap/push-images.sh <account id>
 #
-# Builds the api and web images exactly as the Deploy workflow does (same Dockerfile targets,
-# the web app pointed at the API's address in the cluster), tags them with the current commit
-# and pushes both. Prints the two image URIs for terraform.tfvars (api_image, web_image).
+# Builds the api, web and clamd images exactly as the Deploy workflow does (same Dockerfile
+# targets, the web app pointed at the API's address in the cluster, today's virus signatures),
+# tags them with the current commit and pushes them. Prints the three image URIs for
+# terraform.tfvars (api_image, web_image, clamd_image).
 set -euo pipefail
 
 account=${1:?account id}
@@ -32,7 +33,10 @@ aws ecr get-login-password --region "$region" | docker login --username AWS --pa
 docker buildx build --platform linux/amd64 --target api -t "$registry/acct/api:$tag" --push .
 docker buildx build --platform linux/amd64 --target web \
   --build-arg API_URL=http://api.acct.internal:4000 -t "$registry/acct/web:$tag" --push .
+docker buildx build --platform linux/amd64 --target clamd \
+  --build-arg SIGNATURES_DATE="$(date -u +%F)" -t "$registry/acct/clamd:$tag" --push .
 
 echo
-echo "api_image = \"$registry/acct/api:$tag\""
-echo "web_image = \"$registry/acct/web:$tag\""
+echo "api_image   = \"$registry/acct/api:$tag\""
+echo "web_image   = \"$registry/acct/web:$tag\""
+echo "clamd_image = \"$registry/acct/clamd:$tag\""

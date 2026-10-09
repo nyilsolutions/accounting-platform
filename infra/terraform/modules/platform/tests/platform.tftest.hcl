@@ -326,6 +326,7 @@ variables {
   github_repository = "example/accounting-platform"
   api_image         = "111111111111.dkr.ecr.us-east-1.amazonaws.com/acct/api:abc"
   web_image         = "111111111111.dkr.ecr.us-east-1.amazonaws.com/acct/web:abc"
+  clamd_image       = "111111111111.dkr.ecr.us-east-1.amazonaws.com/acct/clamd:abc"
   alarm_emails      = ["ops@example.com"]
 }
 
@@ -381,8 +382,18 @@ run "production_defaults" {
     error_message = "Production settings (and their start-up checks) apply."
   }
   assert {
-    condition     = alltrue([for c in jsondecode(aws_ecs_task_definition.api.container_definitions) : c.name == "clamd" || (c.user == "1000" && c.readonlyRootFilesystem)])
-    error_message = "App containers run as the node user with a read-only root filesystem."
+    condition = alltrue([for c in jsondecode(aws_ecs_task_definition.api.container_definitions) :
+      c.user == (c.name == "clamd" ? "999" : "1000") && c.readonlyRootFilesystem && c.linuxParameters.capabilities.drop == ["ALL"]
+    ])
+    error_message = "The API runs as node and clamd as clamav, both with read-only root filesystems and no capabilities."
+  }
+  assert {
+    condition     = one([for c in jsondecode(aws_ecs_task_definition.api.container_definitions) : c.image if c.name == "clamd"]) == "111111111111.dkr.ecr.us-east-1.amazonaws.com/acct/clamd:abc"
+    error_message = "clamd comes from this account's ECR (the Dockerfile's clamd target), not Docker Hub."
+  }
+  assert {
+    condition     = aws_ecr_repository.app["clamd"].image_tag_mutability == "IMMUTABLE"
+    error_message = "The clamd image has its own immutable repository."
   }
   assert {
     condition     = !contains([for s in jsondecode(aws_ecs_task_definition.api.container_definitions)[0].secrets : s.name], "ADMIN_DATABASE_URL")
@@ -395,6 +406,17 @@ run "production_defaults" {
   assert {
     condition     = length(aws_backup_plan.main.rule) == 2 && alltrue([for r in aws_backup_plan.main.rule : length(r.copy_action) == 1])
     error_message = "Daily and monthly backups, each copied to the recovery region."
+  }
+  assert {
+    condition = alltrue([for r in aws_backup_plan.main.rule :
+      r.lifecycle[0].delete_after == (r.rule_name == "monthly" ? 2555 : 35)
+      && alltrue([for c in r.copy_action : c.lifecycle[0].delete_after == r.lifecycle[0].delete_after])
+    ])
+    error_message = "Daily snapshots are kept 35 days and monthly ones 7 years, copies too (business continuity plan)."
+  }
+  assert {
+    condition     = aws_cloudwatch_log_group.app["api"].retention_in_days == 365
+    error_message = "Logs are kept 1 year (logging and monitoring policy)."
   }
   assert {
     condition     = aws_ecr_repository.app["api"].image_tag_mutability == "IMMUTABLE"

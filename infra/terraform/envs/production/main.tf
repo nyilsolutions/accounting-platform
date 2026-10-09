@@ -102,6 +102,11 @@ variable "web_image" {
   type = string
 }
 
+variable "clamd_image" {
+  description = "The clamd image (Dockerfile target clamd), in this account's ECR."
+  type        = string
+}
+
 variable "app_settings" {
   type    = map(string)
   default = {}
@@ -139,6 +144,7 @@ module "platform" {
   github_repository     = var.github_repository
   api_image             = var.api_image
   web_image             = var.web_image
+  clamd_image           = var.clamd_image
   app_settings          = var.app_settings
   provider_secret_names = var.provider_secret_names
 

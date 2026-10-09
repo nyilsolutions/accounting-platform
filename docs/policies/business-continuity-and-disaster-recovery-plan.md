@@ -21,10 +21,16 @@ It also covers the third-party services the platform depends on, and the people 
 
 ### 1. Objectives
 
-| Objective                      | Target |
-| ------------------------------ | ------ |
-| Recovery point objective (RPO) | [RPO]  |
-| Recovery time objective (RTO)  | [RTO]  |
+| Objective                      | Target     |
+| ------------------------------ | ---------- |
+| Recovery point objective (RPO) | 15 minutes |
+| Recovery time objective (RTO)  | 4 hours    |
+
+The targets cover losing the primary region too. There is no standby there (question 107), so
+recovery is a rebuild from code and the replicated backups. The yearly disaster recovery drill
+(section 4.2) measures that rebuild against the RTO. Mail can lag behind the RTO after a
+region loss, because Amazon SES production access in the new region is granted by AWS, not by
+us.
 
 1. Payroll is time-critical: employees must be paid on their pay date and tax deposits made on
    time. Recovery must restore payroll, direct deposit and tax payment functions first.
@@ -44,8 +50,9 @@ It also covers the third-party services the platform depends on, and the people 
 
 ### 3. Backups
 
-1. The database must have automated backups with point-in-time recovery, kept for
-   [Backup Retention].
+1. The database must have automated backups with point-in-time recovery for 35 days (the RDS
+   maximum), daily snapshots kept for 35 days and monthly snapshots kept for 7 years, the same
+   as the books. Staging, which holds no customer data, keeps monthly snapshots for 1 year.
 2. Backups must be copied to a second AWS region and to a separate AWS account that production
    credentials cannot delete from (for example, with AWS Backup vault lock).
 3. S3 buckets for documents and exports must have versioning on and be replicated to the second
@@ -61,8 +68,8 @@ It also covers the third-party services the platform depends on, and the people 
 
 1. A database restore to a point in time must be tested at least every quarter in an isolated
    environment. The drill must:
-   - measure the time to restore and compare it with [RTO];
-   - check the data loss window against [RPO];
+   - measure the time to restore and compare it with the RTO;
+   - check the data loss window against the RPO;
    - verify the restored data: migrations at the expected version, the trial balance ties out,
      sample encrypted fields decrypt, documents open;
    - record the result and any gaps.

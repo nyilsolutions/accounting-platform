@@ -96,11 +96,12 @@ jobs:
           retention-days: 14
 
   # Container images (ADR 0030): built from the Dockerfile the deploy uses, started against
-  # Postgres (release step, API, worker, web), then scanned for known vulnerabilities that have a
-  # fix. The deploy workflow builds them again for the cluster's API address and pushes to ECR.
+  # Postgres (release step, API, worker, web), clamd checked with the antivirus test file through
+  # the API's scanner, then all three scanned for known vulnerabilities that have a fix. The
+  # deploy workflow builds them again for the cluster's API address and pushes to ECR.
   images:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 40
     services:
       postgres:
         image: postgres:16
@@ -134,6 +135,19 @@ jobs:
           load: true
           build-args: API_URL=http://127.0.0.1:4000
           cache-from: type=gha,scope=images
+      - name: Date the virus signatures
+        id: signatures
+        run: echo "date=$(date -u +%F)" >> "$GITHUB_OUTPUT"
+      - name: Build the clamd image
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          target: clamd
+          tags: acct-clamd:ci
+          load: true
+          build-args: SIGNATURES_DATE=${{ steps.signatures.outputs.date }}
+          cache-from: type=gha,scope=clamd
+          cache-to: type=gha,scope=clamd,mode=max
       - name: Start the images
         env:
           ADMIN_URL: postgres://postgres:postgres@localhost:5432/postgres
@@ -152,9 +166,30 @@ jobs:
             sleep 2
           done
           exit 1
+      # As on ECS: read-only root filesystem, the clamav user, no capabilities, its volumes.
+      - name: Start clamd and scan through the API's client
+        run: |
+          docker run -d --name clamd --network host --read-only --user 999 --cap-drop ALL \
+            --init acct-clamd:ci
+          for i in $(seq 1 60); do
+            [ "$(docker inspect -f '{{.State.Health.Status}}' clamd)" = healthy ] && break
+            [ "$(docker inspect -f '{{.State.Running}}' clamd)" = true ] || exit 1
+            sleep 5
+          done
+          docker run --rm --network host acct-api:ci node -e "
+            const { ClamdVirusScanner, EICAR } = require('./dist/documents/scanning/virus-scanner.js');
+            const clamd = new ClamdVirusScanner('127.0.0.1', 3310);
+            (async () => {
+              const infected = await clamd.scan(Buffer.from(EICAR));
+              const clean = await clamd.scan(Buffer.from('An ordinary receipt'));
+              const large = await clamd.scan(Buffer.alloc(30 * 1024 * 1024, 'a'));
+              console.log(JSON.stringify({ infected, clean, large }));
+              const ok = infected.status === 'infected' && clean.status === 'clean' && large.status === 'clean';
+              process.exit(ok ? 0 : 1);
+            })();"
       - name: Container logs
         if: always()
-        run: for c in api worker web; do echo "== $c"; docker logs "$c" 2>&1 | tail -50; done
+        run: for c in api worker web clamd; do echo "== $c"; docker logs "$c" 2>&1 | tail -50; done
       - name: Scan the API image
         uses: anchore/scan-action@27805bf3b4e84b4a5c980df22ed233c00390a439 # v7.4.2
         with:
@@ -166,6 +201,13 @@ jobs:
         uses: anchore/scan-action@27805bf3b4e84b4a5c980df22ed233c00390a439 # v7.4.2
         with:
           image: acct-web:ci
+          only-fixed: true
+          severity-cutoff: high
+          output-format: table
+      - name: Scan the clamd image
+        uses: anchore/scan-action@27805bf3b4e84b4a5c980df22ed233c00390a439 # v7.4.2
+        with:
+          image: acct-clamd:ci
           only-fixed: true
           severity-cutoff: high
           output-format: table

@@ -10,8 +10,9 @@ alarm_emails       = ["ops@example.com"]
 # After staging's apply: its dns_name_servers output.
 # staging_delegation = { name = "staging.example.com", name_servers = ["ns-1.awsdns-01.org", "..."] }
 # backup_account_vault_arn = "arn:aws:backup:us-east-1:333333333333:backup-vault:acct-backups"
-api_image = "222222222222.dkr.ecr.us-east-1.amazonaws.com/acct/api:<git sha>"
-web_image = "222222222222.dkr.ecr.us-east-1.amazonaws.com/acct/web:<git sha>"
+api_image   = "222222222222.dkr.ecr.us-east-1.amazonaws.com/acct/api:<git sha>"
+web_image   = "222222222222.dkr.ecr.us-east-1.amazonaws.com/acct/web:<git sha>"
+clamd_image = "222222222222.dkr.ecr.us-east-1.amazonaws.com/acct/clamd:<git sha>"
 app_settings = {
   # PAYMENTS_PROVIDER  = "stripe"
   # BANK_FEED_PROVIDER = "plaid"

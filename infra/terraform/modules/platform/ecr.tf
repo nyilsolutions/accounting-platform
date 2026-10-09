@@ -2,7 +2,7 @@
 # continuously by Amazon Inspector, and pruned to the last 100 images.
 
 resource "aws_ecr_repository" "app" {
-  for_each             = toset(["api", "web"])
+  for_each             = toset(["api", "web", "clamd"])
   name                 = "${var.name}/${each.key}"
   image_tag_mutability = "IMMUTABLE"
   encryption_configuration {

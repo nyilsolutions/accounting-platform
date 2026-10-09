@@ -1,6 +1,6 @@
-# ECS on Fargate (ADR 0030): three services from two images, plus the release task.
+# ECS on Fargate (ADR 0030): three services from three images, plus the release task.
 #   web     - Next.js behind the load balancer; proxies /api to the API at api.<namespace>.
-#   api     - the API with clamd beside it (CLAMD_HOST=127.0.0.1); JOB_WORKER=off.
+#   api     - the API with clamd (the clamd image) beside it (CLAMD_HOST=127.0.0.1); JOB_WORKER=off.
 #   worker  - the same image running dist/worker.js (jobs and schedules), no clamd: files are
 #             only scanned during uploads, which the API handles.
 #   release - one-off per deploy: app role, migrations, job queue (dist/release.js).
@@ -187,6 +187,9 @@ resource "aws_ecs_task_definition" "api" {
   volume {
     name = "clamav-db"
   }
+  volume {
+    name = "clamd-tmp"
+  }
   container_definitions = jsonencode([
     merge(local.hardening, {
       name         = "api"
@@ -207,24 +210,26 @@ resource "aws_ecs_task_definition" "api" {
       stopTimeout      = 60
       logConfiguration = local.log_options["api"]
     }),
-    {
-      # clamd and freshclam; the API scans uploads through it on localhost:3310.
-      name                   = "clamd"
-      image                  = var.clamav_image
-      essential              = true
-      memoryReservation      = 2048
-      readonlyRootFilesystem = false
-      mountPoints            = [{ sourceVolume = "clamav-db", containerPath = "/var/lib/clamav" }]
+    merge(local.hardening, {
+      # clamd and freshclam (docker/clamd); the API scans uploads through it on localhost:3310.
+      name              = "clamd"
+      image             = var.clamd_image
+      user              = "999"
+      essential         = true
+      memoryReservation = 2048
+      mountPoints = [
+        { sourceVolume = "clamav-db", containerPath = "/var/lib/clamav" },
+        { sourceVolume = "clamd-tmp", containerPath = "/tmp" },
+      ]
       healthCheck = {
-        command     = ["CMD-SHELL", "clamdcheck.sh"]
+        command     = ["CMD", "clamdscan", "--ping=1"]
         interval    = 30
         timeout     = 10
         retries     = 5
         startPeriod = 300
       }
-      linuxParameters  = { initProcessEnabled = true }
       logConfiguration = local.log_options["clamd"]
-    },
+    }),
   ])
   tags = local.tags
 }

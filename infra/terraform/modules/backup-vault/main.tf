@@ -32,7 +32,7 @@ variable "min_retention_days" {
 }
 
 variable "max_retention_days" {
-  description = "Longest retention a copy may have ([Backup Retention])."
+  description = "Longest retention a copy may have: 7 years, the monthly snapshots' retention."
   type        = number
   default     = 2555
 }

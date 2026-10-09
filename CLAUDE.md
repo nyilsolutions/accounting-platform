@@ -24,7 +24,7 @@ pnpm --filter @acct/api perf     # performance suite (needs `nest build`); PERF_
 pnpm --filter @acct/api keys:status|keys:rotate|keys:reencrypt   # field keys (ADMIN_DATABASE_URL, ADR 0029)
 pnpm format                     # prettier
 
-docker build --target api -t acct-api .   # API, worker and release step image (ADR 0030); --target web for the web
+docker build --target api -t acct-api .   # API, worker and release step image (ADR 0030); --target web or clamd for the others
 cd infra/terraform/modules/platform && terraform init -backend=false && terraform test   # Terraform against mocked AWS
 bash infra/deploy/test/ecs-deploy.test.sh # the deploy script against a fake AWS CLI
 ```
@@ -99,8 +99,9 @@ A single package: `pnpm --filter @acct/api test`, `pnpm --filter @acct/db test`,
   `apps/api/src/common/tax-data.ts`.
 - `infra/`: Terraform for AWS (`terraform/modules/platform` per environment, `envs/staging`,
   `envs/production`, `envs/backup`), the deploy script (`deploy/ecs-deploy.sh`) and the restore
-  drill (`drill/restore-drill.sh`). `Dockerfile` builds the `api` and `web` images. Operations:
-  `docs/runbooks/`, `docs/launch-checklist.md`.
+  drill (`drill/restore-drill.sh`). `Dockerfile` builds the `api`, `web` and `clamd` images
+  (clamd's configuration in `docker/clamd/`). Operations: `docs/runbooks/`,
+  `docs/launch-checklist.md`.
 
 ## Non-negotiable rules
 
@@ -326,7 +327,9 @@ A single package: `pnpm --filter @acct/api test`, `pnpm --filter @acct/db test`,
   - **A new AWS call** needs a permission on the task role in `iam.tf` (least privilege, with
     conditions).
   - **Infrastructure** changes only through Terraform, never in the console.
-  - **Containers** run as `node` with a read-only root filesystem: write only to `/tmp`.
+  - **Containers** run as `node` (clamd as `clamav`) with a read-only root filesystem: write
+    only to paths the image declares as `VOLUME`s after giving them to that user (`/tmp`);
+    ECS creates any other volume owned by root.
   - **Mail** goes through `Mailer` (SES in production).
   - **New alarms** name their runbook in `docs/runbooks/`.
 

@@ -136,10 +136,9 @@ variable "web_image" {
   type        = string
 }
 
-variable "clamav_image" {
-  description = "The clamd sidecar image. Mirror it into ECR (pull-through cache) for production."
+variable "clamd_image" {
+  description = "The clamd sidecar image (the Dockerfile's clamd target), in this account's ECR."
   type        = string
-  default     = "clamav/clamav:1.4"
 }
 
 variable "api_count" {
@@ -192,21 +191,21 @@ variable "web_settings" {
 # --- Retention and recovery ----------------------------------------------------------------------
 
 variable "log_retention_days" {
-  description = "CloudWatch log retention ([Log Retention] in the logging policy)."
+  description = "CloudWatch log retention: 1 year (logging and monitoring policy, section 5)."
   type        = number
   default     = 365
 }
 
 variable "daily_backup_retention_days" {
-  description = "Daily AWS Backup snapshots of the database ([Backup Retention])."
+  description = "Daily AWS Backup snapshots of the database: 35 days (business continuity plan, section 3)."
   type        = number
   default     = 35
 }
 
 variable "monthly_backup_retention_days" {
-  description = "Monthly AWS Backup snapshots of the database ([Backup Retention])."
+  description = "Monthly AWS Backup snapshots of the database: 7 years, like the books (business continuity plan, section 3). At most the backup account vault lock's max_retention_days."
   type        = number
-  default     = 365
+  default     = 2555
 }
 
 variable "backup_account_vault_arn" {

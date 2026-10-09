@@ -60,7 +60,8 @@ starting from no AWS accounts and no domain.
       has `STAGING_ACCOUNT_ID`.
 - [ ] The repository variable `DEPLOY_ENABLED` is `true` (Settings > Secrets and variables >
       Actions > Variables). Until then the Deploy workflow skips every run.
-- [ ] `production` has required reviewers (not the person who merged), and deployments only
+- [ ] `production` has required reviewers (the [Deploy Approver] and a named backup) with
+      "Prevent self-review" on, so the person who merged can't approve, and deployments only
       from `main`.
 - [ ] Branch protection on `main`: pull requests with review, the CI and Security checks
       required, no force pushes.

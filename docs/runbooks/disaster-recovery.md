@@ -16,7 +16,8 @@ it names who may.
 
 ## Region loss: rebuild in us-west-2
 
-The recovery region holds data, not a running copy, so expect hours (question 107).
+The recovery region holds data, not a running copy (question 107), so this is a rebuild. The
+target is the 4-hour RTO (business continuity plan); the yearly drill measures it.
 
 1. **Infrastructure:** create a new root (copy `envs/production` to `envs/production-dr`). Swap
    the providers, so the primary is us-west-2 and `dr` is another region such as us-east-2.
