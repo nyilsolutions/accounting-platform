@@ -17,7 +17,8 @@ production` comes from `loadConfig`; fix the setting in Terraform (`app_settings
      apply. `No field encryption keys` means the release step didn't run; run it ([deploy](deploy.md)).
    - `OutOfMemory` or exit 137: see [high latency](high-latency.md) (memory).
 4. **API tasks unhealthy, but the database is fine:** clamd may be failing to start (the API
-   waits for it). Check the `clamd` container log; signature downloads need outbound HTTPS.
+   waits for it). Check the `clamd` container log. It starts from the signatures in its image, so it
+   doesn't need the network to start; freshclam's updates need outbound HTTPS.
 5. **Only the web is down:** the load balancer target group shows the reason. The web image is
    built for `api.acct.internal`; if Cloud Map has no healthy API records, every `/api` call
    fails.

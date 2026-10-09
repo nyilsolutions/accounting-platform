@@ -340,3 +340,27 @@ infra/drill/restore-drill.sh production      # with administrator access to the 
   - automatic password rotation.
 
   Questions 84 (traces) and 87 (sizes) are updated.
+
+## After 12d: launch decisions (2026-10-09)
+
+The owner took the recommendations on open questions 100 and 103 to 108:
+
+- **Recovery and retention (100):**
+  - RPO 15 minutes and RTO 4 hours, in the business continuity plan;
+  - monthly snapshots kept 7 years (`monthly_backup_retention_days = 2555`, the backup
+    vault lock's limit), with staging keeping them 1 year;
+  - daily snapshots kept 35 days and logs 1 year, as before.
+- **The clamd image (104):** built in this repository from Debian's packages (the Dockerfile's
+  `clamd` target, `docker/clamd/`), with the signatures from its build. It is pushed to its
+  own ECR repository and deployed with the API by the deploy script (a fourth argument). CI
+  starts it as on ECS and scans the antivirus test file through the API's client. It runs as
+  `clamav` with a read-only root filesystem.
+- **Volumes:** the API's `/tmp` and the web's `.next/cache` are now declared as `VOLUME`s too.
+  ECS creates a task's volumes owned by root unless the image declares the path, and both run
+  as `node`.
+- **Production deploys (105):** one named approver (`[Deploy Approver]` in the change
+  management policy, with a backup), who isn't the person who merged. The `production`
+  environment's "Prevent self-review" setting enforces it.
+- **No change (106 to 108):** the WAF limits stay, there is no standby region, and database
+  passwords are rotated by hand once a year.
+- **Still open:** the alarm email address (103) and the domain name (102).

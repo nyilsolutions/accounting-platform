@@ -77,7 +77,7 @@ found in any log is a security incident: the log must be purged and the cause fi
 1. Logs must be encrypted at rest and in transit and must be readable only by staff who need
    them. Deleting or changing logs must be limited to the log archive's administrators and
    alerted.
-2. Application and infrastructure logs must be kept for [Log Retention]. The product audit log is
+2. Application and infrastructure logs must be kept for 1 year. The product audit log is
    kept for the life of the customer's account.
 3. All systems must use synchronized time (UTC, NTP or the AWS time service).
 

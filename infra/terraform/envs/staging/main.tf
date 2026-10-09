@@ -99,6 +99,11 @@ variable "web_image" {
   type = string
 }
 
+variable "clamd_image" {
+  description = "The clamd image (Dockerfile target clamd), in this account's ECR."
+  type        = string
+}
+
 variable "app_settings" {
   type    = map(string)
   default = {}
@@ -131,6 +136,7 @@ module "platform" {
   github_repository     = var.github_repository
   api_image             = var.api_image
   web_image             = var.web_image
+  clamd_image           = var.clamd_image
   app_settings          = var.app_settings
   provider_secret_names = var.provider_secret_names
 
@@ -142,8 +148,10 @@ module "platform" {
   api_max_count      = 2
   # Production pulls the images staging tested.
   ecr_reader_account_ids = var.production_account_id == null ? [] : [var.production_account_id]
-  # Staging can be torn down; production keeps everything.
-  deletion_protection = false
+  # Staging can be torn down; production keeps everything. Staging holds no customer data, so
+  # its monthly snapshots are kept 1 year, not the policy's 7.
+  deletion_protection           = false
+  monthly_backup_retention_days = 365
 }
 
 output "platform" {

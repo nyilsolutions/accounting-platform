@@ -9,7 +9,7 @@ failures=0
 run() { # name, then env assignments; runs the deploy into a fresh fake
   export FAKE_AWS_DIR
   FAKE_AWS_DIR=$(mktemp -d)
-  PATH="$here:$PATH" "$@" "$deploy" staging repo/api:new repo/web:new >"$FAKE_AWS_DIR/out" 2>&1
+  PATH="$here:$PATH" "$@" "$deploy" staging repo/api:new repo/web:new repo/clamd:new >"$FAKE_AWS_DIR/out" 2>&1
 }
 check() { # description, condition
   if eval "$2"; then echo "ok - $1"; else echo "not ok - $1"; failures=$((failures + 1)); fi
@@ -18,8 +18,8 @@ check() { # description, condition
 # 1. A good deploy.
 run env && status=0 || status=$?
 check "succeeds" "[ $status -eq 0 ]"
-check "api container gets the new API image, clamd is untouched" \
-  "jq -e '.containerDefinitions == [{\"name\":\"api\",\"image\":\"repo/api:new\",\"environment\":[{\"name\":\"A\",\"value\":\"1\"}]},{\"name\":\"clamd\",\"image\":\"clamav/clamav:1.4\"}]' \$FAKE_AWS_DIR/registered-acct-staging-api.json >/dev/null"
+check "the API task gets the new API and clamd images" \
+  "jq -e '.containerDefinitions == [{\"name\":\"api\",\"image\":\"repo/api:new\",\"environment\":[{\"name\":\"A\",\"value\":\"1\"}]},{\"name\":\"clamd\",\"image\":\"repo/clamd:new\"}]' \$FAKE_AWS_DIR/registered-acct-staging-api.json >/dev/null"
 check "worker and release use the API image, web the web image" \
   "[ \"\$(jq -r '.containerDefinitions[0].image' \$FAKE_AWS_DIR/registered-acct-staging-worker.json)\" = repo/api:new ] && [ \"\$(jq -r '.containerDefinitions[0].image' \$FAKE_AWS_DIR/registered-acct-staging-release.json)\" = repo/api:new ] && [ \"\$(jq -r '.containerDefinitions[0].image' \$FAKE_AWS_DIR/registered-acct-staging-web.json)\" = repo/web:new ]"
 check "read-only fields are not sent back to register-task-definition" \

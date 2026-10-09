@@ -86,26 +86,23 @@ should cite the specific policy section and the evidence for each control.
 Every placeholder used in these files. Fill in each before approval, and use the same value in
 every file.
 
-| Placeholder                   | What to fill in                                                                           |
-| ----------------------------- | ----------------------------------------------------------------------------------------- |
-| `[Company]`                   | The legal name of the company that operates the platform                                  |
-| `[Security Officer]`          | Name and title of the GLBA Qualified Individual who owns these policies                   |
-| `[Engineering Lead]`          | Name and title of the person responsible for engineering and production operations        |
-| `[Privacy Contact]`           | Name or role, and contact address, for privacy requests                                   |
-| `[Effective Date]`            | The date the policies take effect (also the date of version 1.0)                          |
-| `[Review Date]`               | The date of the next scheduled review, no more than one year after the effective date     |
-| `[Approver]`                  | Name and title of the executive (or board) who approves the policies                      |
-| `[Security Email]`            | The monitored email address for reporting security issues and incidents                   |
-| `[Incident Phone]`            | The phone number staff call for urgent incidents, staffed outside business hours          |
-| `[Legal Counsel]`             | The internal or outside counsel who advises on contracts and breach notification          |
-| `[Insurance Carrier]`         | The cyber insurance carrier and policy number, and its claims contact                     |
-| `[RPO]`                       | Recovery point objective: the most data loss acceptable, as a time (for example, minutes) |
-| `[RTO]`                       | Recovery time objective: the longest acceptable time to restore service                   |
-| `[Log Retention]`             | How long application, infrastructure, GitHub and identity provider logs are kept          |
-| `[Backup Retention]`          | How long database backups, snapshots and backup copies are kept                           |
-| `[Training Provider]`         | The provider or platform used for security awareness training                             |
-| `[Background Check Provider]` | The company that performs pre-hire background checks                                      |
-| `[Customer Deletion Period]`  | How long after an account closes the company's data is deleted from production            |
+| Placeholder                   | What to fill in                                                                       |
+| ----------------------------- | ------------------------------------------------------------------------------------- |
+| `[Company]`                   | The legal name of the company that operates the platform                              |
+| `[Security Officer]`          | Name and title of the GLBA Qualified Individual who owns these policies               |
+| `[Engineering Lead]`          | Name and title of the person responsible for engineering and production operations    |
+| `[Deploy Approver]`           | Name and title of the person who approves production deploys (not the one who merged) |
+| `[Privacy Contact]`           | Name or role, and contact address, for privacy requests                               |
+| `[Effective Date]`            | The date the policies take effect (also the date of version 1.0)                      |
+| `[Review Date]`               | The date of the next scheduled review, no more than one year after the effective date |
+| `[Approver]`                  | Name and title of the executive (or board) who approves the policies                  |
+| `[Security Email]`            | The monitored email address for reporting security issues and incidents               |
+| `[Incident Phone]`            | The phone number staff call for urgent incidents, staffed outside business hours      |
+| `[Legal Counsel]`             | The internal or outside counsel who advises on contracts and breach notification      |
+| `[Insurance Carrier]`         | The cyber insurance carrier and policy number, and its claims contact                 |
+| `[Training Provider]`         | The provider or platform used for security awareness training                         |
+| `[Background Check Provider]` | The company that performs pre-hire background checks                                  |
+| `[Customer Deletion Period]`  | How long after an account closes the company's data is deleted from production        |
 
 ## Related documents
 

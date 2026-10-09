@@ -141,7 +141,7 @@ In `terraform.tfvars`, set:
 - `dns_zone_name = "staging.example.com"` (leave `route53_zone_id` out);
 - `domain_name`, `mail_domain` and `mail_from`;
 - `alarm_emails`;
-- for now, `api_image` and `web_image` set to `"pending"`.
+- for now, `api_image`, `web_image` and `clamd_image` set to `"pending"`.
 
 The steps, in order:
 
@@ -152,7 +152,7 @@ The steps, in order:
    ```
 2. **Delegate the subdomain from production's zone** (once the domain is registered). Run this
    in `envs/production` with `AWS_PROFILE=acct-production`, after its `init` and
-   `terraform.tfvars` (as in step 6, with `api_image` and `web_image` still `"pending"`):
+   `terraform.tfvars` (as in step 6, with the three images still `"pending"`):
    ```bash
    # in production's terraform.tfvars:
    #   route53_zone_id    = "<the domain's hosted zone id>"
@@ -166,7 +166,8 @@ The steps, in order:
    cd ../../../..
    AWS_PROFILE=acct-staging infra/bootstrap/push-images.sh <staging account id>
    ```
-   Put the two printed image URIs in `terraform.tfvars` as `api_image` and `web_image`.
+   Put the three printed image URIs in `terraform.tfvars` as `api_image`, `web_image` and
+   `clamd_image`.
 4. **Everything else:**
    ```bash
    cd infra/terraform/envs/staging
@@ -201,14 +202,14 @@ The image repositories, then the same images staging runs, copied by digest:
 terraform apply -target=module.platform.aws_ecr_repository.app
 aws ecr get-login-password --profile acct-staging | docker login -u AWS --password-stdin <staging id>.dkr.ecr.us-east-1.amazonaws.com
 aws ecr get-login-password --profile acct-production | docker login -u AWS --password-stdin <production id>.dkr.ecr.us-east-1.amazonaws.com
-for repo in api web; do
+for repo in api web clamd; do
   docker buildx imagetools create \
     --tag <production id>.dkr.ecr.us-east-1.amazonaws.com/acct/$repo:<tag> \
     <staging id>.dkr.ecr.us-east-1.amazonaws.com/acct/$repo:<tag>
 done
 ```
 
-Set `api_image` and `web_image` to the production URIs, run `terraform apply`, then request
+Set `api_image`, `web_image` and `clamd_image` to the production URIs, run `terraform apply`, then request
 SES production access in this account too.
 
 ## 7. GitHub
@@ -220,7 +221,9 @@ These are settings in the GitHub repository; nothing to run.
      `AWS_ACCOUNT_ID` and `APP_URL` (`https://books.staging.example.com` or
      `https://books.example.com`).
    - Production also gets `STAGING_ACCOUNT_ID`.
-   - On `production`: required reviewers, and deployment branches limited to `main`.
+   - On `production`: required reviewers set to the deploy approver (and the backup the
+     engineering lead names), **Prevent self-review** ticked so whoever merged can't approve,
+     and deployment branches limited to `main` (change management policy, section 3).
 2. **Branch protection on `main`** (Settings > Branches): pull requests with one review, the
    `ci`, `images`, `terraform` and Security checks required, no force pushes.
 3. **Turn deploys on:** Settings > Secrets and variables > Actions > Variables >

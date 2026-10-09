@@ -74,8 +74,8 @@ Product rules that implement these:
 | Bank numbers in direct deposit requests      | Until the request is decided            | Database trigger (0033)  |
 | Sessions, portal links, unused invitations   | 30 days after they end                  | Daily cleanup job (0033) |
 | Company data exports                         | 7 days                                  | Daily expiry job (0034)  |
-| Application logs and traces                  | [Log Retention]                         | Log store lifecycle rule |
-| Database backups and snapshots               | [Backup Retention]                      | Backup lifecycle rule    |
+| Application logs and traces                  | 1 year                                  | Log store lifecycle rule |
+| Database backups and snapshots               | 35 days; monthly snapshots 7 years      | Backup lifecycle rule    |
 | Incident records, risk register, reviews     | At least 7 years                        | Annual manual review     |
 | Staff records (checks, training, agreements) | As advised by [Legal Counsel]           | Annual manual review     |
 
@@ -99,7 +99,8 @@ Notes:
 
 1. When a customer closes their account, [Company] must delete the company's data from production
    within [Customer Deletion Period], unless a legal hold or law requires otherwise. Backups that
-   contain it age out under [Backup Retention].
+   contain it age out on their own schedule: up to 7 years for monthly snapshots, which can't be
+   edited and are only read for a restore.
 2. The app role cannot delete a company (ADR 0003). Deleting a company is an operator procedure,
    approved by the [Security Officer], recorded, and confirmed to the customer in writing.
 3. Customer information that is no longer needed must be disposed of no later than two years

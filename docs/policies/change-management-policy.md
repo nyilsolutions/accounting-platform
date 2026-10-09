@@ -61,10 +61,14 @@ A pull request must not be merged unless these checks pass. They run in GitHub A
 1. Authors must not approve their own pull requests.
 2. Production deploys must be performed by the CI/CD pipeline from the main branch, not from a
    developer's machine.
-3. People who can change branch protection or CI settings must be limited to repository
+3. Each production deploy must be approved in the GitHub `production` environment by the
+   [Deploy Approver], or by a backup the [Engineering Lead] names in writing. The approver must
+   not be the person who merged the change; the environment's "Prevent self-review" setting
+   enforces this.
+4. People who can change branch protection or CI settings must be limited to repository
    administrators named by the [Engineering Lead], and every such change must be reviewed in the
    quarterly access review.
-4. In a team too small for full separation, the [Security Officer] must review merged changes
+5. In a team too small for full separation, the [Security Officer] must review merged changes
    after the fact each week and record that review.
 
 ### 4. Database migrations
@@ -116,6 +120,7 @@ A pull request must not be merged unless these checks pass. They run in GitHub A
 | Authors            | Write the change, its tests and its description; respond to review       |
 | Reviewers          | Check correctness, security and tests; approve only what they understand |
 | [Engineering Lead] | Owns the pipeline and branch protection; approves emergency changes      |
+| [Deploy Approver]  | Approves each production deploy of changes they did not merge            |
 | [Security Officer] | Approves changes to security checks; reviews after the fact where needed |
 
 ## Exceptions

@@ -8,8 +8,9 @@ mail_domain   = "mail.staging.example.com"
 mail_from     = "Books (staging) <no-reply@mail.staging.example.com>"
 alarm_emails          = ["ops@example.com"]
 # The first deploy's images (built and pushed by the deploy workflow, or by hand).
-api_image = "111111111111.dkr.ecr.us-east-1.amazonaws.com/acct/api:<git sha>"
-web_image = "111111111111.dkr.ecr.us-east-1.amazonaws.com/acct/web:<git sha>"
+api_image   = "111111111111.dkr.ecr.us-east-1.amazonaws.com/acct/api:<git sha>"
+web_image   = "111111111111.dkr.ecr.us-east-1.amazonaws.com/acct/web:<git sha>"
+clamd_image = "111111111111.dkr.ecr.us-east-1.amazonaws.com/acct/clamd:<git sha>"
 # Providers stay off ('none') unless turned on here, with their credentials as secrets.
 app_settings = {
   # BANK_FEED_PROVIDER = "plaid"

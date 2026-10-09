@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Deploys one image pair to one environment (ADR 0030), run by .github/workflows/deploy.yml
+# Deploys one commit's images to one environment (ADR 0030), run by .github/workflows/deploy.yml
 # with that environment's AWS role:
 #   1. registers new revisions of the release, api, worker and web task definitions with the
 #      new images (everything else stays as Terraform made it);
@@ -8,7 +8,7 @@
 #      a service back by itself if its new tasks don't become healthy);
 #   4. checks the site answers.
 #
-#   ecs-deploy.sh <environment> <api image> <web image> [<app url>]
+#   ecs-deploy.sh <environment> <api image> <web image> <clamd image> [<app url>]
 #
 # Migrations run before the new code and must work with the code already running (expand,
 # then contract in a later release: docs/runbooks/deploy.md).
@@ -17,7 +17,8 @@ set -euo pipefail
 env_name=${1:?environment}
 api_image=${2:?api image}
 web_image=${3:?web image}
-app_url=${4:-}
+clamd_image=${4:?clamd image}
+app_url=${5:-}
 prefix="${APP_PREFIX:-acct}-${env_name}"
 cluster="$prefix"
 
@@ -50,7 +51,7 @@ trap 'rm -rf "$work"' EXIT
 
 log "registering task definitions for $env_name"
 release_td=$(register "$prefix-release" release "$api_image")
-api_td=$(register "$prefix-api" api "$api_image")
+api_td=$(register "$prefix-api" api "$api_image" clamd "$clamd_image")
 worker_td=$(register "$prefix-worker" worker "$api_image")
 web_td=$(register "$prefix-web" web "$web_image")
 
@@ -113,4 +114,4 @@ if [ -n "$app_url" ]; then
     [ "$ok" = yes ] || { log "$app_url$path is not answering"; exit 1; }
   done
 fi
-log "deployed $api_image and $web_image to $env_name"
+log "deployed $api_image, $web_image and $clamd_image to $env_name"

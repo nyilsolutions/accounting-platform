@@ -24,20 +24,31 @@ on failed backups.
 
 ### 1. Images
 
-One `Dockerfile`, two targets, built once per commit and promoted unchanged:
+One `Dockerfile`, three targets, built once per commit and promoted unchanged:
 
 - **`api`**: the API (`dist/main.js`), the worker (`dist/worker.js`) and the release step
   (`dist/release.js`) from the same code.
 - **`web`**: the Next.js standalone server. The web app's `/api` rewrite is fixed at build
   time, so the image is built for the API's address in the cluster
   (`http://api.acct.internal:4000`).
+- **`clamd`** (question 104): ClamAV's daemon and freshclam from Debian 13's packages, so
+  nothing in a task comes from a third-party image or Docker Hub. The image carries the
+  signatures from its build; each task copies them into its volume and freshclam fetches what
+  changed since, so a new task is ready at once without a full download, which ClamAV's
+  mirrors limit. The build date is a build argument, so the signature layer is refreshed at
+  most once a day.
 
-Both run as the unprivileged `node` user over root-owned files, with a read-only root
-filesystem and no Linux capabilities on ECS. The Node base image is pinned by digest
-(Dependabot updates it). The API image trusts the Amazon RDS certificate authorities so
-`sslmode=verify-full` works. CI builds both images, starts them against Postgres (release
-step, API, worker, web) and scans them with Grype (high and critical vulnerabilities that have
-a fix fail the build). ECR scans them again continuously with Amazon Inspector.
+`api` and `web` run as the unprivileged `node` user over root-owned files, and `clamd` as
+`clamav` (999). All three have a read-only root filesystem and no Linux capabilities on ECS.
+The paths they write to are declared as `VOLUME`s after being given to their user, because ECS
+creates a task's volumes with the ownership the image declares there (root otherwise). The
+Node and Debian base images are pinned by digest (Dependabot updates them). The API image
+trusts the Amazon RDS certificate authorities so `sslmode=verify-full` works.
+
+CI builds the three images and starts them: the release step, API, worker and web against
+Postgres, and clamd as on ECS, checked with the antivirus test file and a 30 MB file through
+the API's own scanner client. It scans them with Grype (high and critical vulnerabilities
+that have a fix fail the build). ECR scans them again continuously with Amazon Inspector.
 
 ### 2. Infrastructure as code
 
@@ -63,8 +74,8 @@ region. A third account holds a locked backup vault (`envs/backup`).
   app connects as `acct_app`, which the release step creates (CLAUDE.md rule 3).
 - **Services** (ECS Fargate):
   - `web` sits behind the load balancer;
-  - `api` runs with clamd as a sidecar (`CLAMD_HOST=127.0.0.1`) and `JOB_WORKER=off`, and
-    scales on CPU;
+  - `api` runs with clamd as a sidecar (`CLAMD_HOST=127.0.0.1`, the `clamd` image) and
+    `JOB_WORKER=off`, and scales on CPU;
   - `worker` runs jobs and schedules. It has no clamd, because files are scanned only when
     they are uploaded, which the API handles;
   - `release` is a one-off task.
@@ -206,8 +217,8 @@ description names its runbook in `docs/runbooks/`.
 - **Events:** tasks that crash or fail to start, and GuardDuty findings of medium severity or
   higher.
 
-Logs are kept in CloudWatch for `log_retention_days` (365 by default; the logging policy's
-[Log Retention] decides it). Traces stay off until a collector is chosen (question 84).
+Logs are kept in CloudWatch for 1 year (`log_retention_days`, the logging policy). Traces stay
+off until a collector is chosen (question 84).
 
 ## Consequences
 

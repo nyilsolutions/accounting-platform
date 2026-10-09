@@ -1,8 +1,8 @@
 name: Deploy
 
-# ADR 0030. After CI passes on main: build the images once, push them to staging's ECR, deploy
-# staging, then wait for a reviewer to approve the production environment, copy the same images
-# (by digest) to production's ECR and deploy production.
+# ADR 0030. After CI passes on main: build the images (api, web, clamd) once, push them to
+# staging's ECR, deploy staging, then wait for a reviewer to approve the production environment,
+# copy the same images (by digest) to production's ECR and deploy production.
 #
 # Run by hand to redeploy or roll back: give the git SHA of an earlier build as image_tag
 # (docs/runbooks/rollback.md). Images are tagged with the commit they were built from.
@@ -98,11 +98,28 @@ jobs:
           build-args: API_URL=http://api.acct.internal:4000
           tags: ${{ steps.ecr.outputs.registry }}/acct/web:${{ steps.tag.outputs.tag }}
           cache-from: type=gha,scope=images
+      - name: Date the virus signatures
+        if: ${{ !inputs.image_tag }}
+        id: signatures
+        run: echo "date=$(date -u +%F)" >> "$GITHUB_OUTPUT"
+      - name: Build and push the clamd image
+        if: ${{ !inputs.image_tag }}
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          target: clamd
+          push: true
+          provenance: mode=max
+          sbom: true
+          # The signatures in the image are refreshed once a day (the Dockerfile explains).
+          build-args: SIGNATURES_DATE=${{ steps.signatures.outputs.date }}
+          tags: ${{ steps.ecr.outputs.registry }}/acct/clamd:${{ steps.tag.outputs.tag }}
+          cache-from: type=gha,scope=clamd
       - name: Check the images exist
         env:
           TAG: ${{ steps.tag.outputs.tag }}
         run: |
-          for repo in acct/api acct/web; do
+          for repo in acct/api acct/web acct/clamd; do
             aws ecr describe-images --repository-name "$repo" --image-ids imageTag="$TAG" \
               --query 'imageDetails[0].imageDigest' --output text
           done
@@ -128,7 +145,9 @@ jobs:
           REGISTRY: ${{ vars.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com
           TAG: ${{ needs.build.outputs.tag }}
           APP_URL: ${{ vars.APP_URL }}
-        run: infra/deploy/ecs-deploy.sh staging "$REGISTRY/acct/api:$TAG" "$REGISTRY/acct/web:$TAG" "$APP_URL"
+        run: >-
+          infra/deploy/ecs-deploy.sh staging "$REGISTRY/acct/api:$TAG" "$REGISTRY/acct/web:$TAG"
+          "$REGISTRY/acct/clamd:$TAG" "$APP_URL"
 
   production:
     needs: [build, staging]
@@ -156,7 +175,7 @@ jobs:
           TO: ${{ vars.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com
           TAG: ${{ needs.build.outputs.tag }}
         run: |
-          for repo in acct/api acct/web; do
+          for repo in acct/api acct/web acct/clamd; do
             if aws ecr describe-images --repository-name "$repo" --image-ids imageTag="$TAG" >/dev/null 2>&1; then
               echo "$repo:$TAG is already in production"
             else
@@ -168,4 +187,6 @@ jobs:
           REGISTRY: ${{ vars.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com
           TAG: ${{ needs.build.outputs.tag }}
           APP_URL: ${{ vars.APP_URL }}
-        run: infra/deploy/ecs-deploy.sh production "$REGISTRY/acct/api:$TAG" "$REGISTRY/acct/web:$TAG" "$APP_URL"
+        run: >-
+          infra/deploy/ecs-deploy.sh production "$REGISTRY/acct/api:$TAG" "$REGISTRY/acct/web:$TAG"
+          "$REGISTRY/acct/clamd:$TAG" "$APP_URL"
