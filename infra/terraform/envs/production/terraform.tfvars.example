@@ -2,10 +2,13 @@
 account_id         = "222222222222"
 staging_account_id = "111111111111"
 domain_name        = "books.example.com"
+# The zone Route 53 created when the domain was registered in this account.
 route53_zone_id    = "Z0000000000000000000"
 mail_domain        = "mail.example.com"
 mail_from          = "Books <no-reply@mail.example.com>"
 alarm_emails       = ["ops@example.com"]
+# After staging's apply: its dns_name_servers output.
+# staging_delegation = { name = "staging.example.com", name_servers = ["ns-1.awsdns-01.org", "..."] }
 # backup_account_vault_arn = "arn:aws:backup:us-east-1:333333333333:backup-vault:acct-backups"
 api_image = "222222222222.dkr.ecr.us-east-1.amazonaws.com/acct/api:<git sha>"
 web_image = "222222222222.dkr.ecr.us-east-1.amazonaws.com/acct/web:<git sha>"

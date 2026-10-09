@@ -58,8 +58,27 @@ variable "mail_from" {
 }
 
 variable "route53_zone_id" {
-  type    = string
-  default = null
+  description = "An existing hosted zone for the staging names. Leave null and set dns_zone_name to create one."
+  type        = string
+  default     = null
+}
+
+variable "dns_zone_name" {
+  description = "A subdomain for staging (e.g. staging.example.com) to host in this account; production delegates it (staging_delegation there)."
+  type        = string
+  default     = null
+}
+
+# Staging's own zone: production's zone delegates the subdomain to these name servers.
+resource "aws_route53_zone" "staging" {
+  count   = var.dns_zone_name == null ? 0 : 1
+  name    = var.dns_zone_name
+  comment = "acct staging (delegated from production)"
+}
+
+output "dns_name_servers" {
+  description = "Name servers for staging_delegation in envs/production."
+  value       = var.dns_zone_name == null ? null : aws_route53_zone.staging[0].name_servers
 }
 
 variable "alarm_emails" {
@@ -105,7 +124,7 @@ module "platform" {
 
   environment           = "staging"
   domain_name           = var.domain_name
-  route53_zone_id       = var.route53_zone_id
+  route53_zone_id       = var.dns_zone_name == null ? var.route53_zone_id : aws_route53_zone.staging[0].zone_id
   mail_domain           = var.mail_domain
   mail_from             = var.mail_from
   alarm_emails          = var.alarm_emails

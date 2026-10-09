@@ -571,13 +571,21 @@ Add new questions here instead of guessing.
       copies into) need one AWS Organization with cross-account backup turned on. Does an
       organization exist, and who administers it? Should staging copy into the backup account
       too?
+      _Answered 2026-10-08: nothing exists yet. `envs/organization` creates the organization, the
+      three accounts, guardrails and Identity Center access (`docs/launch-walkthrough.md`).
+      Whether staging also copies into the backup account is still open._
 102.  **Domains:** which names for the app and for sending mail (for example
       `books.example.com` and `mail.example.com`), and is the zone in Route 53 (Terraform then
       creates the certificate, DKIM, SPF and DMARC records itself)? DMARC starts at
       `p=quarantine`; is `p=reject` wanted once reports look clean?
+      _Partly answered 2026-10-08: no domain yet. It will be registered in the production account
+      (Route 53 creates the zone), with staging on a subdomain delegated to the staging
+      account. The name, and DMARC `p=reject` later, are still open._
 103.  **Who gets paged:** alarms email the addresses in `alarm_emails`. Should they also page
       someone (PagerDuty, Opsgenie or SMS through SNS), and who is on call outside business
       hours, around payroll and tax deadlines?
+      _Answered 2026-10-08: email only for now (`alarm_emails`). A pager and an on-call rota
+      are still to decide before customers depend on payroll deadlines._
 104.  **The clamd image:** the API's sidecar uses `clamav/clamav:1.4` from Docker Hub. Pulls
       from Docker Hub are rate-limited and a third-party image runs beside the API. Should it be
       mirrored into ECR with a pull-through cache (needs a Docker Hub account), or built from

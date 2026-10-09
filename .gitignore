@@ -26,3 +26,4 @@ agent-publish/
 *.tfstate.*
 terraform.tfvars
 backend.hcl
+infra/terraform/state-bootstrap/
