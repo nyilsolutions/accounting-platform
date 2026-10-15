@@ -55,7 +55,7 @@
   },
   "devDependencies": {
     "@aws-crypto/sha256-js": "^5.2.0",
-    "@nestjs/cli": "^11.0.24",
+    "@nestjs/cli": "^12.0.8",
     "@nestjs/testing": "^11.2.6",
     "@smithy/signature-v4": "^5.7.4",
     "@swc/core": "^1.16.2",
